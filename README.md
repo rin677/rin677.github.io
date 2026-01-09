@@ -1,2 +1,3 @@
 # rin677.github.io
-idk just made this for reading statistics
+vibe coded this...
+made it purely for reading statistics.
