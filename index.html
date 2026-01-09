@@ -597,12 +597,18 @@ Book title 2"></textarea>
   <div class="modal" id="menuModal">
     <div class="modal-content" style="width: 300px;">
       <h2>Menu</h2>
+      <button class="btn" onclick="copySyncToken()" style="width: 100%; margin-bottom: 8px;">🔗 Copy sync token</button>
+      <button class="btn" onclick="applySyncToken()" style="width: 100%; margin-bottom: 8px;">🔁 Apply sync token</button>
+      <button class="btn" onclick="showSyncQR()" style="width: 100%; margin-bottom: 8px;">📷 Show sync QR</button>
       <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
       <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
       <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: #da3633; border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data</button>
       <button class="btn" onclick="closeMenu()" style="width: 100%;">Close</button>
 
-  <script>
+      </div>
+      </div>
+
+      <script>
     // Storage key
     const STORAGE_KEY = 'reading_heatmap_data';
     
@@ -647,6 +653,13 @@ Book title 2"></textarea>
       } catch (error) {
         // Fallback to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+
+      // Broadcast a tiny sync signal so other tabs can react (storage event)
+      try {
+        localStorage.setItem('reading_heatmap_sync_signal', Date.now().toString());
+      } catch (e) {
+        // ignore
       }
     }
 
@@ -1053,6 +1066,71 @@ Book title 2"></textarea>
             alert('All data has been wiped.');
           });
         }
+      }
+    }
+
+    // Global Escape handling: close overlays, hide tooltip, blur active element
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        try { hideTooltip(); } catch (err) {}
+        try { closeModal(); } catch (err) {}
+        try { closeMenu(); } catch (err) {}
+
+        try {
+          const active = document.activeElement;
+          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'BUTTON' || active.isContentEditable)) {
+            active.blur();
+          }
+        } catch (err) {}
+      }
+    });
+
+    // Cross-tab storage listener: reload data when storage changes elsewhere
+    window.addEventListener('storage', (e) => {
+      if (!e) return;
+      if (e.key === STORAGE_KEY || e.key === 'reading_heatmap_sync_signal') {
+        // Reload from storage to pick up changes
+        loadFromStorage();
+      }
+    });
+
+    // Copy a compact sync token (base64 encoded JSON) to clipboard for cross-device sync
+    function copySyncToken() {
+      try {
+        const json = JSON.stringify(data);
+        const token = btoa(unescape(encodeURIComponent(json)));
+        navigator.clipboard.writeText(token).then(() => {
+          alert('Sync token copied to clipboard. Paste it on another device using "Apply sync token".');
+        }).catch(() => {
+          prompt('Copy this sync token:', token);
+        });
+      } catch (err) {
+        alert('Failed to create sync token: ' + err.message);
+      }
+    }
+
+    // Apply a pasted sync token (replace or merge)
+    function applySyncToken() {
+      const token = prompt('Paste sync token:');
+      if (!token) return;
+      try {
+        const decoded = decodeURIComponent(escape(atob(token)));
+        const imported = JSON.parse(decoded);
+        if (!Array.isArray(imported)) throw new Error('Invalid format');
+
+        if (confirm('Replace existing data with synced data? Click Cancel to merge.')) {
+          data = imported;
+        } else {
+          data = data.concat(imported);
+        }
+
+        saveToStorage().then(() => {
+          aggregateData();
+          loadYear();
+          alert('Data synced successfully.');
+        });
+      } catch (err) {
+        alert('Invalid sync token: ' + err.message);
       }
     }
   </script>
