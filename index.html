@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Reading Heatmap</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: "Klee One", cursive;
+      background: linear-gradient(135deg, #0d1117 0%, #0f1419 100%);
+      color: #c9d1d9;
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      padding: 8px;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+      font-size: 18px;
+    }
+
+    .icon-btn:hover {
+      background: #21262d;
+      color: #c9d1d9;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      align-items: center;
+    }
+
+    .btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn:hover {
+      background: #30363d;
+      border-color: #8b949e;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    select, input[type="number"] {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+    }
+
+    .heatmap-panel {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .day-labels {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 12px;
+      color: #8b949e;
+      margin-right: 8px;
+      padding-top: 24px;
+    }
+
+    .day-label {
+      height: 18px;
+      line-height: 18px;
+      display: flex;
+      align-items: center;
+    }
+
+    .calendar-wrapper {
+      display: flex;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+      scrollbar-color: #000000 transparent;
+    }
+
+    .calendar-wrapper::-webkit-scrollbar {
+      height: 3px;
+    }
+
+    .calendar-wrapper::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .calendar-wrapper::-webkit-scrollbar-thumb {
+      background: #000000;
+      border-radius: 2px;
+    }
+
+    .calendar-wrapper::-webkit-scrollbar-thumb:hover {
+      background: #1a1a1a;
+    }
+
+    .calendar {
+      display: flex;
+      gap: 5px;
+    }
+
+    .month {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .month-label {
+      font-size: 11px;
+      font-weight: 400;
+      color: #8b949e;
+      margin-bottom: 4px;
+      height: 16px;
+    }
+
+    .weeks {
+      display: flex;
+      gap: 5px;
+    }
+
+    .week {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .week.partial-start {
+      padding-top: calc(var(--offset, 0) * (16px + 6px));
+    }
+
+    .day {
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    .day.empty {
+      background: #161b22;
+      border: 1px solid #30363d;
+    }
+
+    .day.level-1 { background: #0e4429; }
+    .day.level-2 { background: #006d32; }
+    .day.level-3 { background: #26a641; }
+    .day.level-4 { background: #39d353; }
+
+    .day:hover {
+      outline: 0.4px solid rgba(255, 255, 255, 0.6);
+      outline-offset: 1px;
+      transform: scale(1.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .day.today {
+      outline: 2px solid #0f9f72;
+      outline-offset: 1px;
+      opacity: 0.5;
+    }
+
+    .stats-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+    }
+
+    .stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 13px;
+      color: #8b949e;
+    }
+
+    .stat-line {
+      display: flex;
+      gap: 4px;
+    }
+
+    .stat-value {
+      color: #c9d1d9;
+      font-weight: 600;
+    }
+
+    .log-btn {
+      background: #238636;
+      border: none;
+      color: #ffffff;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+    }
+
+    .log-btn:hover {
+      background: #2ea043;
+      box-shadow: 0 6px 16px rgba(46, 160, 67, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .tooltip {
+      position: fixed;
+      background: #1c2128;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      max-width: 250px;
+    }
+
+    .tooltip.show {
+      display: block;
+    }
+
+    .tooltip-date {
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #c9d1d9;
+    }
+
+    .tooltip-value {
+      color: #8b949e;
+      font-size: 11px;
+    }
+
+    .tooltip-titles {
+      color: #8b949e;
+      font-size: 11px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid #30363d;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 24px;
+      width: 460px;
+      max-width: 90vw;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+    }
+
+    .modal h2 {
+      margin-bottom: 16px;
+      font-size: 18px;
+      color: #c9d1d9;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-label {
+      display: block;
+      color: #c9d1d9;
+      font-size: 13px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .form-input {
+      width: 100%;
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #58a6ff;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 12px rgba(88, 166, 255, 0.15);
+    }
+
+    textarea.form-input {
+      min-height: 80px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 12px;
+      font-size: 11px;
+      color: #8b949e;
+    }
+
+    .legend-item {
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+    }
+
+    @media (max-width: 768px) {
+      .stats-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+    }
+
+    .entry-list {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #30363d;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .entry-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background: #161b22;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #c9d1d9;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+    }
+
+    .entry-item:hover {
+      background: #1c2128;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+    }
+
+    .entry-info {
+      flex: 1;
+    }
+
+    .entry-detail {
+      font-size: 12px;
+      color: #8b949e;
+    }
+
+    .delete-btn {
+      background: #da3633;
+      border: none;
+      color: #ffffff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 6px rgba(218, 54, 51, 0.3);
+    }
+
+    .delete-btn:hover {
+      background: #f85149;
+      box-shadow: 0 4px 12px rgba(248, 81, 73, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .metric-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 2px 4px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .metric-toggle:hover {
+      background: rgba(0, 0, 0, 0.4);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .metric-option {
+      padding: 6px 14px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      color: #a0a0a0;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+    }
+
+    .metric-option.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fcfcfc;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>読書</h1>
+      <div class="header-actions">
+        <button class="icon-btn" onclick="toggleMenu()" title="More options">⋮</button>
+      </div>
+      <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
+    </header>
+
+    <div class="controls">
+      <button class="btn" onclick="changeYear(-1)">← Prev</button>
+      <input type="number" id="yearInput" value="2026" min="2000" max="2100" onchange="loadYear()">
+      <button class="btn" onclick="changeYear(1)">Next →</button>
+      
+      <div class="metric-toggle">
+        <button class="metric-option active" id="minutesBtn" onclick="switchMetric('minutes')">Minutes</button>
+        <button class="metric-option" id="charactersBtn" onclick="switchMetric('characters')">Characters</button>
+      </div>
+    </div>
+
+    <div class="heatmap-panel">
+      <div class="calendar-wrapper">
+        <div class="day-labels">
+          <div class="day-label">Mon</div>
+          <div class="day-label"></div>
+          <div class="day-label">Wed</div>
+          <div class="day-label"></div>
+          <div class="day-label">Fri</div>
+          <div class="day-label"></div>
+          <div class="day-label"></div>
+        </div>
+        <div id="calendar" class="calendar"></div>
+      </div>
+      
+      <div class="stats-section">
+        <div class="stats">
+          <div class="stat-line">
+            <span>Longest streak:</span>
+            <span class="stat-value" id="longestStreak">0 days</span>
+          </div>
+          <div class="stat-line">
+            <span>Streak:</span>
+            <span class="stat-value" id="currentStreak">0 days</span>
+          </div>
+          <div class="stat-line">
+            <span>Average:</span>
+            <span class="stat-value" id="avgValue">0</span>
+          </div>
+          <div class="stat-line">
+            <span>Total:</span>
+            <span class="stat-value" id="totalValue">0</span>
+          </div>
+        </div>
+        
+        <button class="log-btn" onclick="openModalForToday()">
+          Log today →
+        </button>
+      </div>
+
+      <div class="legend">
+        <span>Less</span>
+        <div class="legend-item" style="background: #161b22; border: 1px solid #30363d;"></div>
+        <div class="legend-item" style="background: #0e4429;"></div>
+        <div class="legend-item" style="background: #006d32;"></div>
+        <div class="legend-item" style="background: #26a641;"></div>
+        <div class="legend-item" style="background: #39d353;"></div>
+        <span>More</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip">
+    <div class="tooltip-date" id="tooltipDate"></div>
+    <div class="tooltip-value" id="tooltipValue"></div>
+    <div class="tooltip-titles" id="tooltipTitles"></div>
+  </div>
+
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h2>Log reading data</h2>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="text" class="form-input" id="modalDate" readonly>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Minutes</label>
+          <input type="number" class="form-input" id="modalMinutes" min="0" placeholder="60">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Characters</label>
+          <input type="number" class="form-input" id="modalCharacters" min="0" placeholder="10000">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Titles (one per line)</label>
+        <textarea class="form-input" id="modalTitles" placeholder="Book title 1
+Book title 2"></textarea>
+      </div>
+      <div class="entry-list" id="entryList"></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="log-btn" onclick="saveEntry()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="menuModal">
+    <div class="modal-content" style="width: 300px;">
+      <h2>Menu</h2>
+      <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
+      <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
+      <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: #da3633; border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data</button>
+      <button class="btn" onclick="closeMenu()" style="width: 100%;">Close</button>
+
+  <script>
+    // Storage key
+    const STORAGE_KEY = 'reading_heatmap_data';
+    
+    // Data storage
+    let data = [];
+    let dailyData = {};
+
+    // Initialize
+    loadFromStorage();
+
+    async function loadFromStorage() {
+      try {
+        // Try to load from window.storage API first (persistent)
+        const stored = await window.storage.get(STORAGE_KEY);
+        if (stored && stored.value) {
+          data = JSON.parse(stored.value);
+        }
+      } catch (error) {
+        // Fallback to localStorage
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          data = JSON.parse(stored);
+        }
+      }
+      
+      // Normalize data
+      data = data.map(item => ({
+        date: String(item.date),
+        minutes: Number(item.minutes) || 0,
+        characters: Number(item.characters) || 0,
+        title: item.title || null
+      })).filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.date));
+      
+      aggregateData();
+      loadYear();
+    }
+
+    async function saveToStorage() {
+      try {
+        // Try to save to window.storage API first (persistent)
+        await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+      } catch (error) {
+        // Fallback to localStorage
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+    }
+
+    function aggregateData() {
+      dailyData = {};
+      data.forEach(item => {
+        if (!dailyData[item.date]) {
+          dailyData[item.date] = { minutes: 0, characters: 0, titles: [] };
+        }
+        dailyData[item.date].minutes += item.minutes;
+        dailyData[item.date].characters += item.characters;
+        if (item.title && !dailyData[item.date].titles.includes(item.title)) {
+          dailyData[item.date].titles.push(item.title);
+        }
+      });
+    }
+
+    function loadYear() {
+      renderHeatmap();
+      updateStats();
+    }
+
+    function changeYear(delta) {
+      const input = document.getElementById('yearInput');
+      input.value = parseInt(input.value) + delta;
+      loadYear();
+    }
+
+    function switchMetric(metric) {
+      // Update buttons
+      document.getElementById('minutesBtn').classList.toggle('active', metric === 'minutes');
+      document.getElementById('charactersBtn').classList.toggle('active', metric === 'characters');
+      
+      // Store preference and render
+      localStorage.setItem('selectedMetric', metric);
+      renderHeatmap();
+      updateStats();
+    }
+
+    function getSelectedMetric() {
+      const stored = localStorage.getItem('selectedMetric');
+      return stored || 'minutes';
+    }
+
+    function renderHeatmap() {
+      const year = parseInt(document.getElementById('yearInput').value);
+      const metric = getSelectedMetric();
+      const calendar = document.getElementById('calendar');
+      calendar.innerHTML = '';
+
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      // Start from first day of year
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31);
+      
+      // Start from Jan 1
+      let currentDate = new Date(startDate);
+      let currentMonth = -1;
+      let weekDiv = null;
+      let monthDiv = null;
+      
+      while (currentDate <= endDate) {
+        // New week starting on Sunday
+        if (currentDate.getDay() === 0) {
+          weekDiv = document.createElement('div');
+          weekDiv.className = 'week';
+        }
+        
+        // Create week div if it doesn't exist yet (for first partial week)
+        if (!weekDiv) {
+          weekDiv = document.createElement('div');
+          weekDiv.className = 'week';
+        }
+        
+        // Check if we need a new month column
+        const month = currentDate.getMonth();
+        if (month !== currentMonth) {
+          currentMonth = month;
+          monthDiv = document.createElement('div');
+          monthDiv.className = 'month';
+          
+          const label = document.createElement('div');
+          label.className = 'month-label';
+          label.textContent = months[month];
+          monthDiv.appendChild(label);
+          
+          const weeksContainer = document.createElement('div');
+          weeksContainer.className = 'weeks';
+          monthDiv.appendChild(weeksContainer);
+          
+          calendar.appendChild(monthDiv);
+        }
+        
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'day';
+        
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (dateStr === today) {
+          dayDiv.classList.add('today');
+        }
+        
+        const dayData = dailyData[dateStr];
+        
+        if (dayData) {
+          const value = dayData[metric];
+          const level = getLevel(value, metric);
+          dayDiv.className += ` level-${level}`;
+        } else {
+          dayDiv.className += ' empty';
+        }
+        
+        dayDiv.dataset.date = dateStr;
+        dayDiv.addEventListener('mouseenter', showTooltip);
+        dayDiv.addEventListener('mouseleave', hideTooltip);
+        dayDiv.addEventListener('click', () => openModal(dateStr));
+        
+        weekDiv.appendChild(dayDiv);
+        
+        // End of week, add to month
+        if (currentDate.getDay() === 6) {
+          const weeksContainer = monthDiv.querySelector('.weeks');
+          if (weeksContainer) {
+            weeksContainer.appendChild(weekDiv);
+          }
+          weekDiv = null;
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Add any remaining week
+      if (weekDiv && monthDiv) {
+        const weeksContainer = monthDiv.querySelector('.weeks');
+        if (weeksContainer) {
+          weeksContainer.appendChild(weekDiv);
+        }
+      }
+    }
+
+    function getLevel(value, metric) {
+      if (value === 0) return 0;
+      const thresholds = metric === 'minutes' 
+        ? [1, 30, 60, 90] 
+        : [1, 3000, 6000, 10000];
+      
+      for (let i = thresholds.length - 1; i >= 0; i--) {
+        if (value >= thresholds[i]) return i + 1;
+      }
+      return 1;
+    }
+
+    function showTooltip(e) {
+      const tooltip = document.getElementById('tooltip');
+      const dateStr = e.target.dataset.date;
+      const dayData = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
+      const metric = getSelectedMetric();
+      
+      const date = new Date(dateStr + 'T00:00:00');
+      document.getElementById('tooltipDate').textContent = 
+        date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+      
+      const value = dayData[metric];
+      document.getElementById('tooltipValue').textContent = 
+        metric === 'minutes' 
+          ? `${value} minutes reading`
+          : `${value.toLocaleString()} characters`;
+      
+      const titlesDiv = document.getElementById('tooltipTitles');
+      if (dayData.titles.length > 0) {
+        titlesDiv.style.display = 'block';
+        titlesDiv.textContent = dayData.titles.join(', ');
+      } else {
+        titlesDiv.style.display = 'none';
+      }
+      
+      tooltip.className = 'tooltip show';
+      
+      const rect = e.target.getBoundingClientRect();
+      tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+      tooltip.style.top = (rect.top - 10) + 'px';
+      tooltip.style.transform = 'translate(-50%, -100%)';
+    }
+
+    function hideTooltip() {
+      document.getElementById('tooltip').className = 'tooltip';
+    }
+
+    function updateStats() {
+      const year = parseInt(document.getElementById('yearInput').value);
+      const metric = getSelectedMetric();
+      
+      let longestStreak = 0, currentStreak = 0, streak = 0;
+      let total = 0, count = 0;
+      
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31);
+      const today = new Date();
+      
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const dayData = dailyData[dateStr];
+        const value = dayData ? dayData[metric] : 0;
+        
+        total += value;
+        count++;
+        
+        if (value > 0) {
+          streak++;
+          longestStreak = Math.max(longestStreak, streak);
+        } else {
+          streak = 0;
+        }
+      }
+      
+      // Calculate current streak
+      streak = 0;
+      for (let d = new Date(today); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const dayData = dailyData[dateStr];
+        if (dayData && dayData[metric] > 0) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      currentStreak = streak;
+      
+      const avg = count > 0 ? total / count : 0;
+      const suffix = metric === 'minutes' ? ' minutes' : ' characters';
+      
+      document.getElementById('longestStreak').textContent = `${longestStreak} days`;
+      document.getElementById('currentStreak').textContent = `${currentStreak} days`;
+      document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
+      document.getElementById('totalValue').textContent = Math.round(total).toLocaleString() + suffix;
+    }
+
+    function openModal(dateStr) {
+      const modal = document.getElementById('modal');
+      const dayData = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
+      
+      document.getElementById('modalDate').value = dateStr;
+      document.getElementById('modalMinutes').value = dayData.minutes || '';
+      document.getElementById('modalCharacters').value = dayData.characters || '';
+      document.getElementById('modalTitles').value = dayData.titles.join('\n');
+      
+      // Render entry list with delete buttons
+      renderEntryList(dateStr);
+      
+      modal.className = 'modal show';
+    }
+
+    function openModalForToday() {
+      const today = new Date().toISOString().split('T')[0];
+      openModal(today);
+    }
+
+    function closeModal() {
+      document.getElementById('modal').className = 'modal';
+    }
+
+    function renderEntryList(dateStr) {
+      const entryList = document.getElementById('entryList');
+      const dateEntries = data.filter(item => item.date === dateStr);
+      
+      if (dateEntries.length === 0) {
+        entryList.innerHTML = '';
+        return;
+      }
+      
+      entryList.innerHTML = '<div style="color: #8b949e; font-size: 12px; margin-bottom: 8px;">Entries for this date:</div>';
+      
+      dateEntries.forEach((entry, index) => {
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'entry-item';
+        
+        let content = '';
+        if (entry.title) {
+          content = `<strong>${entry.title}</strong>`;
+        } else {
+          content = `<strong>${entry.minutes} min</strong><br><span class="entry-detail">${entry.characters.toLocaleString()} characters</span>`;
+        }
+        
+        entryDiv.innerHTML = `
+          <div class="entry-info">${content}</div>
+          <button class="delete-btn" onclick="deleteEntry('${dateStr}', ${index})">Delete</button>
+        `;
+        
+        entryList.appendChild(entryDiv);
+      });
+    }
+
+    function deleteEntry(dateStr, index) {
+      const dateEntries = data.filter(item => item.date === dateStr);
+      if (dateEntries[index]) {
+        const entryToDelete = dateEntries[index];
+        data = data.filter(item => !(item.date === dateStr && 
+          item.minutes === entryToDelete.minutes && 
+          item.characters === entryToDelete.characters && 
+          item.title === entryToDelete.title));
+        
+        saveToStorage().then(() => {
+          aggregateData();
+          renderEntryList(dateStr);
+          loadYear();
+        });
+      }
+    }
+
+    async function saveEntry() {
+      const dateStr = document.getElementById('modalDate').value;
+      const minutes = parseInt(document.getElementById('modalMinutes').value) || 0;
+      const characters = parseInt(document.getElementById('modalCharacters').value) || 0;
+      const titles = document.getElementById('modalTitles').value
+        .split('\n')
+        .map(t => t.trim())
+        .filter(Boolean);
+      
+      // Remove existing entries for this date
+      data = data.filter(item => item.date !== dateStr);
+      
+      // Add new entries
+      data.push({ date: dateStr, minutes, characters });
+      titles.forEach(title => {
+        data.push({ date: dateStr, minutes: 0, characters: 0, title });
+      });
+      
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      closeModal();
+    }
+
+    function reloadData() {
+      loadFromStorage();
+    }
+
+    function downloadData() {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reading-heatmap-data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function loadData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          
+          // Validate that it's an array
+          if (!Array.isArray(importedData)) {
+            alert('Invalid data format. Expected an array.');
+            return;
+          }
+          
+          // Merge or replace data
+          if (importedData.length > 0 && confirm('Replace existing data with imported data?')) {
+            data = importedData;
+          } else if (importedData.length > 0) {
+            data = data.concat(importedData);
+          }
+          
+          saveToStorage().then(() => {
+            aggregateData();
+            loadYear();
+            alert('Data loaded successfully!');
+          });
+        } catch (error) {
+          alert('Error reading file: ' + error.message);
+        }
+      };
+      
+      reader.readAsText(file);
+      
+      // Reset the input so the same file can be selected again
+      event.target.value = '';
+    }
+
+    function toggleMenu() {
+      document.getElementById('menuModal').className = 'modal show';
+    }
+
+    function closeMenu() {
+      document.getElementById('menuModal').className = 'modal';
+    }
+
+    function wipeAllData() {
+      if (confirm('Are you sure? This will permanently delete all data. This action cannot be undone.')) {
+        if (confirm('Really delete ALL data? Click OK to confirm.')) {
+          data = [];
+          dailyData = {};
+          saveToStorage().then(() => {
+            loadYear();
+            closeMenu();
+            alert('All data has been wiped.');
+          });
+        }
+      }
+    }
+  </script>
+</body>
+</html>
