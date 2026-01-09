@@ -127,7 +127,7 @@
     }
 
     .calendar-wrapper::-webkit-scrollbar {
-      height: 3px;
+      height: 2px;
     }
 
     .calendar-wrapper::-webkit-scrollbar-track {
@@ -599,16 +599,14 @@ Book title 2"></textarea>
       <h2>Menu</h2>
       <button class="btn" onclick="copySyncToken()" style="width: 100%; margin-bottom: 8px;">🔗 Copy sync token</button>
       <button class="btn" onclick="applySyncToken()" style="width: 100%; margin-bottom: 8px;">🔁 Apply sync token</button>
-      <button class="btn" onclick="showSyncQR()" style="width: 100%; margin-bottom: 8px;">📷 Show sync QR</button>
       <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
       <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
       <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: #da3633; border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data</button>
       <button class="btn" onclick="closeMenu()" style="width: 100%;">Close</button>
+    </div>
+  </div>
 
-      </div>
-      </div>
-
-      <script>
+  <script>
     // Storage key
     const STORAGE_KEY = 'reading_heatmap_data';
     
@@ -1083,6 +1081,14 @@ Book title 2"></textarea>
           }
         } catch (err) {}
       }
+    });
+
+    // Click outside modals to close them
+    document.getElementById('modal').addEventListener('click', (e) => {
+      if (e.target.id === 'modal') closeModal();
+    });
+    document.getElementById('menuModal').addEventListener('click', (e) => {
+      if (e.target.id === 'menuModal') closeMenu();
     });
 
     // Cross-tab storage listener: reload data when storage changes elsewhere
