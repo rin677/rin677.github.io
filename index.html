@@ -52,8 +52,8 @@ body.theme-tokyo {
   --bg-secondary: #16161e;
   --bg-tertiary: #24283b;
   --border-color: #414868;
-  --text-primary: #c0caf5;
-  --text-secondary: #9aa5ce;
+  --text-primary: #a9b1d6;
+  --text-secondary: #565f89;
   --accent-color: #7aa2f7;
   --accent-hover: #7dcfff;
   --danger-color: #f7768e;
@@ -85,20 +85,20 @@ body.theme-dracula {
 
 body.theme-everforest {
   --bg-primary: #fdf6e3;
-  --bg-secondary: #f3ead3;
-  --bg-tertiary: #edeada;
+  --bg-secondary: #f4f0d9;
+  --bg-tertiary: #efebd4;
   --border-color: #e0dcc7;
   --text-primary: #5c6a72;
-  --text-secondary: #829181;
-  --accent-color: #93b259;
-  --accent-hover: #a7c080;
-  --danger-color: #e67e80;
-  --danger-hover: #f85552;
-  --level-0: #f3ead3;
-  --level-1: #a7c080;
-  --level-2: #93b259;
-  --level-3: #7fbbb3;
-  --level-4: #d699b6;
+  --text-secondary: #939f91;
+  --accent-color: #8da101;
+  --accent-hover: #a7b901;
+  --danger-color: #f85552;
+  --danger-hover: #e66868;
+  --level-0: #f4f0d9;
+  --level-1: #b9ca4a;
+  --level-2: #8da101;
+  --level-3: #7c9f00;
+  --level-4: #5c7e00;
 }
 
 body.theme-onedark {
@@ -131,10 +131,10 @@ body.theme-nord-light {
   --danger-color: #bf616a;
   --danger-hover: #d08770;
   --level-0: #e5e9f0;
-  --level-1: #88c0d0;
+  --level-1: #5e81ac;
   --level-2: #81a1c1;
-  --level-3: #5e81ac;
-  --level-4: #5272a1;
+  --level-3: #88c0d0;
+  --level-4: #8fbcbb;
 }
 
 body.theme-phoenix {
@@ -802,6 +802,7 @@ body.theme-phoenix {
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
   margin-top: 12px;
+  row-gap: 20px;
 }
 
 @media (max-width: 600px) {
@@ -811,14 +812,18 @@ body.theme-phoenix {
 }
     
     .theme-preview {
-      padding: 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      border: 2px solid transparent;
-      transition: all 0.2s;
-      text-align: center;
-      font-size: 13px;
-    }
+  padding: 24px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  text-align: center;
+  font-size: 13px;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
     
     .theme-preview:hover {
       transform: scale(1.05);
