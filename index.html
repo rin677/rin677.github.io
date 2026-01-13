@@ -6,8 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
   
-  <!-- Load Google Identity Services - MUST be loaded before any JS runs -->
-  <script src="https://accounts.google.com/gsi/client" async defer onload="console.log('Google GSI loaded')"></script>
+
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -808,6 +807,8 @@
     <header>
       <h1>読書</h1>
       <div class="header-actions">
+<button class="google-signin-btn" onclick="promptSignIn()">Sign in with Google</button>
+
         <div id="authSection"></div>
         <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
       </div>
@@ -997,12 +998,6 @@ Book title 2"></textarea>
     const THEME_KEY = 'reading_heatmap_theme';
     const USER_KEY = 'reading_heatmap_user';
     
-    // REPLACE THIS WITH YOUR GOOGLE OAUTH CLIENT ID
-    // Get one at: https://console.cloud.google.com/apis/credentials
-    // IMPORTANT: Add these to "Authorized JavaScript origins":
-    //   - http://localhost:5500 (or whatever port you use)
-    //   - https://yourusername.github.io
-    const GOOGLE_CLIENT_ID = '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com';
     
     let data = [];
     let dailyData = {};
@@ -1020,96 +1015,8 @@ Book title 2"></textarea>
       if (window.location.protocol === 'file:') {
         alert("Warning: Google Sign-In will NOT work if you open this file directly.\nPlease use a local server (e.g., Live Server in VS Code).");
       }
-
-      initGoogleSignIn();
     };
 
-    function initGoogleSignIn() {
-      if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
-        setTimeout(initGoogleSignIn, 200);
-        return;
-      }
-      initAuth();
-    }
-
-function initAuth() {
-  const authSection = document.getElementById('authSection');
-  
-      // 1. Check LocalStorage for existing session
-      try {
-        const stored = localStorage.getItem(USER_KEY);
-        if (stored) {
-          currentUser = JSON.parse(stored);
-          renderUserProfile();
-          return;
-        }
-      } catch (e) { console.error(e); }
-  
-      // 2. Initialize Google Sign-In
-      // We removed the code that blocked the default ID. 
-      // It will now try to initialize with whatever ID you provided.
-      try {
-        if (GOOGLE_CLIENT_ID === '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com') {
-           console.warn('Please update the GOOGLE_CLIENT_ID at the top of the script.');
-        }
-
-    
-        google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: handleCredentialResponse,
-          auto_select: false,
-          cancel_on_tap_outside: false
-        });
-        
-        authSection.innerHTML = '<div id="g_id_signin"></div>';
-        
-        google.accounts.id.renderButton(
-          document.getElementById('g_id_signin'),
-          { theme: 'filled_black', size: 'medium', text: 'signin_with', shape: 'rectangular', width: 200 }
-        );
-    
-    console.log('✅ Google Sign-In button rendered');
-    
-  } catch (error) {
-    console.error('❌ Google Sign-In initialization failed:', error);
-    console.error('   This might be because:');
-    console.error('   - Client ID is invalid');
-    console.error('   - Domain not added to authorized origins');
-    console.error('   - Network/firewall blocking Google APIs');
-    authSection.innerHTML = '<button class="btn" onclick="promptSignIn()" style="padding: 8px 16px;">Sign in (Fallback)</button>';
-  }
-}
-
-function handleCredentialResponse(response) {
-  console.log('📨 Received credential response from Google');
-  try {
-    // Decode the JWT token to get user info
-    const token = response.credential;
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    
-    const payload = JSON.parse(jsonPayload);
-    
-    currentUser = {
-      id: payload.sub,
-      name: payload.name,
-      email: payload.email,
-      avatar: payload.picture
-    };
-    
-    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
-    renderUserProfile();
-    updateLeaderboard();
-    
-    console.log('✅ Successfully signed in:', currentUser.name);
-  } catch (e) {
-    console.error('❌ Failed to process Google Sign-In:', e);
-    alert('Sign-in failed. Please try again.');
-  }
-}
 
 // Fallback prompt-based sign-in if Google OAuth not configured
 function promptSignIn() {
@@ -1131,20 +1038,11 @@ function promptSignIn() {
   alert('Welcome, ' + name + '! You can now use the leaderboard.');
 }
 
-    function signOut() {
-      if (confirm('Sign out of your account?')) {
-        currentUser = null;
-        localStorage.removeItem(USER_KEY);
-        
-        // Sign out from Google if available
-        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-          google.accounts.id.disableAutoSelect();
-        }
-        
-        // Reload to show sign-in button again
-        location.reload();
-      }
+  function signOut() {
+    if (confirm('Sign out of your account?')) {
+      firebaseSignOut(); // calls Firebase sign-out
     }
+  }
     
     function renderUserProfile() {
       const authSection = document.getElementById('authSection');
@@ -1943,5 +1841,117 @@ function promptSignIn() {
     });
     
   </script>
+  <!-- Firebase integration: Auth (Google) + Firestore -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "YOUR_REAL_API_KEY",
+    authDomain: "timetracker-79479.firebaseapp.com",
+    projectId: "timetracker-79479",
+    storageBucket: "timetracker-79479.appspot.com",
+    appId: "1:374798694344:web:77b1e15a27fc03ce76b2fd"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  async function firebaseSignIn() {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    window.currentUser = {
+      id: user.uid,
+      name: user.displayName || 'User',
+      email: user.email || '',
+      avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+    };
+    window.renderUserProfile?.();
+    await loadCloudState(user.uid);
+    window.aggregateData?.();
+    window.loadYear?.();
+    window.renderGoals?.();
+    window.updateLeaderboard?.();
+  }
+
+  async function firebaseSignOut() {
+    await signOut(auth);
+    window.currentUser = null;
+    window.renderUserProfile?.();
+    // Optional: clear local in-memory state
+  }
+
+  async function loadCloudState(uid) {
+    const ref = doc(db, 'users', uid, 'reading', 'heatmap');
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      const cloud = snap.data();
+      window.data = Array.isArray(cloud.data) ? cloud.data : [];
+      window.goals = Array.isArray(cloud.goals) ? cloud.goals : [];
+      window.recentBooks = Array.isArray(cloud.recentBooks) ? cloud.recentBooks : [];
+    } else {
+      window.data = [];
+      window.goals = [];
+      window.recentBooks = [];
+      await setDoc(ref, { data: [], goals: [], recentBooks: [], lastUpdated: new Date().toISOString() });
+    }
+  }
+
+  async function saveCloudState() {
+    if (!window.currentUser) return;
+    const ref = doc(db, 'users', window.currentUser.id, 'reading', 'heatmap');
+    await setDoc(ref, {
+      data: window.data,
+      goals: window.goals,
+      recentBooks: window.recentBooks,
+      lastUpdated: new Date().toISOString()
+    }, { merge: true });
+  }
+
+  // Hook cloud saves after local mutations
+  if (typeof window.saveEntry === 'function') {
+    const originalSaveEntry = window.saveEntry;
+    window.saveEntry = async function() {
+      const p = originalSaveEntry();
+      await p;
+      await saveCloudState();
+    };
+  }
+  if (typeof window.deleteEntry === 'function') {
+    const originalDeleteEntry = window.deleteEntry;
+    window.deleteEntry = async function(dateStr, index) {
+      const p = originalDeleteEntry(dateStr, index);
+      await p;
+      await saveCloudState();
+    };
+  }
+  if (typeof window.saveGoal === 'function') {
+    const originalSaveGoal = window.saveGoal;
+    window.saveGoal = async function() {
+      const p = originalSaveGoal();
+      await p;
+      await saveCloudState();
+    };
+  }
+  if (typeof window.wipeAllData === 'function') {
+    const originalWipeAllData = window.wipeAllData;
+    window.wipeAllData = async function() {
+      const p = originalWipeAllData();
+      await p;
+      await saveCloudState();
+    };
+  }
+
+  // Map UI hooks
+  window.promptSignIn = firebaseSignIn;
+  window.firebaseSignOut = firebaseSignOut;
+</script>
+
+
 </body>
 </html>
