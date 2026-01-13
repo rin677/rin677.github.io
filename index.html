@@ -1016,18 +1016,16 @@ Book title 2"></textarea>
 window.onload = function() {
   loadTheme();
   
-  // Load user first, before initializing UI
-  var storedUser = localStorage.getItem('reading_heatmap_user');
-  if (storedUser) {
-    try {
-      window.currentUser = JSON.parse(storedUser);
-    } catch (e) {
-      console.error('Error loading stored user:', e);
-    }
-  }
+  // Don't load from localStorage on initial load - wait for Firebase auth
+  // Just initialize empty state
+  data = [];
+  dailyData = {};
+  goals = [];
+  recentBooks = [];
   
-  loadFromStorage();
   initializeAuthButton();
+  renderHeatmap();
+  updateStats();
   
   // Warn if not running on server
   if (window.location.protocol === 'file:') {
@@ -1135,69 +1133,34 @@ function signOut() {
     }
 
     async function loadFromStorage() {
-      try {
-        const stored = await window.storage.get(STORAGE_KEY);
-        if (stored && stored.value) {
-          data = JSON.parse(stored.value);
-        }
-      } catch (error) {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          data = JSON.parse(stored);
-        }
-      }
-      
-      try {
-        const storedGoals = await window.storage.get(GOALS_KEY);
-        if (storedGoals && storedGoals.value) {
-          goals = JSON.parse(storedGoals.value);
-        }
-      } catch (error) {
-        const storedGoals = localStorage.getItem(GOALS_KEY);
-        if (storedGoals) {
-          goals = JSON.parse(storedGoals);
-        }
-      }
-      
-      try {
-        const storedBooks = await window.storage.get(BOOKS_KEY);
-        if (storedBooks && storedBooks.value) {
-          recentBooks = JSON.parse(storedBooks.value);
-        }
-      } catch (error) {
-        const storedBooks = localStorage.getItem(BOOKS_KEY);
-        if (storedBooks) {
-          recentBooks = JSON.parse(storedBooks);
-        }
-      }
-      
-      data = data.map(item => ({
-        date: String(item.date),
-        minutes: Number(item.minutes) || 0,
-        characters: Number(item.characters) || 0,
-        title: item.title || null
-      })).filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.date));
-      
-      aggregateData();
-      loadYear();
-      renderGoals();
-    }
+  // Only load from cloud storage when user is signed in
+  // Local storage is only used as a temporary cache
+  if (!currentUser) {
+    data = [];
+    dailyData = {};
+    goals = [];
+    recentBooks = [];
+    aggregateData();
+    loadYear();
+    renderGoals();
+    return;
+  }
+  
+  // Data is loaded from Firebase in firebaseSignIn
+  // This function just refreshes the UI
+  aggregateData();
+  loadYear();
+  renderGoals();
+}
 
     async function saveToStorage() {
-      try {
-        await window.storage.set(STORAGE_KEY, JSON.stringify(data));
-        await window.storage.set(GOALS_KEY, JSON.stringify(goals));
-        await window.storage.set(BOOKS_KEY, JSON.stringify(recentBooks));
-      } catch (error) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
-        localStorage.setItem(BOOKS_KEY, JSON.stringify(recentBooks));
-      }
-
-      try {
-        localStorage.setItem('reading_heatmap_sync_signal', Date.now().toString());
-      } catch (e) {}
-    }
+  // Don't save to localStorage anymore - only cloud
+  // The Firebase hooks will handle cloud saves
+  
+  try {
+    localStorage.setItem('reading_heatmap_sync_signal', Date.now().toString());
+  } catch (e) {}
+}
 
     function aggregateData() {
       dailyData = {};
@@ -1808,58 +1771,55 @@ function signOut() {
     }
     
     async function loadLeaderboard() {
-      const container = document.getElementById('leaderboardList');
-      
-      if (!currentUser) {
-        container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Sign in to view the leaderboard and compete with others!</div>';
-        return;
-      }
-      
-      try {
-        const keys = await window.storage.list('leaderboard:', true);
-        if (!keys || !keys.keys || keys.keys.length === 0) {
-          container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
-          return;
-        }
-        
-        const leaderboardData = [];
-        for (const key of keys.keys) {
-          try {
-            const entry = await window.storage.get(key, true);
-            if (entry && entry.value) {
-              leaderboardData.push(JSON.parse(entry.value));
-            }
-          } catch (e) {
-            console.error('Failed to load leaderboard entry:', e);
-          }
-        }
-        
-        leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
-        
-        container.innerHTML = '';
-        leaderboardData.slice(0, 10).forEach((entry, index) => {
-          const rankDiv = document.createElement('div');
-          rankDiv.className = 'leaderboard-entry';
-          
-          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-          
-          rankDiv.innerHTML = `
-            <div class="leaderboard-rank">${medal}</div>
-            <div class="leaderboard-user">
-              <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" style="width: 32px; height: 32px;">
-              <span>${entry.name}</span>
-            </div>
-            <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
-          `;
-          
-          container.appendChild(rankDiv);
-        });
-        
-      } catch (error) {
-        container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
-        console.error('Leaderboard error:', error);
-      }
+  const container = document.getElementById('leaderboardList');
+  
+  if (!currentUser) {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Sign in to view the leaderboard and compete with others!</div>';
+    return;
+  }
+  
+  try {
+    // Load from Firestore instead of window.storage
+    const { getFirestore, collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js");
+    const db = getFirestore();
+    const snapshot = await getDocs(collection(db, 'leaderboard'));
+    
+    const leaderboardData = [];
+    snapshot.forEach((doc) => {
+      leaderboardData.push(doc.data());
+    });
+    
+    if (leaderboardData.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+      return;
     }
+    
+    leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+    
+    container.innerHTML = '';
+    leaderboardData.slice(0, 10).forEach((entry, index) => {
+      const rankDiv = document.createElement('div');
+      rankDiv.className = 'leaderboard-entry';
+      
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      
+      rankDiv.innerHTML = `
+        <div class="leaderboard-rank">${medal}</div>
+        <div class="leaderboard-user">
+          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" style="width: 32px; height: 32px;">
+          <span>${entry.name}</span>
+        </div>
+        <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
+      `;
+      
+      container.appendChild(rankDiv);
+    });
+    
+  } catch (error) {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
+    console.error('Leaderboard error:', error);
+  }
+}
     
     async function updateLeaderboard() {
       if (!currentUser) return;
@@ -1892,10 +1852,10 @@ function signOut() {
     });
     
   </script>
-  <!-- Firebase integration: Auth (Google) + Firestore -->
+<!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -1910,136 +1870,185 @@ function signOut() {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-async function firebaseSignIn() {
-  try {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-
-    window.currentUser = {
-      id: user.uid,
-      name: user.displayName || 'User',
-      email: user.email || '',
-      avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
-    };
-    
-    localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
-    
-    // Manually update the UI
-    var el = document.getElementById('authSection');
-    if (el && window.currentUser) {
-      el.innerHTML = '<div class="user-profile" onclick="signOut()" title="Click to sign out">' +
-        '<img src="' + window.currentUser.avatar + '" class="user-avatar" alt="' + window.currentUser.name + '" onerror="this.src=\'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E\'">' +
-        '<span class="user-name">' + window.currentUser.name + '</span>' +
-        '</div>';
-    }
-    
-    await loadCloudState(user.uid);
-    
-    if (window.aggregateData) window.aggregateData();
-    if (window.loadYear) window.loadYear();
-    if (window.renderGoals) window.renderGoals();
-    if (window.updateLeaderboard) window.updateLeaderboard();
-    
-    alert('Successfully signed in as ' + window.currentUser.name);
-  } catch (error) {
-    console.error('Sign-in error:', error);
-    alert('Sign-in failed: ' + error.message);
-  }
-}
-
-async function firebaseSignOut() {
-  try {
-    await signOut(auth);
-    window.currentUser = null;
-    localStorage.removeItem('reading_heatmap_user');
-    
-    // Clear the auth section and show sign-in button again
-    var el = document.getElementById('authSection');
-    if (el) {
-      el.innerHTML = '<button class="google-signin-btn" onclick="promptSignIn()">' +
-        '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">' +
-        '<path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>' +
-        '<path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>' +
-        '<path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>' +
-        '<path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>' +
-        '</svg>' +
-        'Sign in with Google' +
-        '</button>';
-    }
-    
-    alert('Successfully signed out');
-  } catch (error) {
-    console.error('Sign-out error:', error);
-    alert('Sign-out failed: ' + error.message);
-  }
-}
-
-  async function loadCloudState(uid) {
-    const ref = doc(db, 'users', uid, 'reading', 'heatmap');
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
-      const cloud = snap.data();
-      window.data = Array.isArray(cloud.data) ? cloud.data : [];
-      window.goals = Array.isArray(cloud.goals) ? cloud.goals : [];
-      window.recentBooks = Array.isArray(cloud.recentBooks) ? cloud.recentBooks : [];
+  // Listen for auth state changes to persist login across reloads
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      window.currentUser = {
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || '',
+        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+      };
+      
+      localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
+      
+      // Update UI
+      renderUserProfile();
+      
+      // Load user's data from cloud
+      await loadCloudState(user.uid);
+      
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
     } else {
+      // User signed out - clear everything
+      window.currentUser = null;
       window.data = [];
+      window.dailyData = {};
       window.goals = [];
       window.recentBooks = [];
-      await setDoc(ref, { data: [], goals: [], recentBooks: [], lastUpdated: new Date().toISOString() });
+      localStorage.removeItem('reading_heatmap_user');
+      
+      initializeAuthButton();
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
+    }
+  });
+
+  async function firebaseSignIn() {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, provider);
+      // Auth state change listener will handle the rest
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      alert('Sign-in failed: ' + error.message);
+    }
+  }
+
+  async function firebaseSignOut() {
+    try {
+      await signOut(auth);
+      // Auth state change listener will handle the rest
+      alert('Successfully signed out');
+    } catch (error) {
+      console.error('Sign-out error:', error);
+      alert('Sign-out failed: ' + error.message);
+    }
+  }
+
+  async function loadCloudState(uid) {
+    try {
+      const ref = doc(db, 'users', uid, 'reading', 'heatmap');
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const cloud = snap.data();
+        window.data = Array.isArray(cloud.data) ? cloud.data : [];
+        window.goals = Array.isArray(cloud.goals) ? cloud.goals : [];
+        window.recentBooks = Array.isArray(cloud.recentBooks) ? cloud.recentBooks : [];
+      } else {
+        // First time user - initialize empty
+        window.data = [];
+        window.goals = [];
+        window.recentBooks = [];
+        await setDoc(ref, { 
+          data: [], 
+          goals: [], 
+          recentBooks: [], 
+          lastUpdated: new Date().toISOString() 
+        });
+      }
+    } catch (error) {
+      console.error('Error loading cloud state:', error);
+      alert('Failed to load your data from cloud. Please try again.');
     }
   }
 
   async function saveCloudState() {
     if (!window.currentUser) return;
-    const ref = doc(db, 'users', window.currentUser.id, 'reading', 'heatmap');
-    await setDoc(ref, {
-      data: window.data,
-      goals: window.goals,
-      recentBooks: window.recentBooks,
+    try {
+      const ref = doc(db, 'users', window.currentUser.id, 'reading', 'heatmap');
+      await setDoc(ref, {
+        data: window.data || [],
+        goals: window.goals || [],
+        recentBooks: window.recentBooks || [],
+        lastUpdated: new Date().toISOString()
+      }, { merge: true });
+      
+      // Also update leaderboard
+      await updateCloudLeaderboard();
+    } catch (error) {
+      console.error('Error saving to cloud:', error);
+    }
+  }
+
+  async function updateCloudLeaderboard() {
+    if (!window.currentUser) return;
+    
+    let totalMinutes = 0;
+    Object.values(window.dailyData || {}).forEach(day => {
+      totalMinutes += day.minutes || 0;
+    });
+    
+    const leaderboardEntry = {
+      userId: window.currentUser.id,
+      name: window.currentUser.name,
+      avatar: window.currentUser.avatar,
+      totalMinutes: totalMinutes,
       lastUpdated: new Date().toISOString()
-    }, { merge: true });
+    };
+    
+    try {
+      const ref = doc(db, 'leaderboard', window.currentUser.id);
+      await setDoc(ref, leaderboardEntry);
+    } catch (error) {
+      console.error('Failed to update leaderboard:', error);
+    }
   }
 
-  // Hook cloud saves after local mutations
-  if (typeof window.saveEntry === 'function') {
-    const originalSaveEntry = window.saveEntry;
-    window.saveEntry = async function() {
-      const p = originalSaveEntry();
-      await p;
-      await saveCloudState();
-    };
-  }
-  if (typeof window.deleteEntry === 'function') {
-    const originalDeleteEntry = window.deleteEntry;
-    window.deleteEntry = async function(dateStr, index) {
-      const p = originalDeleteEntry(dateStr, index);
-      await p;
-      await saveCloudState();
-    };
-  }
-  if (typeof window.saveGoal === 'function') {
-    const originalSaveGoal = window.saveGoal;
-    window.saveGoal = async function() {
-      const p = originalSaveGoal();
-      await p;
-      await saveCloudState();
-    };
-  }
-  if (typeof window.wipeAllData === 'function') {
-    const originalWipeAllData = window.wipeAllData;
-    window.wipeAllData = async function() {
-      const p = originalWipeAllData();
-      await p;
-      await saveCloudState();
-    };
-  }
+  // Override the original saveEntry to include cloud save
+  const originalSaveEntry = window.saveEntry;
+  window.saveEntry = async function() {
+    await originalSaveEntry();
+    await saveCloudState();
+  };
 
-// Map UI hooks - make them globally available
+  // Override deleteEntry
+  const originalDeleteEntry = window.deleteEntry;
+  window.deleteEntry = async function(dateStr, index) {
+    await originalDeleteEntry(dateStr, index);
+    await saveCloudState();
+  };
+
+  // Override saveGoal
+  const originalSaveGoal = window.saveGoal;
+  window.saveGoal = async function() {
+    await originalSaveGoal();
+    await saveCloudState();
+  };
+
+  // Override deleteGoal
+  const originalDeleteGoal = window.deleteGoal;
+  window.deleteGoal = async function(id) {
+    await originalDeleteGoal(id);
+    await saveCloudState();
+  };
+
+  // Override wipeAllData
+  const originalWipeAllData = window.wipeAllData;
+  window.wipeAllData = async function() {
+    if (confirm('Are you sure? This will permanently delete all data. This action cannot be undone.')) {
+      if (confirm('Really delete ALL data? Click OK to confirm.')) {
+        window.data = [];
+        window.dailyData = {};
+        window.goals = [];
+        window.recentBooks = [];
+        await saveCloudState();
+        if (window.loadYear) window.loadYear();
+        if (window.renderGoals) window.renderGoals();
+        alert('All data has been wiped.');
+        document.getElementById('menuModal').className = 'modal';
+      }
+    }
+  };
+
+  // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
+  window.saveCloudState = saveCloudState;
   
   // Override promptSignIn to use Firebase
   window.promptSignIn = firebaseSignIn;
