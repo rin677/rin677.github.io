@@ -798,11 +798,17 @@ body.theme-phoenix {
     }
     
     .theme-selector {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 12px;
-    }
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+  .theme-selector {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
     
     .theme-preview {
       padding: 16px;
@@ -1033,12 +1039,12 @@ Book title 2"></textarea>
   </div>
 
   <div class="modal" id="menuModal">
-    <div class="modal-content" style="width: 360px;">
+  <div class="modal-content" style="width: 600px; max-width: 95vw;">
       <h2>Settings</h2>
       
       <div style="margin-bottom: 20px;">
   <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Theme</h3>
-  <div class="theme-selector" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+  <div class="theme-selector"></div>
     <div class="theme-preview default" onclick="setTheme('default')">
       <div>GitHub Dark</div>
     </div>
