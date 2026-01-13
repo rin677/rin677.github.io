@@ -1820,7 +1820,7 @@ function signOut() {
     console.error('Leaderboard error:', error);
   }
 }
-    
+    </script> 
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
@@ -2022,7 +2022,6 @@ function signOut() {
   // Override promptSignIn to use Firebase
   window.promptSignIn = firebaseSignIn;
 </script>
-
 
 </body>
 </html>
