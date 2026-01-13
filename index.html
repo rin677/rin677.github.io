@@ -5,24 +5,97 @@
   <title>Reading Heatmap</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
-
-<link rel="icon" href='data:image/svg+xml;utf8,
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#0d1117"/>
-  <path d="M16 20h32v24H16z" fill="#26a641"/>
-  <path d="M16 20h32" stroke="#39d353" stroke-width="2"/>
-</svg>'>
-
+  
+  <!-- Load Google Identity Services - MUST be loaded before any JS runs -->
+  <script src="https://accounts.google.com/gsi/client" async defer onload="console.log('Google GSI loaded')"></script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --border-color: #30363d;
+      --text-primary: #c9d1d9;
+      --text-secondary: #8b949e;
+      --accent-color: #238636;
+      --accent-hover: #2ea043;
+      --danger-color: #da3633;
+      --danger-hover: #f85149;
+      --level-0: #161b22;
+      --level-1: #0e4429;
+      --level-2: #006d32;
+      --level-3: #26a641;
+      --level-4: #39d353;
+    }
+    
+    body.theme-nord {
+      --bg-primary: #2e3440;
+      --bg-secondary: #3b4252;
+      --bg-tertiary: #434c5e;
+      --border-color: #4c566a;
+      --text-primary: #eceff4;
+      --text-secondary: #d8dee9;
+      --accent-color: #88c0d0;
+      --accent-hover: #8fbcbb;
+      --danger-color: #bf616a;
+      --danger-hover: #d08770;
+      --level-0: #3b4252;
+      --level-1: #5e81ac;
+      --level-2: #81a1c1;
+      --level-3: #88c0d0;
+      --level-4: #8fbcbb;
+    }
+    
+    body.theme-tokyo {
+      --bg-primary: #1a1b26;
+      --bg-secondary: #24283b;
+      --bg-tertiary: #414868;
+      --border-color: #565f89;
+      --text-primary: #c0caf5;
+      --text-secondary: #9aa5ce;
+      --accent-color: #7aa2f7;
+      --accent-hover: #7dcfff;
+      --danger-color: #f7768e;
+      --danger-hover: #ff9e64;
+      --level-0: #24283b;
+      --level-1: #3d59a1;
+      --level-2: #7aa2f7;
+      --level-3: #7dcfff;
+      --level-4: #2ac3de;
+    }
+    
+    body.theme-dracula {
+      --bg-primary: #282a36;
+      --bg-secondary: #44475a;
+      --bg-tertiary: #6272a4;
+      --border-color: #6272a4;
+      --text-primary: #f8f8f2;
+      --text-secondary: #bd93f9;
+      --accent-color: #50fa7b;
+      --accent-hover: #8be9fd;
+      --danger-color: #ff5555;
+      --danger-hover: #ff6e6e;
+      --level-0: #44475a;
+      --level-1: #6272a4;
+      --level-2: #8be9fd;
+      --level-3: #50fa7b;
+      --level-4: #f1fa8c;
+    }
+    
     body {
       font-family: "Klee One", cursive;
-      background: linear-gradient(135deg, #0d1117 0%, #0f1419 100%);
-      color: #c9d1d9;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       padding: 40px 20px;
       min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    html {
+      overflow-x: hidden;
+      background: var(--bg-primary);
     }
 
     .container {
@@ -46,12 +119,13 @@
     .header-actions {
       display: flex;
       gap: 8px;
+      align-items: center;
     }
 
     .icon-btn {
       background: transparent;
       border: none;
-      color: #8b949e;
+      color: var(--text-secondary);
       padding: 8px;
       cursor: pointer;
       border-radius: 6px;
@@ -60,8 +134,33 @@
     }
 
     .icon-btn:hover {
-      background: #21262d;
-      color: #c9d1d9;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+    
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg-tertiary);
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    
+    .user-profile:hover {
+      background: var(--border-color);
+    }
+    
+    .user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+    }
+    
+    .user-name {
+      font-size: 14px;
+      color: var(--text-primary);
     }
 
     .controls {
@@ -72,9 +171,9 @@
     }
 
     .btn {
-      background: #21262d;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
       padding: 8px 14px;
       border-radius: 6px;
       cursor: pointer;
@@ -84,15 +183,15 @@
     }
 
     .btn:hover {
-      background: #30363d;
-      border-color: #8b949e;
+      background: var(--border-color);
+      border-color: var(--text-secondary);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
 
     select, input[type="number"] {
-      background: #161b22;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 13px;
@@ -101,8 +200,8 @@
     }
 
     .heatmap-panel {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 24px;
       margin-bottom: 20px;
@@ -114,41 +213,34 @@
       flex-direction: column;
       gap: 5px;
       font-size: 12px;
-      color: #8b949e;
+      color: var(--text-secondary);
       margin-right: 8px;
       padding-top: 24px;
     }
 
     .day-label {
-      height: 18px;
-      line-height: 18px;
+      height: 14px;
+      line-height: 14px;
       display: flex;
       align-items: center;
+    }
+    
+    .day-label:nth-child(2),
+    .day-label:nth-child(4),
+    .day-label:nth-child(6),
+    .day-label:nth-child(7) {
+      visibility: hidden;
     }
 
     .calendar-wrapper {
       display: flex;
       overflow-x: auto;
       padding-bottom: 4px;
-      scrollbar-width: thin;
-      scrollbar-color: #000000 transparent;
+      scrollbar-width: none;
     }
 
     .calendar-wrapper::-webkit-scrollbar {
-      height: 2px;
-    }
-
-    .calendar-wrapper::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .calendar-wrapper::-webkit-scrollbar-thumb {
-      background: #000000;
-      border-radius: 2px;
-    }
-
-    .calendar-wrapper::-webkit-scrollbar-thumb:hover {
-      background: #1a1a1a;
+      display: none;
     }
 
     .calendar {
@@ -164,7 +256,7 @@
     .month-label {
       font-size: 11px;
       font-weight: 400;
-      color: #8b949e;
+      color: var(--text-secondary);
       margin-bottom: 4px;
       height: 16px;
     }
@@ -181,39 +273,38 @@
     }
 
     .week.partial-start {
-      padding-top: calc(var(--offset, 0) * (16px + 6px));
+      padding-top: calc(var(--offset, 0) * (14px + 6px));
     }
 
     .day {
-      width: 18px;
-      height: 18px;
-      border-radius: 3px;
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
       cursor: pointer;
       transition: all 0.15s;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     }
 
     .day.empty {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--level-0);
+      border: 1px solid var(--border-color);
     }
 
-    .day.level-1 { background: #0e4429; }
-    .day.level-2 { background: #006d32; }
-    .day.level-3 { background: #26a641; }
-    .day.level-4 { background: #39d353; }
+    .day.level-1 { background: var(--level-1); }
+    .day.level-2 { background: var(--level-2); }
+    .day.level-3 { background: var(--level-3); }
+    .day.level-4 { background: var(--level-4); }
 
     .day:hover {
-      outline: 0.4px solid rgba(255, 255, 255, 0.6);
+      outline: 1.5px solid rgba(255, 255, 255, 0.7);
       outline-offset: 1px;
-      transform: scale(1.15);
+      transform: scale(1.2);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
     }
 
     .day.today {
-      outline: 2px solid #0f9f72;
+      outline: 2px solid var(--accent-color);
       outline-offset: 1px;
-      opacity: 0.5;
     }
 
     .stats-section {
@@ -228,21 +319,21 @@
       flex-direction: column;
       gap: 4px;
       font-size: 13px;
-      color: #8b949e;
+      color: var(--text-secondary);
     }
-
+    
     .stat-line {
       display: flex;
       gap: 4px;
     }
 
     .stat-value {
-      color: #c9d1d9;
+      color: var(--text-primary);
       font-weight: 600;
     }
 
     .log-btn {
-      background: #238636;
+      background: var(--accent-color);
       border: none;
       color: #ffffff;
       padding: 10px 20px;
@@ -258,15 +349,15 @@
     }
 
     .log-btn:hover {
-      background: #2ea043;
+      background: var(--accent-hover);
       box-shadow: 0 6px 16px rgba(46, 160, 67, 0.4);
       transform: translateY(-2px);
     }
 
     .tooltip {
       position: fixed;
-      background: #1c2128;
-      border: 1px solid #30363d;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 10px 12px;
       font-size: 12px;
@@ -284,20 +375,20 @@
     .tooltip-date {
       font-weight: 600;
       margin-bottom: 4px;
-      color: #c9d1d9;
+      color: var(--text-primary);
     }
 
     .tooltip-value {
-      color: #8b949e;
+      color: var(--text-secondary);
       font-size: 11px;
     }
 
     .tooltip-titles {
-      color: #8b949e;
+      color: var(--text-secondary);
       font-size: 11px;
       margin-top: 6px;
       padding-top: 6px;
-      border-top: 1px solid #30363d;
+      border-top: 1px solid var(--border-color);
     }
 
     .modal {
@@ -315,8 +406,8 @@
     }
 
     .modal-content {
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 24px;
       width: 460px;
@@ -327,7 +418,7 @@
     .modal h2 {
       margin-bottom: 16px;
       font-size: 18px;
-      color: #c9d1d9;
+      color: var(--text-primary);
     }
 
     .form-group {
@@ -336,7 +427,7 @@
 
     .form-label {
       display: block;
-      color: #c9d1d9;
+      color: var(--text-primary);
       font-size: 13px;
       margin-bottom: 6px;
       font-weight: 600;
@@ -344,9 +435,9 @@
 
     .form-input {
       width: 100%;
-      background: #161b22;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 13px;
@@ -356,7 +447,7 @@
 
     .form-input:focus {
       outline: none;
-      border-color: #58a6ff;
+      border-color: var(--accent-color);
       box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 12px rgba(88, 166, 255, 0.15);
     }
 
@@ -385,13 +476,13 @@
       gap: 4px;
       margin-top: 12px;
       font-size: 11px;
-      color: #8b949e;
+      color: var(--text-secondary);
     }
 
     .legend-item {
-      width: 18px;
-      height: 18px;
-      border-radius: 3px;
+      width: 14px;
+      height: 14px;
+      border-radius: 2px;
     }
 
     @media (max-width: 768px) {
@@ -405,7 +496,7 @@
     .entry-list {
       margin-top: 16px;
       padding-top: 16px;
-      border-top: 1px solid #30363d;
+      border-top: 1px solid var(--border-color);
       max-height: 300px;
       overflow-y: auto;
     }
@@ -415,17 +506,17 @@
       justify-content: space-between;
       align-items: center;
       padding: 10px;
-      background: #161b22;
+      background: var(--bg-secondary);
       border-radius: 4px;
       margin-bottom: 8px;
       font-size: 13px;
-      color: #c9d1d9;
+      color: var(--text-primary);
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
       transition: all 0.2s;
     }
 
     .entry-item:hover {
-      background: #1c2128;
+      background: var(--bg-tertiary);
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
     }
 
@@ -435,11 +526,11 @@
 
     .entry-detail {
       font-size: 12px;
-      color: #8b949e;
+      color: var(--text-secondary);
     }
 
     .delete-btn {
-      background: #da3633;
+      background: var(--danger-color);
       border: none;
       color: #ffffff;
       padding: 4px 8px;
@@ -452,7 +543,7 @@
     }
 
     .delete-btn:hover {
-      background: #f85149;
+      background: var(--danger-hover);
       box-shadow: 0 4px 12px rgba(248, 81, 73, 0.4);
       transform: translateY(-1px);
     }
@@ -492,6 +583,224 @@
       box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
       transform: scale(1.05);
     }
+    
+    .goals-section {
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+    
+    .goal-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .goal-item:last-child {
+      border-bottom: none;
+    }
+    
+    .goal-progress {
+      width: 100%;
+      height: 6px;
+      background: var(--bg-tertiary);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    
+    .goal-progress-bar {
+      height: 100%;
+      background: var(--accent-color);
+      transition: width 0.3s;
+    }
+    
+    .leaderboard-panel {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    
+    .leaderboard-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    
+    .leaderboard-entry:hover {
+      background: var(--bg-tertiary);
+      transform: translateX(4px);
+    }
+    
+    .leaderboard-rank {
+      font-size: 20px;
+      font-weight: 700;
+      min-width: 40px;
+      color: var(--text-secondary);
+    }
+    
+    .leaderboard-user {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .leaderboard-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent-color);
+    }
+    
+    .quick-log-books {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    
+    .quick-book-btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: 16px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+    
+    .quick-book-btn:hover {
+      background: var(--border-color);
+      transform: translateY(-1px);
+    }
+    
+    .quick-book-btn.active {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+    }
+    
+    .toggle-section-btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      margin-right: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .toggle-section-btn:hover {
+      background: var(--border-color);
+      transform: translateY(-1px);
+    }
+    
+    .toggle-section-btn.active {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+    }
+    
+    .toggle-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+    
+    .theme-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    
+    .theme-preview {
+      padding: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      text-align: center;
+      font-size: 13px;
+    }
+    
+    .theme-preview:hover {
+      transform: scale(1.05);
+    }
+    
+    .theme-preview.active {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 16px rgba(35, 134, 54, 0.3);
+    }
+    
+    .theme-preview.default {
+      background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+      color: #c9d1d9;
+    }
+    
+    .theme-preview.nord {
+      background: linear-gradient(135deg, #2e3440 0%, #3b4252 100%);
+      color: #eceff4;
+    }
+    
+    .theme-preview.tokyo {
+      background: linear-gradient(135deg, #1a1b26 0%, #24283b 100%);
+      color: #c0caf5;
+    }
+    
+    .theme-preview.dracula {
+      background: linear-gradient(135deg, #282a36 0%, #44475a 100%);
+      color: #f8f8f2;
+    }
+
+    .year-display {
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 14px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .google-signin-btn {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      color: #3c4043;
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    .google-signin-btn:hover {
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      background: #f8f9fa;
+    }
   </style>
 </head>
 <body>
@@ -499,14 +808,15 @@
     <header>
       <h1>読書</h1>
       <div class="header-actions">
-        <button class="icon-btn" onclick="toggleMenu()" title="More options">⋮</button>
+        <div id="authSection"></div>
+        <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
       </div>
       <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
     </header>
 
     <div class="controls">
       <button class="btn" onclick="changeYear(-1)">← Prev</button>
-      <input type="number" id="yearInput" value="2026" min="2000" max="2100" onchange="loadYear()">
+      <span class="year-display" id="yearDisplay">2026</span>
       <button class="btn" onclick="changeYear(1)">Next →</button>
       
       <div class="metric-toggle">
@@ -556,13 +866,33 @@
 
       <div class="legend">
         <span>Less</span>
-        <div class="legend-item" style="background: #161b22; border: 1px solid #30363d;"></div>
-        <div class="legend-item" style="background: #0e4429;"></div>
-        <div class="legend-item" style="background: #006d32;"></div>
-        <div class="legend-item" style="background: #26a641;"></div>
-        <div class="legend-item" style="background: #39d353;"></div>
+        <div class="legend-item" style="background: var(--level-0); border: 1px solid var(--border-color);"></div>
+        <div class="legend-item" style="background: var(--level-1);"></div>
+        <div class="legend-item" style="background: var(--level-2);"></div>
+        <div class="legend-item" style="background: var(--level-3);"></div>
+        <div class="legend-item" style="background: var(--level-4);"></div>
         <span>More</span>
       </div>
+    </div>
+    
+    <div class="toggle-buttons">
+      <button class="toggle-section-btn" id="goalsToggle" onclick="toggleGoalsSection()">
+        🎯 Goals
+      </button>
+      <button class="toggle-section-btn" id="leaderboardToggle" onclick="toggleLeaderboardSection()">
+        🏆 Leaderboard
+      </button>
+    </div>
+    
+    <div class="goals-section" id="goalsSection" style="display: none;">
+      <h3 style="margin-bottom: 12px; font-size: 16px;">Goals</h3>
+      <div id="goalsList"></div>
+      <button class="btn" onclick="addGoal()" style="margin-top: 12px; width: 100%;">+ Add Goal</button>
+    </div>
+    
+    <div class="leaderboard-panel" id="leaderboardPanel" style="display: none;">
+      <h2 style="margin-bottom: 16px;">Leaderboard</h2>
+      <div id="leaderboardList"></div>
     </div>
   </div>
 
@@ -575,6 +905,7 @@
   <div class="modal" id="modal">
     <div class="modal-content">
       <h2>Log reading data</h2>
+      <div id="quickLogBooks" class="quick-log-books"></div>
       <div class="form-group">
         <label class="form-label">Date</label>
         <input type="text" class="form-input" id="modalDate" readonly>
@@ -603,44 +934,296 @@ Book title 2"></textarea>
   </div>
 
   <div class="modal" id="menuModal">
-    <div class="modal-content" style="width: 300px;">
-      <h2>Menu</h2>
-      <button class="btn" onclick="copySyncToken()" style="width: 100%; margin-bottom: 8px;">🔗 Copy sync token</button>
-      <button class="btn" onclick="applySyncToken()" style="width: 100%; margin-bottom: 8px;">🔁 Apply sync token</button>
-      <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
-      <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
-      <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: #da3633; border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data</button>
-      <button class="btn" onclick="closeMenu()" style="width: 100%;">Close</button>
+    <div class="modal-content" style="width: 360px;">
+      <h2>Settings</h2>
+      
+      <div style="margin-bottom: 20px;">
+        <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Theme</h3>
+        <div class="theme-selector">
+          <div class="theme-preview default" onclick="setTheme('default')">
+            <div>GitHub Dark</div>
+          </div>
+          <div class="theme-preview nord" onclick="setTheme('nord')">
+            <div>Nord</div>
+          </div>
+          <div class="theme-preview tokyo" onclick="setTheme('tokyo')">
+            <div>Tokyo Night</div>
+          </div>
+          <div class="theme-preview dracula" onclick="setTheme('dracula')">
+            <div>Dracula</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
+        <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
+        <button class="btn" onclick="copySyncToken()" style="width: 100%; margin-bottom: 8px;">🔗 Copy sync token</button>
+        <button class="btn" onclick="applySyncToken()" style="width: 100%; margin-bottom: 8px;">🔁 Apply sync token</button>
+        <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
+        <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
+        <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data</button>
+      </div>
+      
+      <button class="btn" onclick="closeMenu()" style="width: 100%; margin-top: 12px;">Close</button>
+    </div>
+  </div>
+  
+  <div class="modal" id="goalModal">
+    <div class="modal-content">
+      <h2>Set Goal</h2>
+      <div class="form-group">
+        <label class="form-label">Goal Type</label>
+        <select class="form-input" id="goalType">
+          <option value="daily_minutes">Daily Minutes</option>
+          <option value="daily_characters">Daily Characters</option>
+          <option value="weekly_minutes">Weekly Minutes</option>
+          <option value="weekly_characters">Weekly Characters</option>
+          <option value="streak">Streak (days)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target</label>
+        <input type="number" class="form-input" id="goalTarget" min="1" placeholder="60">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeGoalModal()">Cancel</button>
+        <button class="log-btn" onclick="saveGoal()">Save Goal</button>
+      </div>
     </div>
   </div>
 
   <script>
-    // Storage key
     const STORAGE_KEY = 'reading_heatmap_data';
+    const GOALS_KEY = 'reading_heatmap_goals';
+    const BOOKS_KEY = 'reading_heatmap_books';
+    const THEME_KEY = 'reading_heatmap_theme';
+    const USER_KEY = 'reading_heatmap_user';
     
-    // Data storage
+    // REPLACE THIS WITH YOUR GOOGLE OAUTH CLIENT ID
+    // Get one at: https://console.cloud.google.com/apis/credentials
+    // IMPORTANT: Add these to "Authorized JavaScript origins":
+    //   - http://localhost:5500 (or whatever port you use)
+    //   - https://yourusername.github.io
+    const GOOGLE_CLIENT_ID = '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com';
+    
     let data = [];
     let dailyData = {};
+    let goals = [];
+    let recentBooks = [];
+    let currentUser = null;
+    let currentYear = 2026;
+    let googleInitialized = false;
+    
+    window.onload = function() {
+      loadTheme();
+      loadFromStorage();
+      
+      // Warn if not running on server
+      if (window.location.protocol === 'file:') {
+        alert("Warning: Google Sign-In will NOT work if you open this file directly.\nPlease use a local server (e.g., Live Server in VS Code).");
+      }
 
-    // Initialize
-    loadFromStorage();
+      initGoogleSignIn();
+    };
+
+    function initGoogleSignIn() {
+      if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+        setTimeout(initGoogleSignIn, 200);
+        return;
+      }
+      initAuth();
+    }
+
+function initAuth() {
+  const authSection = document.getElementById('authSection');
+  
+      // 1. Check LocalStorage for existing session
+      try {
+        const stored = localStorage.getItem(USER_KEY);
+        if (stored) {
+          currentUser = JSON.parse(stored);
+          renderUserProfile();
+          return;
+        }
+      } catch (e) { console.error(e); }
+  
+      // 2. Initialize Google Sign-In
+      // We removed the code that blocked the default ID. 
+      // It will now try to initialize with whatever ID you provided.
+      try {
+        if (GOOGLE_CLIENT_ID === '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com') {
+           console.warn('Please update the GOOGLE_CLIENT_ID at the top of the script.');
+        }
+
+    
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: false
+        });
+        
+        authSection.innerHTML = '<div id="g_id_signin"></div>';
+        
+        google.accounts.id.renderButton(
+          document.getElementById('g_id_signin'),
+          { theme: 'filled_black', size: 'medium', text: 'signin_with', shape: 'rectangular', width: 200 }
+        );
+    
+    console.log('✅ Google Sign-In button rendered');
+    
+  } catch (error) {
+    console.error('❌ Google Sign-In initialization failed:', error);
+    console.error('   This might be because:');
+    console.error('   - Client ID is invalid');
+    console.error('   - Domain not added to authorized origins');
+    console.error('   - Network/firewall blocking Google APIs');
+    authSection.innerHTML = '<button class="btn" onclick="promptSignIn()" style="padding: 8px 16px;">Sign in (Fallback)</button>';
+  }
+}
+
+function handleCredentialResponse(response) {
+  console.log('📨 Received credential response from Google');
+  try {
+    // Decode the JWT token to get user info
+    const token = response.credential;
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    
+    const payload = JSON.parse(jsonPayload);
+    
+    currentUser = {
+      id: payload.sub,
+      name: payload.name,
+      email: payload.email,
+      avatar: payload.picture
+    };
+    
+    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    renderUserProfile();
+    updateLeaderboard();
+    
+    console.log('✅ Successfully signed in:', currentUser.name);
+  } catch (e) {
+    console.error('❌ Failed to process Google Sign-In:', e);
+    alert('Sign-in failed. Please try again.');
+  }
+}
+
+// Fallback prompt-based sign-in if Google OAuth not configured
+function promptSignIn() {
+  const name = prompt('Enter your name:');
+  if (!name) return;
+  
+  const email = prompt('Enter your email (optional):') || 'user@example.com';
+  
+  currentUser = {
+    id: Date.now().toString(),
+    name: name,
+    email: email,
+    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=128`
+  };
+  
+  localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+  renderUserProfile();
+  updateLeaderboard();
+  alert('Welcome, ' + name + '! You can now use the leaderboard.');
+}
+
+    function signOut() {
+      if (confirm('Sign out of your account?')) {
+        currentUser = null;
+        localStorage.removeItem(USER_KEY);
+        
+        // Sign out from Google if available
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+          google.accounts.id.disableAutoSelect();
+        }
+        
+        // Reload to show sign-in button again
+        location.reload();
+      }
+    }
+    
+    function renderUserProfile() {
+      const authSection = document.getElementById('authSection');
+      if (currentUser) {
+        authSection.innerHTML = `
+          <div class="user-profile" onclick="signOut()" title="Click to sign out">
+            <img src="${currentUser.avatar}" class="user-avatar" alt="${currentUser.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'">
+            <span class="user-name">${currentUser.name}</span>
+          </div>
+        `;
+      }
+    }
+    
+    function exportToToggl() {
+      const togglData = data.map(entry => ({
+        description: entry.title || 'Reading',
+        start: `${entry.date}T00:00:00Z`,
+        duration: entry.minutes * 60,
+        tags: ['reading'],
+        created_with: 'Reading Heatmap'
+      }));
+      
+      const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reading-toggl-export.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      alert('Exported to Toggl format! Import this file to Toggl Track.');
+      closeMenu();
+    }
+
+    function getAustralianDate() {
+      const now = new Date();
+      const australiaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+      return australiaTime.toISOString().split('T')[0];
+    }
 
     async function loadFromStorage() {
       try {
-        // Try to load from window.storage API first (persistent)
         const stored = await window.storage.get(STORAGE_KEY);
         if (stored && stored.value) {
           data = JSON.parse(stored.value);
         }
       } catch (error) {
-        // Fallback to localStorage
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           data = JSON.parse(stored);
         }
       }
       
-      // Normalize data
+      try {
+        const storedGoals = await window.storage.get(GOALS_KEY);
+        if (storedGoals && storedGoals.value) {
+          goals = JSON.parse(storedGoals.value);
+        }
+      } catch (error) {
+        const storedGoals = localStorage.getItem(GOALS_KEY);
+        if (storedGoals) {
+          goals = JSON.parse(storedGoals);
+        }
+      }
+      
+      try {
+        const storedBooks = await window.storage.get(BOOKS_KEY);
+        if (storedBooks && storedBooks.value) {
+          recentBooks = JSON.parse(storedBooks.value);
+        }
+      } catch (error) {
+        const storedBooks = localStorage.getItem(BOOKS_KEY);
+        if (storedBooks) {
+          recentBooks = JSON.parse(storedBooks);
+        }
+      }
+      
       data = data.map(item => ({
         date: String(item.date),
         minutes: Number(item.minutes) || 0,
@@ -650,23 +1233,23 @@ Book title 2"></textarea>
       
       aggregateData();
       loadYear();
+      renderGoals();
     }
 
     async function saveToStorage() {
       try {
-        // Try to save to window.storage API first (persistent)
         await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+        await window.storage.set(GOALS_KEY, JSON.stringify(goals));
+        await window.storage.set(BOOKS_KEY, JSON.stringify(recentBooks));
       } catch (error) {
-        // Fallback to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(recentBooks));
       }
 
-      // Broadcast a tiny sync signal so other tabs can react (storage event)
       try {
         localStorage.setItem('reading_heatmap_sync_signal', Date.now().toString());
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
     }
 
     function aggregateData() {
@@ -684,22 +1267,20 @@ Book title 2"></textarea>
     }
 
     function loadYear() {
+      document.getElementById('yearDisplay').textContent = currentYear;
       renderHeatmap();
       updateStats();
     }
 
     function changeYear(delta) {
-      const input = document.getElementById('yearInput');
-      input.value = parseInt(input.value) + delta;
+      currentYear = currentYear + delta;
       loadYear();
     }
 
     function switchMetric(metric) {
-      // Update buttons
       document.getElementById('minutesBtn').classList.toggle('active', metric === 'minutes');
       document.getElementById('charactersBtn').classList.toggle('active', metric === 'characters');
       
-      // Store preference and render
       localStorage.setItem('selectedMetric', metric);
       renderHeatmap();
       updateStats();
@@ -711,37 +1292,32 @@ Book title 2"></textarea>
     }
 
     function renderHeatmap() {
-      const year = parseInt(document.getElementById('yearInput').value);
+      const year = currentYear;
       const metric = getSelectedMetric();
       const calendar = document.getElementById('calendar');
       calendar.innerHTML = '';
 
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       
-      // Start from first day of year
       const startDate = new Date(year, 0, 1);
       const endDate = new Date(year, 11, 31);
       
-      // Start from Jan 1
       let currentDate = new Date(startDate);
       let currentMonth = -1;
       let weekDiv = null;
       let monthDiv = null;
       
       while (currentDate <= endDate) {
-        // New week starting on Sunday
         if (currentDate.getDay() === 0) {
           weekDiv = document.createElement('div');
           weekDiv.className = 'week';
         }
         
-        // Create week div if it doesn't exist yet (for first partial week)
         if (!weekDiv) {
           weekDiv = document.createElement('div');
           weekDiv.className = 'week';
         }
         
-        // Check if we need a new month column
         const month = currentDate.getMonth();
         if (month !== currentMonth) {
           currentMonth = month;
@@ -764,7 +1340,7 @@ Book title 2"></textarea>
         dayDiv.className = 'day';
         
         const dateStr = currentDate.toISOString().split('T')[0];
-        const today = new Date().toISOString().split('T')[0];
+        const today = getAustralianDate();
         
         if (dateStr === today) {
           dayDiv.classList.add('today');
@@ -787,7 +1363,6 @@ Book title 2"></textarea>
         
         weekDiv.appendChild(dayDiv);
         
-        // End of week, add to month
         if (currentDate.getDay() === 6) {
           const weeksContainer = monthDiv.querySelector('.weeks');
           if (weeksContainer) {
@@ -799,7 +1374,6 @@ Book title 2"></textarea>
         currentDate.setDate(currentDate.getDate() + 1);
       }
       
-      // Add any remaining week
       if (weekDiv && monthDiv) {
         const weeksContainer = monthDiv.querySelector('.weeks');
         if (weeksContainer) {
@@ -857,7 +1431,7 @@ Book title 2"></textarea>
     }
 
     function updateStats() {
-      const year = parseInt(document.getElementById('yearInput').value);
+      const year = currentYear;
       const metric = getSelectedMetric();
       
       let longestStreak = 0, currentStreak = 0, streak = 0;
@@ -883,7 +1457,6 @@ Book title 2"></textarea>
         }
       }
       
-      // Calculate current streak
       streak = 0;
       for (let d = new Date(today); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
         const dateStr = d.toISOString().split('T')[0];
@@ -914,14 +1487,38 @@ Book title 2"></textarea>
       document.getElementById('modalCharacters').value = dayData.characters || '';
       document.getElementById('modalTitles').value = dayData.titles.join('\n');
       
-      // Render entry list with delete buttons
+      renderQuickLogBooks();
       renderEntryList(dateStr);
       
       modal.className = 'modal show';
     }
+    
+    function renderQuickLogBooks() {
+      const container = document.getElementById('quickLogBooks');
+      if (recentBooks.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+      
+      container.innerHTML = '';
+      recentBooks.slice(0, 5).forEach(book => {
+        const btn = document.createElement('button');
+        btn.className = 'quick-book-btn';
+        btn.textContent = book;
+        btn.onclick = () => {
+          const currentTitles = document.getElementById('modalTitles').value;
+          if (!currentTitles.includes(book)) {
+            document.getElementById('modalTitles').value = currentTitles ? currentTitles + '\n' + book : book;
+          }
+          btn.classList.add('active');
+          setTimeout(() => btn.classList.remove('active'), 300);
+        };
+        container.appendChild(btn);
+      });
+    }
 
     function openModalForToday() {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getAustralianDate();
       openModal(today);
     }
 
@@ -938,7 +1535,7 @@ Book title 2"></textarea>
         return;
       }
       
-      entryList.innerHTML = '<div style="color: #8b949e; font-size: 12px; margin-bottom: 8px;">Entries for this date:</div>';
+      entryList.innerHTML = '<div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 8px;">Entries for this date:</div>';
       
       dateEntries.forEach((entry, index) => {
         const entryDiv = document.createElement('div');
@@ -947,6 +1544,9 @@ Book title 2"></textarea>
         let content = '';
         if (entry.title) {
           content = `<strong>${entry.title}</strong>`;
+          if (entry.minutes > 0 || entry.characters > 0) {
+            content += `<br><span class="entry-detail">${entry.minutes} min, ${entry.characters.toLocaleString()} chars</span>`;
+          }
         } else {
           content = `<strong>${entry.minutes} min</strong><br><span class="entry-detail">${entry.characters.toLocaleString()} characters</span>`;
         }
@@ -986,23 +1586,30 @@ Book title 2"></textarea>
         .map(t => t.trim())
         .filter(Boolean);
       
-      // Remove existing entries for this date
+      titles.forEach(title => {
+        if (!recentBooks.includes(title)) {
+          recentBooks.unshift(title);
+          recentBooks = recentBooks.slice(0, 10);
+        }
+      });
+      
       data = data.filter(item => item.date !== dateStr);
       
-      // Add new entries
-      data.push({ date: dateStr, minutes, characters });
-      titles.forEach(title => {
-        data.push({ date: dateStr, minutes: 0, characters: 0, title });
-      });
+      if (titles.length > 0) {
+        data.push({ date: dateStr, minutes, characters, title: titles[0] });
+        titles.slice(1).forEach(title => {
+          data.push({ date: dateStr, minutes: 0, characters: 0, title });
+        });
+      } else {
+        data.push({ date: dateStr, minutes, characters, title: null });
+      }
       
       await saveToStorage();
       aggregateData();
       loadYear();
+      renderGoals();
+      updateLeaderboard();
       closeModal();
-    }
-
-    function reloadData() {
-      loadFromStorage();
     }
 
     function downloadData() {
@@ -1013,6 +1620,7 @@ Book title 2"></textarea>
       a.download = 'reading-heatmap-data.json';
       a.click();
       URL.revokeObjectURL(url);
+      closeMenu();
     }
 
     function loadData(event) {
@@ -1024,13 +1632,11 @@ Book title 2"></textarea>
         try {
           const importedData = JSON.parse(e.target.result);
           
-          // Validate that it's an array
           if (!Array.isArray(importedData)) {
             alert('Invalid data format. Expected an array.');
             return;
           }
           
-          // Merge or replace data
           if (importedData.length > 0 && confirm('Replace existing data with imported data?')) {
             data = importedData;
           } else if (importedData.length > 0) {
@@ -1048,13 +1654,13 @@ Book title 2"></textarea>
       };
       
       reader.readAsText(file);
-      
-      // Reset the input so the same file can be selected again
       event.target.value = '';
     }
 
     function toggleMenu() {
-      document.getElementById('menuModal').className = 'modal show';
+      const modal = document.getElementById('menuModal');
+      modal.className = 'modal show';
+      updateThemeSelection();
     }
 
     function closeMenu() {
@@ -1066,8 +1672,11 @@ Book title 2"></textarea>
         if (confirm('Really delete ALL data? Click OK to confirm.')) {
           data = [];
           dailyData = {};
+          goals = [];
+          recentBooks = [];
           saveToStorage().then(() => {
             loadYear();
+            renderGoals();
             closeMenu();
             alert('All data has been wiped.');
           });
@@ -1075,12 +1684,12 @@ Book title 2"></textarea>
       }
     }
 
-    // Global Escape handling: close overlays, hide tooltip, blur active element
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' || e.key === 'Esc') {
         try { hideTooltip(); } catch (err) {}
         try { closeModal(); } catch (err) {}
         try { closeMenu(); } catch (err) {}
+        try { closeGoalModal(); } catch (err) {}
 
         try {
           const active = document.activeElement;
@@ -1091,30 +1700,257 @@ Book title 2"></textarea>
       }
     });
 
-    // Click outside modals to close them
     document.getElementById('modal').addEventListener('click', (e) => {
       if (e.target.id === 'modal') closeModal();
     });
     document.getElementById('menuModal').addEventListener('click', (e) => {
       if (e.target.id === 'menuModal') closeMenu();
     });
+    
+    function loadTheme() {
+      const theme = localStorage.getItem(THEME_KEY) || 'default';
+      setTheme(theme, false);
+    }
+    
+    function setTheme(theme, save = true) {
+      document.body.className = theme === 'default' ? '' : `theme-${theme}`;
+      if (save) {
+        localStorage.setItem(THEME_KEY, theme);
+        updateThemeSelection();
+      }
+    }
+    
+    function updateThemeSelection() {
+      const currentTheme = localStorage.getItem(THEME_KEY) || 'default';
+      document.querySelectorAll('.theme-preview').forEach(el => {
+        const themeClass = el.className.split(' ').find(c => c !== 'theme-preview' && c !== 'active');
+        if (themeClass === currentTheme) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
+    }
+    
+    function toggleGoalsSection() {
+      const section = document.getElementById('goalsSection');
+      const btn = document.getElementById('goalsToggle');
+      const isVisible = section.style.display !== 'none';
+      
+      section.style.display = isVisible ? 'none' : 'block';
+      btn.classList.toggle('active', !isVisible);
+    }
+    
+    function addGoal() {
+      document.getElementById('goalModal').className = 'modal show';
+    }
+    
+    function closeGoalModal() {
+      document.getElementById('goalModal').className = 'modal';
+    }
+    
+    async function saveGoal() {
+      const type = document.getElementById('goalType').value;
+      const target = parseInt(document.getElementById('goalTarget').value);
+      
+      if (!target || target <= 0) {
+        alert('Please enter a valid target');
+        return;
+      }
+      
+      goals.push({ type, target, id: Date.now() });
+      await saveToStorage();
+      renderGoals();
+      closeGoalModal();
+      
+      document.getElementById('goalTarget').value = '';
+    }
+    
+    function renderGoals() {
+      const container = document.getElementById('goalsList');
+      if (goals.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px;">No goals set yet</div>';
+        return;
+      }
+      
+      container.innerHTML = '';
+      goals.forEach(goal => {
+        const progress = calculateGoalProgress(goal);
+        const goalDiv = document.createElement('div');
+        goalDiv.className = 'goal-item';
+        
+        const typeText = {
+          daily_minutes: 'Daily Minutes',
+          daily_characters: 'Daily Characters',
+          weekly_minutes: 'Weekly Minutes',
+          weekly_characters: 'Weekly Characters',
+          streak: 'Streak Days'
+        }[goal.type];
+        
+        goalDiv.innerHTML = `
+          <div style="flex: 1;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span>${typeText}: ${goal.target}</span>
+              <span style="color: var(--accent-color); font-weight: 600;">${progress.current} / ${goal.target}</span>
+            </div>
+            <div class="goal-progress">
+              <div class="goal-progress-bar" style="width: ${Math.min(100, (progress.current / goal.target) * 100)}%"></div>
+            </div>
+          </div>
+          <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
+        `;
+        
+        container.appendChild(goalDiv);
+      });
+    }
+    
+    function calculateGoalProgress(goal) {
+      const today = getAustralianDate();
+      const metric = goal.type.includes('minutes') ? 'minutes' : goal.type.includes('characters') ? 'characters' : 'streak';
+      
+      if (goal.type.startsWith('daily')) {
+        const dayData = dailyData[today];
+        return { current: dayData ? dayData[metric] : 0, target: goal.target };
+      } else if (goal.type.startsWith('weekly')) {
+        let total = 0;
+        const now = new Date(today);
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          const dayData = dailyData[dateStr];
+          if (dayData) total += dayData[metric];
+        }
+        return { current: total, target: goal.target };
+      } else if (goal.type === 'streak') {
+        let streak = 0;
+        const now = new Date(today);
+        for (let i = 0; i < 365; i++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          const dayData = dailyData[dateStr];
+          if (dayData && (dayData.minutes > 0 || dayData.characters > 0)) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        return { current: streak, target: goal.target };
+      }
+      return { current: 0, target: goal.target };
+    }
+    
+    async function deleteGoal(id) {
+      goals = goals.filter(g => g.id !== id);
+      await saveToStorage();
+      renderGoals();
+    }
+    
+    function toggleLeaderboardSection() {
+      const panel = document.getElementById('leaderboardPanel');
+      const btn = document.getElementById('leaderboardToggle');
+      const isVisible = panel.style.display !== 'none';
+      
+      panel.style.display = isVisible ? 'none' : 'block';
+      btn.classList.toggle('active', !isVisible);
+      
+      if (!isVisible) {
+        loadLeaderboard();
+      }
+    }
+    
+    async function loadLeaderboard() {
+      const container = document.getElementById('leaderboardList');
+      
+      if (!currentUser) {
+        container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Sign in to view the leaderboard and compete with others!</div>';
+        return;
+      }
+      
+      try {
+        const keys = await window.storage.list('leaderboard:', true);
+        if (!keys || !keys.keys || keys.keys.length === 0) {
+          container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+          return;
+        }
+        
+        const leaderboardData = [];
+        for (const key of keys.keys) {
+          try {
+            const entry = await window.storage.get(key, true);
+            if (entry && entry.value) {
+              leaderboardData.push(JSON.parse(entry.value));
+            }
+          } catch (e) {
+            console.error('Failed to load leaderboard entry:', e);
+          }
+        }
+        
+        leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+        
+        container.innerHTML = '';
+        leaderboardData.slice(0, 10).forEach((entry, index) => {
+          const rankDiv = document.createElement('div');
+          rankDiv.className = 'leaderboard-entry';
+          
+          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+          
+          rankDiv.innerHTML = `
+            <div class="leaderboard-rank">${medal}</div>
+            <div class="leaderboard-user">
+              <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" style="width: 32px; height: 32px;">
+              <span>${entry.name}</span>
+            </div>
+            <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
+          `;
+          
+          container.appendChild(rankDiv);
+        });
+        
+      } catch (error) {
+        container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
+        console.error('Leaderboard error:', error);
+      }
+    }
+    
+    async function updateLeaderboard() {
+      if (!currentUser) return;
+      
+      let totalMinutes = 0;
+      Object.values(dailyData).forEach(day => {
+        totalMinutes += day.minutes;
+      });
+      
+      const leaderboardEntry = {
+        userId: currentUser.id,
+        name: currentUser.name,
+        avatar: currentUser.avatar,
+        totalMinutes: totalMinutes,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      try {
+        await window.storage.set(`leaderboard:${currentUser.id}`, JSON.stringify(leaderboardEntry), true);
+      } catch (error) {
+        console.error('Failed to update leaderboard:', error);
+      }
+    }
 
-    // Cross-tab storage listener: reload data when storage changes elsewhere
     window.addEventListener('storage', (e) => {
       if (!e) return;
       if (e.key === STORAGE_KEY || e.key === 'reading_heatmap_sync_signal') {
-        // Reload from storage to pick up changes
         loadFromStorage();
       }
     });
 
-    // Copy a compact sync token (base64 encoded JSON) to clipboard for cross-device sync
     function copySyncToken() {
       try {
         const json = JSON.stringify(data);
         const token = btoa(unescape(encodeURIComponent(json)));
         navigator.clipboard.writeText(token).then(() => {
           alert('Sync token copied to clipboard. Paste it on another device using "Apply sync token".');
+          closeMenu();
         }).catch(() => {
           prompt('Copy this sync token:', token);
         });
@@ -1123,7 +1959,6 @@ Book title 2"></textarea>
       }
     }
 
-    // Apply a pasted sync token (replace or merge)
     function applySyncToken() {
       const token = prompt('Paste sync token:');
       if (!token) return;
@@ -1142,6 +1977,7 @@ Book title 2"></textarea>
           aggregateData();
           loadYear();
           alert('Data synced successfully.');
+          closeMenu();
         });
       } catch (err) {
         alert('Invalid sync token: ' + err.message);
