@@ -807,14 +807,19 @@
     <header>
       <h1>読書</h1>
       <div class="header-actions">
-        <script>
-  document.getElementById('authSection').innerHTML = `
-    <button class="google-signin-btn" onclick="promptSignIn()">
-      <img src="https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png" alt="" style="width:18px;height:18px;border-radius:2px;">
-      Sign in with Google
-    </button>
-  `;
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('authSection');
+    if (!el) return;
+    el.innerHTML = `
+      <button class="google-signin-btn" onclick="promptSignIn()">
+        <img src="https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png" alt="" style="width:18px;height:18px;border-radius:2px;">
+        Sign in with Google
+      </button>
+    `;
+  });
 </script>
+
 
         <div id="authSection"></div>
         <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
