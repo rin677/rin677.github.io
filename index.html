@@ -811,7 +811,6 @@
         <div id="authSection"></div>
         <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
       </div>
-      <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
     </header>
 
     <div class="controls">
@@ -957,11 +956,6 @@ Book title 2"></textarea>
       
       <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
         <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
-        <button class="btn" onclick="copySyncToken()" style="width: 100%; margin-bottom: 8px;">🔗 Copy sync token</button>
-        <button class="btn" onclick="applySyncToken()" style="width: 100%; margin-bottom: 8px;">🔁 Apply sync token</button>
-        <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
-        <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
-        <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data</button>
       </div>
       
       <button class="btn" onclick="closeMenu()" style="width: 100%; margin-top: 12px;">Close</button>
@@ -1148,17 +1142,19 @@ function promptSignIn() {
       }
     }
     
-    function renderUserProfile() {
-      const authSection = document.getElementById('authSection');
-      if (currentUser) {
-        authSection.innerHTML = `
-          <div class="user-profile" onclick="signOut()" title="Click to sign out">
-            <img src="${currentUser.avatar}" class="user-avatar" alt="${currentUser.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'">
-            <span class="user-name">${currentUser.name}</span>
-          </div>
-        `;
-      }
-    }
+function renderUserProfile() {
+  const authSection = document.getElementById('authSection');
+  if (currentUser) {
+    authSection.innerHTML = `
+      <div class="user-profile" onclick="signOut()" title="Click to sign out">
+        <img src="${currentUser.avatar}" class="user-avatar" alt="${currentUser.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'">
+        <span class="user-name">${currentUser.name}</span>
+      </div>
+    `;
+    // Load user's data after rendering profile
+    loadFromStorage();
+  }
+}
     
     function exportToToggl() {
       const togglData = data.map(entry => ({
@@ -1612,51 +1608,6 @@ function promptSignIn() {
       closeModal();
     }
 
-    function downloadData() {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'reading-heatmap-data.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      closeMenu();
-    }
-
-    function loadData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const importedData = JSON.parse(e.target.result);
-          
-          if (!Array.isArray(importedData)) {
-            alert('Invalid data format. Expected an array.');
-            return;
-          }
-          
-          if (importedData.length > 0 && confirm('Replace existing data with imported data?')) {
-            data = importedData;
-          } else if (importedData.length > 0) {
-            data = data.concat(importedData);
-          }
-          
-          saveToStorage().then(() => {
-            aggregateData();
-            loadYear();
-            alert('Data loaded successfully!');
-          });
-        } catch (error) {
-          alert('Error reading file: ' + error.message);
-        }
-      };
-      
-      reader.readAsText(file);
-      event.target.value = '';
-    }
-
     function toggleMenu() {
       const modal = document.getElementById('menuModal');
       modal.className = 'modal show';
@@ -1665,23 +1616,6 @@ function promptSignIn() {
 
     function closeMenu() {
       document.getElementById('menuModal').className = 'modal';
-    }
-
-    function wipeAllData() {
-      if (confirm('Are you sure? This will permanently delete all data. This action cannot be undone.')) {
-        if (confirm('Really delete ALL data? Click OK to confirm.')) {
-          data = [];
-          dailyData = {};
-          goals = [];
-          recentBooks = [];
-          saveToStorage().then(() => {
-            loadYear();
-            renderGoals();
-            closeMenu();
-            alert('All data has been wiped.');
-          });
-        }
-      }
     }
 
     document.addEventListener('keydown', (e) => {
@@ -1937,52 +1871,77 @@ function promptSignIn() {
       }
     }
 
-    window.addEventListener('storage', (e) => {
-      if (!e) return;
-      if (e.key === STORAGE_KEY || e.key === 'reading_heatmap_sync_signal') {
-        loadFromStorage();
-      }
-    });
-
-    function copySyncToken() {
-      try {
-        const json = JSON.stringify(data);
-        const token = btoa(unescape(encodeURIComponent(json)));
-        navigator.clipboard.writeText(token).then(() => {
-          alert('Sync token copied to clipboard. Paste it on another device using "Apply sync token".');
-          closeMenu();
-        }).catch(() => {
-          prompt('Copy this sync token:', token);
-        });
-      } catch (err) {
-        alert('Failed to create sync token: ' + err.message);
-      }
+async function loadFromStorage() {
+  if (!currentUser) {
+    // If no user, just show empty state
+    data = [];
+    dailyData = {};
+    aggregateData();
+    loadYear();
+    renderGoals();
+    return;
+  }
+  
+  // Load user-specific data from window.storage
+  const userDataKey = `user_data_${currentUser.id}`;
+  const userGoalsKey = `user_goals_${currentUser.id}`;
+  const userBooksKey = `user_books_${currentUser.id}`;
+  
+  try {
+    const stored = await window.storage.get(userDataKey);
+    if (stored && stored.value) {
+      data = JSON.parse(stored.value);
     }
-
-    function applySyncToken() {
-      const token = prompt('Paste sync token:');
-      if (!token) return;
-      try {
-        const decoded = decodeURIComponent(escape(atob(token)));
-        const imported = JSON.parse(decoded);
-        if (!Array.isArray(imported)) throw new Error('Invalid format');
-
-        if (confirm('Replace existing data with synced data? Click Cancel to merge.')) {
-          data = imported;
-        } else {
-          data = data.concat(imported);
-        }
-
-        saveToStorage().then(() => {
-          aggregateData();
-          loadYear();
-          alert('Data synced successfully.');
-          closeMenu();
-        });
-      } catch (err) {
-        alert('Invalid sync token: ' + err.message);
-      }
+  } catch (error) {
+    data = [];
+  }
+  
+  try {
+    const storedGoals = await window.storage.get(userGoalsKey);
+    if (storedGoals && storedGoals.value) {
+      goals = JSON.parse(storedGoals.value);
     }
+  } catch (error) {
+    goals = [];
+  }
+  
+  try {
+    const storedBooks = await window.storage.get(userBooksKey);
+    if (storedBooks && storedBooks.value) {
+      recentBooks = JSON.parse(storedBooks.value);
+    }
+  } catch (error) {
+    recentBooks = [];
+  }
+  
+  data = data.map(item => ({
+    date: String(item.date),
+    minutes: Number(item.minutes) || 0,
+    characters: Number(item.characters) || 0,
+    title: item.title || null
+  })).filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.date));
+  
+  aggregateData();
+  loadYear();
+  renderGoals();
+}
+
+async function saveToStorage() {
+  if (!currentUser) return;
+  
+  const userDataKey = `user_data_${currentUser.id}`;
+  const userGoalsKey = `user_goals_${currentUser.id}`;
+  const userBooksKey = `user_books_${currentUser.id}`;
+  
+  try {
+    await window.storage.set(userDataKey, JSON.stringify(data));
+    await window.storage.set(userGoalsKey, JSON.stringify(goals));
+    await window.storage.set(userBooksKey, JSON.stringify(recentBooks));
+  } catch (error) {
+    console.error('Failed to save data:', error);
+  }
+}
+
   </script>
 </body>
 </html>
