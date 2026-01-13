@@ -1759,28 +1759,27 @@ function signOut() {
       });
     }
 
-    function deleteEntry(dateStr, index) {
-  const dateEntries = data.filter(item => item.date === dateStr);
+    async function deleteEntry(dateStr, index) {
+  const dateEntries = window.data.filter(item => item.date === dateStr);
   if (dateEntries[index]) {
     const entryToDelete = dateEntries[index];
-    data = data.filter(item => !(item.date === dateStr && 
+    window.data = window.data.filter(item => !(item.date === dateStr && 
       item.minutes === entryToDelete.minutes && 
       item.characters === entryToDelete.characters && 
       item.title === entryToDelete.title));
     
-    // Sync with window
-    window.data = data;
+    // Sync with local variable
+    data = window.data;
     
-    saveToStorage().then(() => {
-      aggregateData();
-      renderEntryList(dateStr);
-      loadYear();
-      
-      // Trigger cloud save if available
-      if (window.saveCloudState && typeof window.saveCloudState === 'function') {
-        window.saveCloudState();
-      }
-    });
+    await saveToStorage();
+    aggregateData();
+    renderEntryList(dateStr);
+    loadYear();
+    
+    // Trigger cloud save if available
+    if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+      await window.saveCloudState();
+    }
   }
 }
 
