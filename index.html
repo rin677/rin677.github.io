@@ -5,8 +5,6 @@
   <title>Reading Heatmap</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
-  
-
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2169,12 +2167,12 @@ async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
   
   try {
-    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js");
-    const snapshot = await getDocs(collection(db, 'leaderboard'));
+    const leaderboardRef = collection(db, 'leaderboard');
+    const snapshot = await getDocs(leaderboardRef);
     
     const leaderboardData = [];
-    snapshot.forEach((doc) => {
-      leaderboardData.push(doc.data());
+    snapshot.forEach((docSnap) => {
+      leaderboardData.push(docSnap.data());
     });
     
     if (leaderboardData.length === 0) {
@@ -2194,7 +2192,7 @@ async function loadLeaderboardData() {
       rankDiv.innerHTML = `
         <div class="leaderboard-rank">${medal}</div>
         <div class="leaderboard-user">
-          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" style="width: 32px; height: 32px;">
+          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
           <span>${entry.name}</span>
         </div>
         <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
@@ -2204,8 +2202,8 @@ async function loadLeaderboardData() {
     });
     
   } catch (error) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
-    console.error('Leaderboard error:', error);
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
+    console.error('Leaderboard error details:', error);
   }
 }
   // Make functions globally available
