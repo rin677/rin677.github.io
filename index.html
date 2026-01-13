@@ -780,25 +780,33 @@
       align-items: center;
     }
 
-    .google-signin-btn {
-      padding: 8px 16px;
+.google-signin-btn {
+      padding: 10px 20px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
       background: white;
       color: #3c4043;
       border: 1px solid #dadce0;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 14px;
       font-weight: 500;
-      transition: all 0.2s;
-      font-family: 'Roboto', sans-serif;
+      transition: all 0.2s ease;
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
 
     .google-signin-btn:hover {
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       background: #f8f9fa;
+      border-color: #c6c6c6;
+      transform: translateY(-1px);
+    }
+
+    .google-signin-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
   </style>
 </head>
@@ -808,19 +816,33 @@
       <h1>読書</h1>
       <div class="header-actions">
 <script>
-  window.addEventListener('DOMContentLoaded', () => {
-    const el = document.getElementById('authSection');
+  window.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('authSection');
     if (!el) return;
-    el.innerHTML = `
-      <button class="google-signin-btn" onclick="promptSignIn()">
-        <img src="https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png" alt="" style="width:18px;height:18px;border-radius:2px;">
-        Sign in with Google
-      </button>
-    `;
+    
+    var storedUser = localStorage.getItem('reading_heatmap_user');
+    if (storedUser) {
+      try {
+        window.currentUser = JSON.parse(storedUser);
+        if (window.renderUserProfile) window.renderUserProfile();
+      } catch (e) {
+        console.error('Error loading stored user:', e);
+      }
+    }
+    
+    if (!window.currentUser) {
+      el.innerHTML = '<button class="google-signin-btn" onclick="promptSignIn()">' +
+        '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">' +
+        '<path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>' +
+        '<path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>' +
+        '<path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>' +
+        '<path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>' +
+        '</svg>' +
+        'Sign in with Google' +
+        '</button>';
+    }
   });
 </script>
-
-
         <div id="authSection"></div>
         <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
       </div>
@@ -1032,6 +1054,13 @@ Book title 2"></textarea>
 
 // Fallback prompt-based sign-in if Google OAuth not configured
 function promptSignIn() {
+  // Try Firebase sign-in first
+  if (window.promptSignIn && typeof window.firebaseSignIn === 'function') {
+    window.firebaseSignIn();
+    return;
+  }
+  
+  // Fallback to manual sign-in
   const name = prompt('Enter your name:');
   if (!name) return;
   
@@ -1860,7 +1889,7 @@ function promptSignIn() {
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
   const firebaseConfig = {
-    apiKey: "AIzaSyAmGPOSR03tCzi3cftfaP6JTBSk30JUgIwAIzaSyAmGPOSR03tCzi3cftfaP6JTBSk30JUgIw",
+    apiKey: "AIzaSyAmGPOSR03tCzi3cftfaP6JTBSk30JUgIw",
     authDomain: "timetracker-79479.firebaseapp.com",
     projectId: "timetracker-79479",
     storageBucket: "timetracker-79479.appspot.com",
@@ -1871,24 +1900,34 @@ function promptSignIn() {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  async function firebaseSignIn() {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
+async function firebaseSignIn() {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
 
-    window.currentUser = {
-      id: user.uid,
-      name: user.displayName || 'User',
-      email: user.email || '',
-      avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
-    };
-    window.renderUserProfile?.();
-    await loadCloudState(user.uid);
-    window.aggregateData?.();
-    window.loadYear?.();
-    window.renderGoals?.();
-    window.updateLeaderboard?.();
+      window.currentUser = {
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || '',
+        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+      };
+      
+      localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
+      
+      window.renderUserProfile?.();
+      await loadCloudState(user.uid);
+      window.aggregateData?.();
+      window.loadYear?.();
+      window.renderGoals?.();
+      window.updateLeaderboard?.();
+      
+      alert('Successfully signed in as ' + window.currentUser.name);
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      alert('Sign-in failed: ' + error.message);
+    }
   }
 
   async function firebaseSignOut() {
@@ -1959,9 +1998,12 @@ function promptSignIn() {
     };
   }
 
-  // Map UI hooks
-  window.promptSignIn = firebaseSignIn;
+// Map UI hooks - make them globally available
+  window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
+  
+  // Override promptSignIn to use Firebase
+  window.promptSignIn = firebaseSignIn;
 </script>
 
 
