@@ -1701,38 +1701,63 @@ function signOut() {
     }
 
     function loadData(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+  const file = event.target.files[0];
+  if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const importedData = JSON.parse(e.target.result);
-          
-          if (!Array.isArray(importedData)) {
-            alert('Invalid data format. Expected an array.');
-            return;
-          }
-          
-          if (importedData.length > 0 && confirm('Replace existing data with imported data?')) {
-            data = importedData;
-          } else if (importedData.length > 0) {
-            data = data.concat(importedData);
-          }
-          
-          saveToStorage().then(() => {
-            aggregateData();
-            loadYear();
-            alert('Data loaded successfully!');
-          });
-        } catch (error) {
-          alert('Error reading file: ' + error.message);
-        }
-      };
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
       
-      reader.readAsText(file);
-      event.target.value = '';
+      // ✅ Handle both old and new formats
+      let importedData = [];
+      let importedGoals = [];
+      let importedBooks = [];
+      
+      if (Array.isArray(imported)) {
+        // Old format - just data array
+        importedData = imported;
+      } else if (imported.data) {
+        // New format - object with data, goals, recentBooks
+        importedData = imported.data || [];
+        importedGoals = imported.goals || [];
+        importedBooks = imported.recentBooks || [];
+      } else {
+        alert('Invalid data format.');
+        return;
+      }
+      
+      if (importedData.length > 0 && confirm('Replace existing data?')) {
+        // ✅ Update both local AND window variables
+        window.data = data = importedData;
+        window.goals = goals = importedGoals;
+        window.recentBooks = recentBooks = importedBooks;
+      } else if (importedData.length > 0) {
+        window.data = data = data.concat(importedData);
+        window.goals = goals = goals.concat(importedGoals);
+        window.recentBooks = recentBooks = [...new Set([...recentBooks, ...importedBooks])];
+      }
+      
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      renderGoals();  // ✅ Now renders goals
+      
+      // ✅ Save to cloud if signed in
+      if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+        await window.saveCloudState();
+      }
+      
+      closeMenu();  // ✅ Auto-close settings menu
+      alert('Data loaded successfully!');
+    } catch (error) {
+      alert('Error reading file: ' + error.message);
     }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = '';
+}
 
     function toggleMenu() {
       const modal = document.getElementById('menuModal');
