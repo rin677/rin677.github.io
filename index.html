@@ -1677,12 +1677,25 @@ function signOut() {
 }
 
     function downloadData() {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const exportData = {
+        data: window.data || [],
+        goals: window.goals || [],
+        recentBooks: window.recentBooks || [],
+        exportDate: new Date().toISOString(),
+        user: window.currentUser ? {
+          name: window.currentUser.name,
+          email: window.currentUser.email
+        } : null
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'reading-heatmap-data.json';
+      a.download = `reading-heatmap-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
       closeMenu();
     }
