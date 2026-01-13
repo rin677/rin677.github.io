@@ -64,6 +64,78 @@
       --level-3: #7dcfff;
       --level-4: #2ac3de;
     }
+
+    body.theme-everforest {
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #f4f0d9;
+  --bg-tertiary: #efebd4;
+  --border-color: #e0dcc7;
+  --text-primary: #5c6a72;
+  --text-secondary: #939f91;
+  --accent-color: #8da101;
+  --accent-hover: #a7b901;
+  --danger-color: #f85552;
+  --danger-hover: #e66868;
+  --level-0: #f4f0d9;
+  --level-1: #b9ca4a;
+  --level-2: #8da101;
+  --level-3: #7c9f00;
+  --level-4: #5c7e00;
+}
+
+body.theme-onedark {
+  --bg-primary: #282c34;
+  --bg-secondary: #21252b;
+  --bg-tertiary: #2c313c;
+  --border-color: #3e4451;
+  --text-primary: #abb2bf;
+  --text-secondary: #5c6370;
+  --accent-color: #98c379;
+  --accent-hover: #a9d089;
+  --danger-color: #e06c75;
+  --danger-hover: #e88388;
+  --level-0: #21252b;
+  --level-1: #61afef;
+  --level-2: #56b6c2;
+  --level-3: #98c379;
+  --level-4: #c678dd;
+}
+
+body.theme-nord-light {
+  --bg-primary: #eceff4;
+  --bg-secondary: #e5e9f0;
+  --bg-tertiary: #d8dee9;
+  --border-color: #c2cad8;
+  --text-primary: #2e3440;
+  --text-secondary: #4c566a;
+  --accent-color: #5e81ac;
+  --accent-hover: #81a1c1;
+  --danger-color: #bf616a;
+  --danger-hover: #d08770;
+  --level-0: #e5e9f0;
+  --level-1: #88c0d0;
+  --level-2: #81a1c1;
+  --level-3: #5e81ac;
+  --level-4: #5272a1;
+}
+
+body.theme-phoenix {
+  --bg-primary: #170f1e;
+  --bg-secondary: #1e1726;
+  --bg-tertiary: #2b2032;
+  --border-color: #3d2f47;
+  --text-primary: #f5c2e7;
+  --text-secondary: #988ba2;
+  --accent-color: #cba6f7;
+  --accent-hover: #d4b4f8;
+  --danger-color: #f38ba8;
+  --danger-hover: #f5a7bc;
+  --level-0: #1e1726;
+  --level-1: #b4befe;
+  --level-2: #cba6f7;
+  --level-3: #f5c2e7;
+  --level-4: #f5e0dc;
+}
     
     body.theme-dracula {
       --bg-primary: #282a36;
@@ -771,6 +843,26 @@
       color: #f8f8f2;
     }
 
+    .theme-preview.everforest {
+  background: linear-gradient(135deg, #fdf6e3 0%, #f4f0d9 100%);
+  color: #5c6a72;
+}
+
+.theme-preview.onedark {
+  background: linear-gradient(135deg, #282c34 0%, #21252b 100%);
+  color: #abb2bf;
+}
+
+.theme-preview.nord-light {
+  background: linear-gradient(135deg, #eceff4 0%, #e5e9f0 100%);
+  color: #2e3440;
+}
+
+.theme-preview.phoenix {
+  background: linear-gradient(135deg, #170f1e 0%, #1e1726 100%);
+  color: #f5c2e7;
+}
+
     .year-display {
       color: var(--text-primary);
       font-size: 14px;
@@ -945,22 +1037,34 @@ Book title 2"></textarea>
       <h2>Settings</h2>
       
       <div style="margin-bottom: 20px;">
-        <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Theme</h3>
-        <div class="theme-selector">
-          <div class="theme-preview default" onclick="setTheme('default')">
-            <div>GitHub Dark</div>
-          </div>
-          <div class="theme-preview nord" onclick="setTheme('nord')">
-            <div>Nord</div>
-          </div>
-          <div class="theme-preview tokyo" onclick="setTheme('tokyo')">
-            <div>Tokyo Night</div>
-          </div>
-          <div class="theme-preview dracula" onclick="setTheme('dracula')">
-            <div>Dracula</div>
-          </div>
-        </div>
-      </div>
+  <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Theme</h3>
+  <div class="theme-selector" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+    <div class="theme-preview default" onclick="setTheme('default')">
+      <div>GitHub Dark</div>
+    </div>
+    <div class="theme-preview nord" onclick="setTheme('nord')">
+      <div>Nord</div>
+    </div>
+    <div class="theme-preview tokyo" onclick="setTheme('tokyo')">
+      <div>Tokyo Night</div>
+    </div>
+    <div class="theme-preview dracula" onclick="setTheme('dracula')">
+      <div>Dracula</div>
+    </div>
+    <div class="theme-preview everforest" onclick="setTheme('everforest')">
+      <div>Everforest</div>
+    </div>
+    <div class="theme-preview onedark" onclick="setTheme('onedark')">
+      <div>One Dark</div>
+    </div>
+    <div class="theme-preview nord-light" onclick="setTheme('nord-light')">
+      <div>Nord Light</div>
+    </div>
+    <div class="theme-preview phoenix" onclick="setTheme('phoenix')">
+      <div>Phoenix Night</div>
+    </div>
+  </div>
+</div>
       
       <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
         <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
