@@ -2064,17 +2064,6 @@ async function firebaseSignOut() {
     }
   });
   
-  // Override promptSignIn to use Firebase
-  window.promptSignIn = firebaseSignIn;
-
-  // Set flag to prevent race condition
-  window.firebaseAuthInitializing = true;
-  
-  // Set up auth state listener to handle page reloads
-  auth.onAuthStateChanged(async (user) => {
-    window.firebaseAuthInitializing = false;
-    
-    if (user) {
 </script>
 </body>
 </html>
