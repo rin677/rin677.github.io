@@ -1489,56 +1489,74 @@ function signOut() {
     }
 
     function deleteEntry(dateStr, index) {
-      const dateEntries = data.filter(item => item.date === dateStr);
-      if (dateEntries[index]) {
-        const entryToDelete = dateEntries[index];
-        data = data.filter(item => !(item.date === dateStr && 
-          item.minutes === entryToDelete.minutes && 
-          item.characters === entryToDelete.characters && 
-          item.title === entryToDelete.title));
-        
-        saveToStorage().then(() => {
-          aggregateData();
-          renderEntryList(dateStr);
-          loadYear();
-        });
+  const dateEntries = data.filter(item => item.date === dateStr);
+  if (dateEntries[index]) {
+    const entryToDelete = dateEntries[index];
+    data = data.filter(item => !(item.date === dateStr && 
+      item.minutes === entryToDelete.minutes && 
+      item.characters === entryToDelete.characters && 
+      item.title === entryToDelete.title));
+    
+    // Sync with window
+    window.data = data;
+    
+    saveToStorage().then(() => {
+      aggregateData();
+      renderEntryList(dateStr);
+      loadYear();
+      
+      // Trigger cloud save if available
+      if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+        window.saveCloudState();
       }
-    }
+    });
+  }
+}
 
     async function saveEntry() {
-      const dateStr = document.getElementById('modalDate').value;
-      const minutes = parseInt(document.getElementById('modalMinutes').value) || 0;
-      const characters = parseInt(document.getElementById('modalCharacters').value) || 0;
-      const titles = document.getElementById('modalTitles').value
-        .split('\n')
-        .map(t => t.trim())
-        .filter(Boolean);
-      
-      titles.forEach(title => {
-        if (!recentBooks.includes(title)) {
-          recentBooks.unshift(title);
-          recentBooks = recentBooks.slice(0, 10);
-        }
-      });
-      
-      data = data.filter(item => item.date !== dateStr);
-      
-      if (titles.length > 0) {
-        data.push({ date: dateStr, minutes, characters, title: titles[0] });
-        titles.slice(1).forEach(title => {
-          data.push({ date: dateStr, minutes: 0, characters: 0, title });
-        });
-      } else {
-        data.push({ date: dateStr, minutes, characters, title: null });
-      }
-      
-      await saveToStorage();
-      aggregateData();
-      loadYear();
-      renderGoals();
-      updateLeaderboard();
-      closeModal();
+  const dateStr = document.getElementById('modalDate').value;
+  const minutes = parseInt(document.getElementById('modalMinutes').value) || 0;
+  const characters = parseInt(document.getElementById('modalCharacters').value) || 0;
+  const titles = document.getElementById('modalTitles').value
+    .split('\n')
+    .map(t => t.trim())
+    .filter(Boolean);
+  
+  titles.forEach(title => {
+    if (!recentBooks.includes(title)) {
+      recentBooks.unshift(title);
+      recentBooks = recentBooks.slice(0, 10);
     }
+  });
+  
+  // Update both local and window variables
+  window.recentBooks = recentBooks;
+  
+  data = data.filter(item => item.date !== dateStr);
+  
+  if (titles.length > 0) {
+    data.push({ date: dateStr, minutes, characters, title: titles[0] });
+    titles.slice(1).forEach(title => {
+      data.push({ date: dateStr, minutes: 0, characters: 0, title });
+    });
+  } else {
+    data.push({ date: dateStr, minutes, characters, title: null });
+  }
+  
+  // Sync with window
+  window.data = data;
+  
+  await saveToStorage();
+  aggregateData();
+  loadYear();
+  renderGoals();
+  closeModal();
+  
+  // Trigger cloud save if available
+  if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+    await window.saveCloudState();
+  }
+}
 
     function downloadData() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1678,21 +1696,28 @@ function signOut() {
     }
     
     async function saveGoal() {
-      const type = document.getElementById('goalType').value;
-      const target = parseInt(document.getElementById('goalTarget').value);
-      
-      if (!target || target <= 0) {
-        alert('Please enter a valid target');
-        return;
-      }
-      
-      goals.push({ type, target, id: Date.now() });
-      await saveToStorage();
-      renderGoals();
-      closeGoalModal();
-      
-      document.getElementById('goalTarget').value = '';
-    }
+  const type = document.getElementById('goalType').value;
+  const target = parseInt(document.getElementById('goalTarget').value);
+  
+  if (!target || target <= 0) {
+    alert('Please enter a valid target');
+    return;
+  }
+  
+  goals.push({ type, target, id: Date.now() });
+  window.goals = goals;
+  
+  await saveToStorage();
+  renderGoals();
+  closeGoalModal();
+  
+  document.getElementById('goalTarget').value = '';
+  
+  // Trigger cloud save if available
+  if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+    await window.saveCloudState();
+  }
+}
     
     function renderGoals() {
       const container = document.getElementById('goalsList');
@@ -1769,11 +1794,18 @@ function signOut() {
       return { current: 0, target: goal.target };
     }
     
-    async function deleteGoal(id) {
-      goals = goals.filter(g => g.id !== id);
-      await saveToStorage();
-      renderGoals();
-    }
+async function deleteGoal(id) {
+  goals = goals.filter(g => g.id !== id);
+  window.goals = goals;
+  
+  await saveToStorage();
+  renderGoals();
+  
+  // Trigger cloud save if available
+  if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+    await window.saveCloudState();
+  }
+}
     
     function toggleLeaderboardSection() {
       const panel = document.getElementById('leaderboardPanel');
