@@ -837,10 +837,11 @@ body.theme-ereader .leaderboard-entry {
       border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 24px;
+      margin-top: 32px;
       margin-bottom: 20px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     }
-    
+
     .leaderboard-entry {
       display: flex;
       justify-content: space-between;
@@ -1700,7 +1701,7 @@ function signOut() {
       }
       
       container.innerHTML = '';
-      recentBooks.slice(0, 5).forEach(book => {
+      recentBooks.slice(0, 3).forEach(book => {
         const btn = document.createElement('button');
         btn.className = 'quick-book-btn';
         btn.textContent = book;
@@ -2362,7 +2363,11 @@ async function loadLeaderboardData() {
     
     const leaderboardData = [];
     snapshot.forEach((docSnap) => {
-      leaderboardData.push(docSnap.data());
+      const data = docSnap.data();
+      // Only include users with more than 0 minutes
+      if (data.totalMinutes > 0) {
+        leaderboardData.push(data);
+      }
     });
     
     if (leaderboardData.length === 0) {
@@ -2372,24 +2377,88 @@ async function loadLeaderboardData() {
     
     leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
     
+    // Find current user's position
+    let userPosition = -1;
+    if (window.currentUser) {
+      userPosition = leaderboardData.findIndex(entry => entry.userId === window.currentUser.id);
+    }
+    
+    // Check if we should show "Show More" button
+    const showAll = container.dataset.showAll === 'true';
+    const displayCount = showAll ? leaderboardData.length : 10;
+    
     container.innerHTML = '';
-    leaderboardData.slice(0, 10).forEach((entry, index) => {
+    
+    leaderboardData.slice(0, displayCount).forEach((entry, index) => {
       const rankDiv = document.createElement('div');
       rankDiv.className = 'leaderboard-entry';
+      
+      // Highlight current user
+      const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
+      if (isCurrentUser) {
+        rankDiv.style.background = 'var(--accent-color)';
+        rankDiv.style.color = '#ffffff';
+        rankDiv.style.fontWeight = '600';
+      }
       
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
       
       rankDiv.innerHTML = `
-        <div class="leaderboard-rank">${medal}</div>
+        <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
         <div class="leaderboard-user">
           <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
-          <span>${entry.name}</span>
+          <span>${entry.name}${isCurrentUser ? ' (You)' : ''}</span>
         </div>
-        <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
+        <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${entry.totalMinutes.toLocaleString()} min</div>
       `;
       
       container.appendChild(rankDiv);
     });
+    
+    // Add "Show More" / "Show Less" button if there are more than 10 entries
+    if (leaderboardData.length > 10) {
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'btn';
+      toggleBtn.style.width = '100%';
+      toggleBtn.style.marginTop = '12px';
+      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${leaderboardData.length - 10} more)`;
+      toggleBtn.onclick = () => {
+        container.dataset.showAll = showAll ? 'false' : 'true';
+        loadLeaderboardData();
+      };
+      container.appendChild(toggleBtn);
+    }
+    
+    // Show user's position if they're not in top 10 but exists in leaderboard
+    if (!showAll && userPosition >= 10 && window.currentUser) {
+      const userEntry = leaderboardData[userPosition];
+      const separatorDiv = document.createElement('div');
+      separatorDiv.style.margin = '16px 0 8px 0';
+      separatorDiv.style.padding = '8px 0';
+      separatorDiv.style.borderTop = '2px dashed var(--border-color)';
+      separatorDiv.style.color = 'var(--text-secondary)';
+      separatorDiv.style.textAlign = 'center';
+      separatorDiv.style.fontSize = '12px';
+      separatorDiv.textContent = 'Your Position';
+      container.appendChild(separatorDiv);
+      
+      const userRankDiv = document.createElement('div');
+      userRankDiv.className = 'leaderboard-entry';
+      userRankDiv.style.background = 'var(--accent-color)';
+      userRankDiv.style.color = '#ffffff';
+      userRankDiv.style.fontWeight = '600';
+      
+      userRankDiv.innerHTML = `
+        <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
+        <div class="leaderboard-user">
+          <img src="${userEntry.avatar}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
+          <span>${userEntry.name} (You)</span>
+        </div>
+        <div class="leaderboard-value" style="color: #ffffff;">${userEntry.totalMinutes.toLocaleString()} min</div>
+      `;
+      
+      container.appendChild(userRankDiv);
+    }
     
   } catch (error) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
