@@ -2069,65 +2069,6 @@ async function deleteGoal(id) {
     }
   }
 
-// Wait a bit for all functions to be defined, then override them
-  setTimeout(() => {
-    // Override the original saveEntry to include cloud save
-    const originalSaveEntry = window.saveEntry;
-    if (originalSaveEntry) {
-      window.saveEntry = async function() {
-        await originalSaveEntry();
-        await saveCloudState();
-      };
-    }
-
-    // Override deleteEntry
-    const originalDeleteEntry = window.deleteEntry;
-    if (originalDeleteEntry) {
-      window.deleteEntry = async function(dateStr, index) {
-        await originalDeleteEntry(dateStr, index);
-        await saveCloudState();
-      };
-    }
-
-    // Override saveGoal
-    const originalSaveGoal = window.saveGoal;
-    if (originalSaveGoal) {
-      window.saveGoal = async function() {
-        await originalSaveGoal();
-        await saveCloudState();
-      };
-    }
-
-    // Override deleteGoal
-    const originalDeleteGoal = window.deleteGoal;
-    if (originalDeleteGoal) {
-      window.deleteGoal = async function(id) {
-        await originalDeleteGoal(id);
-        await saveCloudState();
-      };
-    }
-
-    // Override wipeAllData
-    const originalWipeAllData = window.wipeAllData;
-    if (originalWipeAllData) {
-      window.wipeAllData = async function() {
-        if (confirm('Are you sure? This will permanently delete all data. This action cannot be undone.')) {
-          if (confirm('Really delete ALL data? Click OK to confirm.')) {
-            window.data = [];
-            window.dailyData = {};
-            window.goals = [];
-            window.recentBooks = [];
-            await saveCloudState();
-            if (window.loadYear) window.loadYear();
-            if (window.renderGoals) window.renderGoals();
-            alert('All data has been wiped.');
-            document.getElementById('menuModal').className = 'modal';
-          }
-        }
-      };
-    }
-  }, 100);
-
   // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
