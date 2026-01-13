@@ -1016,12 +1016,22 @@ Book title 2"></textarea>
 window.onload = function() {
   loadTheme();
   
-  // Don't load from localStorage on initial load - wait for Firebase auth
-  // Just initialize empty state
-  data = [];
-  dailyData = {};
-  goals = [];
-  recentBooks = [];
+  // Initialize empty state - Firebase will load data if user is signed in
+  window.data = data = [];
+  window.dailyData = dailyData = {};
+  window.goals = goals = [];
+  window.recentBooks = recentBooks = [];
+  window.currentUser = currentUser = null;
+  
+  // Check if there's a stored user (for faster UI update)
+  const storedUser = localStorage.getItem(USER_KEY);
+  if (storedUser) {
+    try {
+      window.currentUser = currentUser = JSON.parse(storedUser);
+    } catch (e) {
+      console.error('Error loading stored user:', e);
+    }
+  }
   
   initializeAuthButton();
   renderHeatmap();
@@ -1139,14 +1149,13 @@ function signOut() {
       return australiaTime.toISOString().split('T')[0];
     }
 
-    async function loadFromStorage() {
+   async function loadFromStorage() {
   // Only load from cloud storage when user is signed in
-  // Local storage is only used as a temporary cache
-  if (!currentUser) {
-    data = [];
-    dailyData = {};
-    goals = [];
-    recentBooks = [];
+  if (!window.currentUser && !currentUser) {
+    window.data = data = [];
+    window.dailyData = dailyData = {};
+    window.goals = goals = [];
+    window.recentBooks = recentBooks = [];
     aggregateData();
     loadYear();
     renderGoals();
@@ -1170,18 +1179,20 @@ function signOut() {
 }
 
     function aggregateData() {
-      dailyData = {};
-      data.forEach(item => {
-        if (!dailyData[item.date]) {
-          dailyData[item.date] = { minutes: 0, characters: 0, titles: [] };
-        }
-        dailyData[item.date].minutes += item.minutes;
-        dailyData[item.date].characters += item.characters;
-        if (item.title && !dailyData[item.date].titles.includes(item.title)) {
-          dailyData[item.date].titles.push(item.title);
-        }
-      });
+  window.dailyData = dailyData = {};
+  const dataArray = window.data || data || [];
+  dataArray.forEach(item => {
+    if (!dailyData[item.date]) {
+      dailyData[item.date] = { minutes: 0, characters: 0, titles: [] };
     }
+    dailyData[item.date].minutes += item.minutes;
+    dailyData[item.date].characters += item.characters;
+    if (item.title && !dailyData[item.date].titles.includes(item.title)) {
+      dailyData[item.date].titles.push(item.title);
+    }
+  });
+  window.dailyData = dailyData;
+}
 
     function loadYear() {
       document.getElementById('yearDisplay').textContent = currentYear;
@@ -1827,7 +1838,22 @@ function signOut() {
     console.error('Leaderboard error:', error);
   }
 }
-    </script> 
+// Make all functions globally available
+    window.aggregateData = aggregateData;
+    window.loadYear = loadYear;
+    window.renderGoals = renderGoals;
+    window.renderUserProfile = renderUserProfile;
+    window.initializeAuthButton = initializeAuthButton;
+    window.loadFromStorage = loadFromStorage;
+    
+    // Sync all variables with window
+    window.data = data;
+    window.dailyData = dailyData;
+    window.goals = goals;
+    window.recentBooks = recentBooks;
+    window.currentUser = currentUser;
+    window.currentYear = currentYear;
+  </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
@@ -1847,6 +1873,7 @@ function signOut() {
   const db = getFirestore(app);
 
   // Listen for auth state changes to persist login across reloads
+  // Listen for auth state changes to persist login across reloads
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window.currentUser = {
@@ -1856,13 +1883,24 @@ function signOut() {
         avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
       };
       
+      // Sync with local variable
+      if (typeof currentUser !== 'undefined') {
+        currentUser = window.currentUser;
+      }
+      
       localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
       
       // Update UI
-      renderUserProfile();
+      if (window.renderUserProfile) window.renderUserProfile();
       
       // Load user's data from cloud
       await loadCloudState(user.uid);
+      
+      // Sync all data with local variables
+      if (typeof data !== 'undefined') data = window.data;
+      if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
+      if (typeof goals !== 'undefined') goals = window.goals;
+      if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
       
       if (window.aggregateData) window.aggregateData();
       if (window.loadYear) window.loadYear();
@@ -1874,9 +1912,17 @@ function signOut() {
       window.dailyData = {};
       window.goals = [];
       window.recentBooks = [];
+      
+      // Sync with local variables
+      if (typeof currentUser !== 'undefined') currentUser = null;
+      if (typeof data !== 'undefined') data = [];
+      if (typeof dailyData !== 'undefined') dailyData = {};
+      if (typeof goals !== 'undefined') goals = [];
+      if (typeof recentBooks !== 'undefined') recentBooks = [];
+      
       localStorage.removeItem('reading_heatmap_user');
       
-      initializeAuthButton();
+      if (window.initializeAuthButton) window.initializeAuthButton();
       if (window.aggregateData) window.aggregateData();
       if (window.loadYear) window.loadYear();
       if (window.renderGoals) window.renderGoals();
@@ -1915,11 +1961,22 @@ function signOut() {
         window.data = Array.isArray(cloud.data) ? cloud.data : [];
         window.goals = Array.isArray(cloud.goals) ? cloud.goals : [];
         window.recentBooks = Array.isArray(cloud.recentBooks) ? cloud.recentBooks : [];
+        
+        // Sync with local variables
+        if (typeof data !== 'undefined') data = window.data;
+        if (typeof goals !== 'undefined') goals = window.goals;
+        if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
       } else {
         // First time user - initialize empty
         window.data = [];
         window.goals = [];
         window.recentBooks = [];
+        
+        // Sync with local variables
+        if (typeof data !== 'undefined') data = [];
+        if (typeof goals !== 'undefined') goals = [];
+        if (typeof recentBooks !== 'undefined') recentBooks = [];
+        
         await setDoc(ref, { 
           data: [], 
           goals: [], 
