@@ -1052,6 +1052,8 @@ function initializeAuthButton() {
   }
 }
 
+// Make initializeAuthButton globally available for Firebase to call
+window.initializeAuthButton = initializeAuthButton;
 
 // Fallback prompt-based sign-in if Google OAuth not configured
 function promptSignIn() {
@@ -1086,6 +1088,7 @@ function signOut() {
       window.firebaseSignOut();
     } else {
       // Fallback for manual sign-in users
+      window.currentUser = null;
       currentUser = null;
       localStorage.removeItem(USER_KEY);
       initializeAuthButton();
@@ -1095,15 +1098,19 @@ function signOut() {
     
     function renderUserProfile() {
       const authSection = document.getElementById('authSection');
-      if (currentUser) {
+      // Use window.currentUser instead of currentUser to ensure we're reading the global variable
+      if (window.currentUser) {
         authSection.innerHTML = `
           <div class="user-profile" onclick="signOut()" title="Click to sign out">
-            <img src="${currentUser.avatar}" class="user-avatar" alt="${currentUser.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'">
-            <span class="user-name">${currentUser.name}</span>
+            <img src="${window.currentUser.avatar}" class="user-avatar" alt="${window.currentUser.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'">
+            <span class="user-name">${window.currentUser.name}</span>
           </div>
         `;
       }
     }
+    
+    // Make renderUserProfile globally available for Firebase to call
+    window.renderUserProfile = renderUserProfile;
     
     function exportToToggl() {
       const togglData = data.map(entry => ({
