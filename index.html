@@ -1821,37 +1821,6 @@ function signOut() {
   }
 }
     
-    async function updateLeaderboard() {
-      if (!currentUser) return;
-      
-      let totalMinutes = 0;
-      Object.values(dailyData).forEach(day => {
-        totalMinutes += day.minutes;
-      });
-      
-      const leaderboardEntry = {
-        userId: currentUser.id,
-        name: currentUser.name,
-        avatar: currentUser.avatar,
-        totalMinutes: totalMinutes,
-        lastUpdated: new Date().toISOString()
-      };
-      
-      try {
-        await window.storage.set(`leaderboard:${currentUser.id}`, JSON.stringify(leaderboardEntry), true);
-      } catch (error) {
-        console.error('Failed to update leaderboard:', error);
-      }
-    }
-
-    window.addEventListener('storage', (e) => {
-      if (!e) return;
-      if (e.key === STORAGE_KEY || e.key === 'reading_heatmap_sync_signal') {
-        loadFromStorage();
-      }
-    });
-    
-  </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
