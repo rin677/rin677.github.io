@@ -1940,50 +1940,27 @@ async function deleteGoal(id) {
       }
     }
     
-    async function loadLeaderboard() {
+  async function loadLeaderboard() {
   const container = document.getElementById('leaderboardList');
   
-  if (!currentUser) {
+  if (!currentUser && !window.currentUser) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Sign in to view the leaderboard and compete with others!</div>';
     return;
   }
   
   try {
-    // Load from Firestore instead of window.storage
-    const { getFirestore, collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js");
-    const db = getFirestore();
-    const snapshot = await getDocs(collection(db, 'leaderboard'));
-    
-    const leaderboardData = [];
-    snapshot.forEach((doc) => {
-      leaderboardData.push(doc.data());
-    });
-    
-    if (leaderboardData.length === 0) {
-      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+    // Check if saveCloudState exists (means Firebase is loaded)
+    if (!window.saveCloudState) {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
       return;
     }
-    
-    leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
-    
-    container.innerHTML = '';
-    leaderboardData.slice(0, 10).forEach((entry, index) => {
-      const rankDiv = document.createElement('div');
-      rankDiv.className = 'leaderboard-entry';
-      
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-      
-      rankDiv.innerHTML = `
-        <div class="leaderboard-rank">${medal}</div>
-        <div class="leaderboard-user">
-          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" style="width: 32px; height: 32px;">
-          <span>${entry.name}</span>
-        </div>
-        <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
-      `;
-      
-      container.appendChild(rankDiv);
-    });
+
+    // Use the global loadLeaderboardData function from Firebase module
+    if (window.loadLeaderboardData) {
+      await window.loadLeaderboardData();
+    } else {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Leaderboard not available. Please refresh the page.</div>';
+    }
     
   } catch (error) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
@@ -2188,12 +2165,54 @@ async function deleteGoal(id) {
       console.error('Failed to update leaderboard:', error);
     }
   }
-
+async function loadLeaderboardData() {
+  const container = document.getElementById('leaderboardList');
+  
+  try {
+    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js");
+    const snapshot = await getDocs(collection(db, 'leaderboard'));
+    
+    const leaderboardData = [];
+    snapshot.forEach((doc) => {
+      leaderboardData.push(doc.data());
+    });
+    
+    if (leaderboardData.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+      return;
+    }
+    
+    leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+    
+    container.innerHTML = '';
+    leaderboardData.slice(0, 10).forEach((entry, index) => {
+      const rankDiv = document.createElement('div');
+      rankDiv.className = 'leaderboard-entry';
+      
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      
+      rankDiv.innerHTML = `
+        <div class="leaderboard-rank">${medal}</div>
+        <div class="leaderboard-user">
+          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" style="width: 32px; height: 32px;">
+          <span>${entry.name}</span>
+        </div>
+        <div class="leaderboard-value">${entry.totalMinutes.toLocaleString()} min</div>
+      `;
+      
+      container.appendChild(rankDiv);
+    });
+    
+  } catch (error) {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
+    console.error('Leaderboard error:', error);
+  }
+}
   // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
   window.saveCloudState = saveCloudState;
-  
+  window.loadLeaderboardData = loadLeaderboardData;
   // Override promptSignIn to use Firebase
   window.promptSignIn = firebaseSignIn;
 </script>
