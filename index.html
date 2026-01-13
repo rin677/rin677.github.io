@@ -1709,16 +1709,13 @@ function signOut() {
     try {
       const imported = JSON.parse(e.target.result);
       
-      // ✅ Handle both old and new formats
       let importedData = [];
       let importedGoals = [];
       let importedBooks = [];
       
       if (Array.isArray(imported)) {
-        // Old format - just data array
         importedData = imported;
       } else if (imported.data) {
-        // New format - object with data, goals, recentBooks
         importedData = imported.data || [];
         importedGoals = imported.goals || [];
         importedBooks = imported.recentBooks || [];
@@ -1728,27 +1725,30 @@ function signOut() {
       }
       
       if (importedData.length > 0 && confirm('Replace existing data?')) {
-        // ✅ Update both local AND window variables
-        window.data = data = importedData;
-        window.goals = goals = importedGoals;
-        window.recentBooks = recentBooks = importedBooks;
+        window.data = importedData;
+        window.goals = importedGoals;
+        window.recentBooks = importedBooks;
       } else if (importedData.length > 0) {
-        window.data = data = data.concat(importedData);
-        window.goals = goals = goals.concat(importedGoals);
-        window.recentBooks = recentBooks = [...new Set([...recentBooks, ...importedBooks])];
+        window.data = [...window.data, ...importedData];
+        window.goals = [...window.goals, ...importedGoals];
+        window.recentBooks = [...new Set([...window.recentBooks, ...importedBooks])];
       }
+      
+      // Sync with local variables
+      data = window.data;
+      goals = window.goals;
+      recentBooks = window.recentBooks;
       
       await saveToStorage();
       aggregateData();
       loadYear();
-      renderGoals();  // ✅ Now renders goals
+      renderGoals();
       
-      // ✅ Save to cloud if signed in
       if (window.saveCloudState && typeof window.saveCloudState === 'function') {
         await window.saveCloudState();
       }
       
-      closeMenu();  // ✅ Auto-close settings menu
+      closeMenu();
       alert('Data loaded successfully!');
     } catch (error) {
       alert('Error reading file: ' + error.message);
