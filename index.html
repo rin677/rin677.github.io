@@ -2041,10 +2041,32 @@ async function firebaseSignOut() {
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
   
+  // Set up auth state listener to handle page reloads
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      window.currentUser = {
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || '',
+        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+      };
+      
+      localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
+      
+      if (typeof window.renderUserProfile === 'function') {
+        window.renderUserProfile();
+      }
+      
+      await loadCloudState(user.uid);
+      
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
+    }
+  });
+  
   // Override promptSignIn to use Firebase
   window.promptSignIn = firebaseSignIn;
 </script>
-
-
 </body>
 </html>
