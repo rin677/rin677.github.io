@@ -1420,16 +1420,18 @@ Book title 2"></textarea>
     <div id="ttsuSyncStatus" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
       Status: <span id="ttsuSyncStatusText">Not configured</span>
     </div>
-    
-    <button class="btn" onclick="setupTtsuSync()" style="width: 100%; margin-bottom: 8px;">
-      🔄 Setup ttsu Auto-Sync
-    </button>
-    <button class="btn" onclick="manualSyncTtsu()" style="width: 100%; margin-bottom: 8px;">
-      ⬇️ Sync Now
-    </button>
-    <button class="btn" onclick="disableTtsuSync()" style="width: 100%; margin-bottom: 8px; opacity: 0.7;">
-      ❌ Disable Sync
-    </button>
+   <button class="btn" onclick="setupTtsuSync()" style="width: 100%; margin-bottom: 8px;">
+  🔄 Setup ttsu Auto-Sync
+</button>
+<button class="btn" onclick="manualSyncTtsu()" style="width: 100%; margin-bottom: 8px;">
+  ⬇️ Sync Now
+</button>
+<button class="btn" onclick="batchLoadAllTtsu()" style="width: 100%; margin-bottom: 8px; background: var(--accent-color); color: white;">
+  📥 Batch Load All (Overwrite)
+</button>
+<button class="btn" onclick="disableTtsuSync()" style="width: 100%; margin-bottom: 8px; opacity: 0.7;">
+  ❌ Disable Sync
+</button>
     
     <button class="btn" onclick="closeTtsuSyncModal()" style="width: 100%; margin-top: 12px;">Close</button>
    </div>
@@ -3260,6 +3262,186 @@ if (totalImported > 0) {
     throw error;
   }
 }
+
+async function batchLoadAllTtsu() {
+  // First confirmation
+  if (!confirm('⚠️ BATCH LOAD ALL FROM TTSU ⚠️\n\nThis will:\n1. Load ALL reading data from ttsu Google Drive\n2. OVERWRITE your existing data\n3. This action CANNOT be undone\n\nAre you sure you want to continue?')) {
+    return;
+  }
+  
+  // Second confirmation to prevent accidents
+  if (!confirm('FINAL CONFIRMATION\n\nYour current reading data will be PERMANENTLY REPLACED with all data from ttsu.\n\nClick OK to proceed or Cancel to abort.')) {
+    return;
+  }
+  
+  try {
+    const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+    
+    if (!folderId) {
+      // Try to find folder if not configured
+      const hasToken = await ensureDriveToken({ allowPrompt: true });
+      if (!hasToken) {
+        throw new Error('Authorization failed. Please try again.');
+      }
+      
+      const foundFolderId = await findTtsuFolder();
+      if (!foundFolderId) {
+        alert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!');
+        return;
+      }
+      
+      localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolderId);
+    } else {
+      // Ensure we have a valid token
+      const hasToken = await ensureDriveToken({ allowPrompt: false });
+      if (!hasToken) {
+        alert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization.');
+        return;
+      }
+    }
+    
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+    if (statusEl) {
+      statusEl.textContent = 'Loading all data from ttsu...';
+      statusEl.style.color = 'var(--accent-color)';
+    }
+    
+    console.log('Starting batch load of all ttsu data...');
+    
+    const fId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+    
+    // Get all book folders inside ttu-reader-data
+    const bookFoldersQuery = encodeURIComponent(`'${fId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+    const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`, googleAccessToken);
+
+    const bookFolders = bookFoldersData.files || [];
+    console.log(`Found ${bookFolders.length} book folders`);
+    
+    if (bookFolders.length === 0) {
+      alert('No book folders found in ttsu Google Drive.');
+      return;
+    }
+    
+    // Clear existing data
+    window.data = [];
+    data = [];
+    
+    let totalImported = 0;
+    const bookTitles = new Set();
+    
+    // For each book folder, get the statistics file
+    for (const bookFolder of bookFolders) {
+      try {
+        console.log(`Processing folder: ${bookFolder.name}`);
+        
+        // Find statistics JSON file in this book folder
+        const statsQuery = encodeURIComponent(`'${bookFolder.id}' in parents and name contains 'statistics' and mimeType='application/json'`);
+        const statsData = await driveApiCall(`files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
+        
+        const files = statsData.files || [];
+        
+        if (files.length === 0) {
+          console.log(`No statistics file in ${bookFolder.name}`);
+          continue;
+        }
+        
+        // Process the statistics file
+        const file = files[0];
+        console.log(`Processing ${file.name}...`);
+        
+        // Download file content
+        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
+        const ttsuData = JSON.parse(fileContent);
+        
+        if (!Array.isArray(ttsuData)) continue;
+        
+        // Transform and import ALL data (no duplicate checking since we're overwriting)
+        ttsuData.forEach(session => {
+          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+            return;
+          }
+          
+          const date = session.dateKey;
+          const minutes = Math.round(session.readingTime / 60);
+          const characters = session.charactersRead || 0;
+          
+          if (minutes === 0 && characters === 0) return;
+          
+          window.data.push({
+            date: date,
+            minutes: minutes,
+            characters: characters,
+            title: session.title || bookFolder.name || 'Reading'
+          });
+          totalImported++;
+          bookTitles.add(session.title || bookFolder.name);
+        });
+        
+      } catch (fileError) {
+        console.error('Error processing folder:', bookFolder.name, fileError);
+      }
+    }
+    
+    if (totalImported === 0) {
+      alert('No reading data found in ttsu Google Drive.');
+      return;
+    }
+    
+    // Update recent books
+    bookTitles.forEach(title => {
+      if (title && !window.recentBooks.includes(title)) {
+        window.recentBooks.unshift(title);
+      }
+    });
+    window.recentBooks = window.recentBooks.slice(0, 10);
+    recentBooks = window.recentBooks;
+    
+    data = window.data;
+    
+    await saveToStorage();
+    aggregateData();
+    loadYear();
+    renderGoals();
+    
+    if (window.saveCloudState) {
+      await window.saveCloudState();
+    }
+    
+    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+    
+    console.log(`✅ Batch loaded ${totalImported} sessions from ttsu`);
+    
+    const bookList = Array.from(bookTitles).slice(0, 10).join(', ');
+    const moreBooks = bookTitles.size > 10 ? `\n...and ${bookTitles.size - 10} more books` : '';
+    
+    alert(
+      `✅ Batch Load Complete!\n\n` +
+      `Imported: ${totalImported} reading sessions\n` +
+      `Books: ${bookList}${moreBooks}\n\n` +
+      `Your data has been overwritten with ttsu data.`
+    );
+    
+    if (statusEl) {
+      const s = checkTtsuSyncStatus();
+      statusEl.textContent = s;
+      statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+    }
+    
+    closeTtsuSyncModal();
+    
+  } catch (error) {
+    console.error('Batch load error:', error);
+    alert('Failed to batch load from ttsu:\n\n' + (error.message || error));
+    
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+    if (statusEl) {
+      const s = checkTtsuSyncStatus();
+      statusEl.textContent = s;
+      statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+    }
+  }
+}
+
 function startAutoSync() {
   if (ttsuSyncInterval) {
     clearInterval(ttsuSyncInterval);
@@ -3475,8 +3657,10 @@ setTimeout(async () => {
 window.setupTtsuSync = setupTtsuSync;
 window.syncFromTtsuGDrive = syncFromTtsuGDrive;
 window.manualSyncTtsu = manualSyncTtsu;
+window.batchLoadAllTtsu = batchLoadAllTtsu;
 window.disableTtsuSync = disableTtsuSync;
 window.checkTtsuSyncStatus = checkTtsuSyncStatus;
+
 </script>
 <!-- Spacer to push footer far below main UI -->
 <div style="height: 18vh;"></div>
