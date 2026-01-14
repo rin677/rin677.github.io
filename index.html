@@ -1857,78 +1857,88 @@ while (currentDate <= endDate) {
       document.getElementById('tooltip').className = 'tooltip';
     }
 
-    function updateStats() {
-      const year = currentYear;
-      const metric = getSelectedMetric();
-      
-      let longestStreak = 0, currentStreak = 0, streak = 0;
-      let total = 0, count = 0;
-      
-      const startDate = new Date(year, 0, 1);
-      const endDate = new Date(year, 11, 31);
-      const today = new Date();
-      
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        const dayData = dailyData[dateStr];
-        const value = dayData ? dayData[metric] : 0;
-        
-        total += value;
-        count++;
-        
-        if (value > 0) {
-          streak++;
-          longestStreak = Math.max(longestStreak, streak);
-        } else {
-          streak = 0;
-        }
-      }
-      
+function updateStats() {
+  const year = currentYear;
+  const metric = getSelectedMetric();
+  
+  let longestStreak = 0, currentStreak = 0, streak = 0;
+  let total = 0, count = 0;
+  
+  const startDate = new Date(year, 0, 1);
+  const endDate = new Date(year, 11, 31);
+  const today = new Date();
+  
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    const dayData = dailyData[dateStr];
+    const value = dayData ? dayData[metric] : 0;
+    
+    total += value;
+    count++;
+    
+    if (value > 0) {
+      streak++;
+      longestStreak = Math.max(longestStreak, streak);
+    } else {
       streak = 0;
-      for (let d = new Date(today); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        const dayData = dailyData[dateStr];
-        if (dayData && dayData[metric] > 0) {
-          streak++;
-        } else {
-          break;
-        }
-      }
-      currentStreak = streak;
-// Calculate average reading speed (characters per hour)
-let totalMinutes = 0;
-let totalCharacters = 0;
-Object.values(dailyData).forEach(day => {
-  totalMinutes += day.minutes || 0;
-  totalCharacters += day.characters || 0;
-});
-
-const totalHours = totalMinutes / 60;
-const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
-document.getElementById('avgSpeed').textContent = avgSpeed.toLocaleString() + ' char/hr';
-      // Calculate average only from first logged day
-let firstLoggedDate = null;
-Object.keys(dailyData).forEach(dateStr => {
-  if (!firstLoggedDate || dateStr < firstLoggedDate) {
-    firstLoggedDate = dateStr;
+    }
   }
-});
-
-let daysToCount = 0;
-if (firstLoggedDate) {
-  for (let d = new Date(firstLoggedDate + 'T00:00:00'); d <= endDate && d <= new Date(); d.setDate(d.getDate() + 1)) {
-    daysToCount++;
+  
+  streak = 0;
+  for (let d = new Date(today); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    const dayData = dailyData[dateStr];
+    if (dayData && dayData[metric] > 0) {
+      streak++;
+    } else {
+      break;
+    }
   }
+  currentStreak = streak;
+
+  // Calculate average reading speed (characters per hour)
+  // Only include entries with characters > 0
+  let totalMinutesWithChars = 0;
+  let totalCharactersWithChars = 0;
+
+  Object.values(dailyData).forEach(day => {
+    const hasChars = (day.characters || 0) > 0;
+    if (hasChars) {
+      totalMinutesWithChars += day.minutes || 0;
+      totalCharactersWithChars += day.characters || 0;
+    }
+  });
+
+  const totalHoursWithChars = totalMinutesWithChars / 60;
+  const avgSpeed = totalHoursWithChars > 0
+    ? Math.round(totalCharactersWithChars / totalHoursWithChars)
+    : 0;
+  document.getElementById('avgSpeed').textContent = avgSpeed.toLocaleString() + ' char/hr';
+
+  // Calculate average only from first logged day
+  let firstLoggedDate = null;
+  Object.keys(dailyData).forEach(dateStr => {
+    if (!firstLoggedDate || dateStr < firstLoggedDate) {
+      firstLoggedDate = dateStr;
+    }
+  });
+
+  let daysToCount = 0;
+  if (firstLoggedDate) {
+    for (let d = new Date(firstLoggedDate + 'T00:00:00'); d <= endDate && d <= new Date(); d.setDate(d.getDate() + 1)) {
+      daysToCount++;
+    }
+  }
+
+  const avg = daysToCount > 0 ? total / daysToCount : 0;
+  const suffix = metric === 'minutes' ? ' minutes' : ' characters';
+  
+  document.getElementById('longestStreak').textContent = `${longestStreak} days`;
+  document.getElementById('currentStreak').textContent = `${currentStreak} days`;
+  document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
+  document.getElementById('totalValue').textContent = Math.round(total).toLocaleString() + suffix;
 }
 
-const avg = daysToCount > 0 ? total / daysToCount : 0;
-      const suffix = metric === 'minutes' ? ' minutes' : ' characters';
-      
-      document.getElementById('longestStreak').textContent = `${longestStreak} days`;
-      document.getElementById('currentStreak').textContent = `${currentStreak} days`;
-      document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
-      document.getElementById('totalValue').textContent = Math.round(total).toLocaleString() + suffix;
-    }
 
     function openModal(dateStr) {
       const modal = document.getElementById('modal');
