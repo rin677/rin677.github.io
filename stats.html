@@ -368,105 +368,163 @@ function destroyChart(chartId) {
   }
 }
 
+function getChartColors() {
+  const style = getComputedStyle(document.body);
+  return {
+    primary: style.getPropertyValue('--accent-color').trim(),
+    secondary: 'rgba(35, 134, 54, 0.1)', // Will be replaced dynamically
+    text: style.getPropertyValue('--text-secondary').trim()
+  };
+}
+
 function renderSpeedChart(filteredData) {
   destroyChart('speedChart');
   
   const dates = Object.keys(filteredData).sort();
-  const speeds = dates.map(date => {
-    const day = filteredData[date];
-    return day.minutes > 0 ? Math.round(day.characters / day.minutes) : 0;
-  });
   
-  const ctx = document.getElementById('speedChart');
-  chartInstances['speedChart'] = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-      datasets: [{
-        label: 'Characters per Minute',
-        data: speeds,
-        borderColor: 'rgb(35, 134, 54)',
-        backgroundColor: 'rgba(35, 134, 54, 0.1)',
-        tension: 0.4,
-        fill: true
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, ticks: { color: '#8b949e' } },
-        x: { ticks: { color: '#8b949e', maxRotation: 45, minRotation: 45 } }
-      }
+  // Fill in missing dates
+  if (dates.length > 0) {
+    const startDate = new Date(dates[0]);
+    const endDate = new Date(dates[dates.length - 1]);
+    const allDates = [];
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      allDates.push(d.toISOString().split('T')[0]);
     }
-  });
+    
+    const speeds = allDates.map(date => {
+      const day = filteredData[date];
+      return day && day.minutes > 0 ? Math.round(day.characters / day.minutes) : 0;
+    });
+    
+    const colors = getChartColors();
+    const ctx = document.getElementById('speedChart');
+    chartInstances['speedChart'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        datasets: [{
+          label: 'Characters per Minute',
+          data: speeds,
+          borderColor: colors.primary,
+          backgroundColor: colors.primary + '20',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: colors.text } },
+          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+  }
 }
 
 function renderDailyTimeChart(filteredData) {
   destroyChart('dailyTimeChart');
   
   const dates = Object.keys(filteredData).sort();
-  const minutes = dates.map(date => filteredData[date].minutes || 0);
   
-  const ctx = document.getElementById('dailyTimeChart');
-  chartInstances['dailyTimeChart'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-      datasets: [{
-        label: 'Minutes',
-        data: minutes,
-        backgroundColor: 'rgba(35, 134, 54, 0.8)'
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, ticks: { color: '#8b949e' } },
-        x: { ticks: { color: '#8b949e', maxRotation: 45, minRotation: 45 } }
-      }
+  // Fill in missing dates
+  if (dates.length > 0) {
+    const startDate = new Date(dates[0]);
+    const endDate = new Date(dates[dates.length - 1]);
+    const allDates = [];
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      allDates.push(d.toISOString().split('T')[0]);
     }
-  });
+    
+    const minutes = allDates.map(date => filteredData[date]?.minutes || 0);
+    
+    const colors = getChartColors();
+    const ctx = document.getElementById('dailyTimeChart');
+    chartInstances['dailyTimeChart'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        datasets: [{
+          label: 'Minutes',
+          data: minutes,
+          backgroundColor: colors.primary + 'CC'
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { color: colors.text } },
+          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+  }
 }
 
 function renderDailyCharsChart(filteredData) {
   destroyChart('dailyCharsChart');
   
   const dates = Object.keys(filteredData).sort();
-  const characters = dates.map(date => filteredData[date].characters || 0);
   
-  const ctx = document.getElementById('dailyCharsChart');
-  chartInstances['dailyCharsChart'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-      datasets: [{
-        label: 'Characters',
-        data: characters,
-        backgroundColor: 'rgba(57, 211, 83, 0.8)'
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { 
-          beginAtZero: true, 
-          ticks: { 
-            color: '#8b949e',
-            callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v
-          } 
-        },
-        x: { ticks: { color: '#8b949e', maxRotation: 45, minRotation: 45 } }
-      }
+  // Fill in missing dates
+  if (dates.length > 0) {
+    const startDate = new Date(dates[0]);
+    const endDate = new Date(dates[dates.length - 1]);
+    const allDates = [];
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      allDates.push(d.toISOString().split('T')[0]);
     }
-  });
+    
+    const characters = allDates.map(date => filteredData[date]?.characters || 0);
+    
+    const colors = getChartColors();
+    const ctx = document.getElementById('dailyCharsChart');
+    chartInstances['dailyCharsChart'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        datasets: [{
+          label: 'Characters',
+          data: characters,
+          backgroundColor: colors.primary + 'CC'
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { 
+            beginAtZero: true, 
+            ticks: { 
+              color: colors.text,
+              callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v
+            } 
+          },
+          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+  }
 }
 
 function renderDayOfWeekChart(filteredData) {
   destroyChart('dayOfWeekChart');
+  
+  const dates = Object.keys(filteredData).sort();
+  
+  // Only show this chart if we have less than 60 days of data
+  const timeRange = document.getElementById('statsTimeRange').value;
+  if (timeRange === 'all' || timeRange === '365') {
+    const container = document.getElementById('dayOfWeekChart').parentElement;
+    container.innerHTML = '<h3 style="font-size: 18px; margin-bottom: 20px;">Reading by Day of Week</h3><div style="color: var(--text-secondary); padding: 40px; text-align: center;">This chart is only available for time ranges of 90 days or less</div>';
+    return;
+  }
   
   const dayStats = {
     'Mon': { minutes: 0, count: 0 }, 'Tue': { minutes: 0, count: 0 }, 'Wed': { minutes: 0, count: 0 },
@@ -482,92 +540,90 @@ function renderDayOfWeekChart(filteredData) {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const avgMinutes = days.map(day => dayStats[day].count > 0 ? Math.round(dayStats[day].minutes / dayStats[day].count) : 0);
   
+  const colors = getChartColors();
   const ctx = document.getElementById('dayOfWeekChart');
-  chartInstances['dayOfWeekChart'] = new Chart(ctx, {
+  
+  // Make sure the container has the canvas
+  if (!ctx) {
+    const container = document.getElementById('dayOfWeekChart')?.parentElement;
+    if (container) {
+      container.innerHTML = '<h3 style="font-size: 18px; margin-bottom: 20px;">Reading by Day of Week</h3><canvas id="dayOfWeekChart"></canvas>';
+    }
+  }
+  
+  const canvas = document.getElementById('dayOfWeekChart');
+  chartInstances['dayOfWeekChart'] = new Chart(canvas, {
     type: 'bar',
     data: {
       labels: days,
       datasets: [{
         label: 'Avg Minutes',
         data: avgMinutes,
-        backgroundColor: ['rgba(35, 134, 54, 0.8)', 'rgba(38, 166, 65, 0.8)', 'rgba(57, 211, 83, 0.8)', 'rgba(35, 134, 54, 0.8)', 'rgba(38, 166, 65, 0.8)', 'rgba(57, 211, 83, 0.8)', 'rgba(35, 134, 54, 0.8)']
+        backgroundColor: colors.primary + 'CC'
       }]
     },
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        y: { beginAtZero: true, ticks: { color: '#8b949e' } },
-        x: { ticks: { color: '#8b949e' } }
+        y: { beginAtZero: true, ticks: { color: colors.text } },
+        x: { ticks: { color: colors.text } }
       }
     }
   });
-}
-
-function renderTopBooks(filteredData) {
-  const bookStats = {};
-  
-  Object.values(filteredData).forEach(day => {
-    day.titles.forEach(title => {
-      if (!bookStats[title]) bookStats[title] = { minutes: 0, characters: 0, days: 0 };
-      bookStats[title].minutes += day.minutes || 0;
-      bookStats[title].characters += day.characters || 0;
-      bookStats[title].days++;
-    });
-  });
-  
-  const sortedBooks = Object.entries(bookStats).sort((a, b) => b[1].minutes - a[1].minutes).slice(0, 10);
-  const container = document.getElementById('topBooksList');
-  
-  if (sortedBooks.length === 0) {
-    container.innerHTML = '<div style="color: #8b949e; padding: 20px; text-align: center;">No books tracked yet</div>';
-    return;
-  }
-  
-  container.innerHTML = sortedBooks.map(([title, stats], i) => `
-    <div style="padding: 10px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 8px;">
-      <div style="font-weight: 600; margin-bottom: 4px;">${i + 1}. ${title}</div>
-      <div style="font-size: 12px; color: #8b949e;">${stats.minutes} min • ${stats.characters.toLocaleString()} chars • ${stats.days} days</div>
-    </div>
-  `).join('');
 }
 
 function renderConsistencyChart(filteredData) {
   destroyChart('consistencyChart');
   
   const dates = Object.keys(filteredData).sort();
-  const hasReading = dates.map(date => (filteredData[date].minutes > 0 || filteredData[date].characters > 0) ? 1 : 0);
   
-  const rolling7Day = [];
-  for (let i = 0; i < hasReading.length; i++) {
-    const start = Math.max(0, i - 6);
-    const slice = hasReading.slice(start, i + 1);
-    rolling7Day.push(Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100));
-  }
-  
-  const ctx = document.getElementById('consistencyChart');
-  chartInstances['consistencyChart'] = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: dates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-      datasets: [{
-        label: '7-Day Consistency %',
-        data: rolling7Day,
-        borderColor: 'rgb(57, 211, 83)',
-        backgroundColor: 'rgba(57, 211, 83, 0.1)',
-        tension: 0.4,
-        fill: true
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, max: 100, ticks: { color: '#8b949e', callback: v => v + '%' } },
-        x: { ticks: { color: '#8b949e', maxRotation: 45, minRotation: 45 } }
-      }
+  // Fill in missing dates
+  if (dates.length > 0) {
+    const startDate = new Date(dates[0]);
+    const endDate = new Date(dates[dates.length - 1]);
+    const allDates = [];
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      allDates.push(d.toISOString().split('T')[0]);
     }
-  });
+    
+    const hasReading = allDates.map(date => 
+      (filteredData[date]?.minutes > 0 || filteredData[date]?.characters > 0) ? 1 : 0
+    );
+    
+    const rolling7Day = [];
+    for (let i = 0; i < hasReading.length; i++) {
+      const start = Math.max(0, i - 6);
+      const slice = hasReading.slice(start, i + 1);
+      rolling7Day.push(Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100));
+    }
+    
+    const colors = getChartColors();
+    const ctx = document.getElementById('consistencyChart');
+    chartInstances['consistencyChart'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        datasets: [{
+          label: '7-Day Consistency %',
+          data: rolling7Day,
+          borderColor: colors.primary,
+          backgroundColor: colors.primary + '20',
+          tension: 0.4,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, max: 100, ticks: { color: colors.text, callback: v => v + '%' } },
+          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+        }
+      }
+    });
+  }
 }
 
 window.onload = function() {
