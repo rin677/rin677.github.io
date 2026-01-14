@@ -1289,40 +1289,15 @@ Book title 2"></textarea>
         </div>
       </div>
     </div>
-      <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
-      <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Visible Stats</h3>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-          <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked style="cursor: pointer;">
-          <span style="font-size: 13px;">Longest streak</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-          <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked style="cursor: pointer;">
-          <span style="font-size: 13px;">Current streak</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-          <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked style="cursor: pointer;">
-          <span style="font-size: 13px;">Average</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-          <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked style="cursor: pointer;">
-          <span style="font-size: 13px;">Average speed</span>
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-          <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked style="cursor: pointer;">
-          <span style="font-size: 13px;">Total</span>
-        </label>
-      </div>
-    </div>
-
-
     <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
       <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
       <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
       <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
       <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
     </div>
-    
+    <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; margin-bottom: 16px;">
+  <button class="btn" onclick="openStatsSettings()" style="width: 100%;">⚙️ Customise more</button>
+</div>
     <button class="btn" onclick="closeMenu()" style="width: 100%; margin-top: 12px;">Close</button>
   </div>
 </div>
@@ -1350,7 +1325,37 @@ Book title 2"></textarea>
       </div>
     </div>
   </div>
-
+<div class="modal" id="statsModal">
+  <div class="modal-content">
+    <h2>Visible Stats Settings</h2>
+    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">Choose which statistics to display on the main heatmap panel:</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
+        <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked style="cursor: pointer;">
+        <span style="font-size: 14px;">Longest streak</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
+        <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked style="cursor: pointer;">
+        <span style="font-size: 14px;">Current streak</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
+        <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked style="cursor: pointer;">
+        <span style="font-size: 14px;">Average</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
+        <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked style="cursor: pointer;">
+        <span style="font-size: 14px;">Average speed</span>
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
+        <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked style="cursor: pointer;">
+        <span style="font-size: 14px;">Total</span>
+      </label>
+    </div>
+    
+    <button class="btn" onclick="closeStatsSettings()" style="width: 100%; margin-top: 16px;">Done</button>
+  </div>
+</div>
   <script>
     const STORAGE_KEY = 'reading_heatmap_data';
     const GOALS_KEY = 'reading_heatmap_goals';
@@ -2141,22 +2146,25 @@ const avg = daysToCount > 0 ? total / daysToCount : 0;
         }
       }
     }
-
+document.getElementById('statsModal').addEventListener('click', (e) => {
+  if (e.target.id === 'statsModal') closeStatsSettings();
+});
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        try { hideTooltip(); } catch (err) {}
-        try { closeModal(); } catch (err) {}
-        try { closeMenu(); } catch (err) {}
-        try { closeGoalModal(); } catch (err) {}
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    try { hideTooltip(); } catch (err) {}
+    try { closeModal(); } catch (err) {}
+    try { closeMenu(); } catch (err) {}
+    try { closeGoalModal(); } catch (err) {}
+    try { closeStatsSettings(); } catch (err) {}  // Add this line
 
-        try {
-          const active = document.activeElement;
-          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'BUTTON' || active.isContentEditable)) {
-            active.blur();
-          }
-        } catch (err) {}
+    try {
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'BUTTON' || active.isContentEditable)) {
+        active.blur();
       }
-    });
+    } catch (err) {}
+  }
+});
 
     document.getElementById('modal').addEventListener('click', (e) => {
       if (e.target.id === 'modal') closeModal();
@@ -2206,7 +2214,13 @@ const avg = daysToCount > 0 ? total / daysToCount : 0;
     function closeGoalModal() {
       document.getElementById('goalModal').className = 'modal';
     }
-    
+function openStatsSettings() {
+  document.getElementById('statsModal').className = 'modal show';
+}
+
+function closeStatsSettings() {
+  document.getElementById('statsModal').className = 'modal';
+}
     async function saveGoal() {
   const type = document.getElementById('goalType').value;
   const target = parseInt(document.getElementById('goalTarget').value);
