@@ -1384,45 +1384,6 @@ Book title 2"></textarea>
       </div>
     </div>
   </div>
-<!-- Stats settings modal -->
-<div class="modal" id="statsModal">
-  <div class="modal-content" style="max-width: 520px; width: 520px;">
-    <h2>Visible Stats Settings</h2>
-    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
-      Choose which statistics to display on the main heatmap panel:
-    </p>
-
-    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
-      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
-        <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked>
-        <span style="font-size: 14px;">Longest streak</span>
-      </label>
-
-      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
-        <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked>
-        <span style="font-size: 14px;">Current streak</span>
-      </label>
-
-      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
-        <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked>
-        <span style="font-size: 14px;">Average</span>
-      </label>
-
-      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
-        <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked>
-        <span style="font-size: 14px;">Average speed</span>
-      </label>
-
-      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
-        <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked>
-        <span style="font-size: 14px;">Total</span>
-      </label>
-    </div>
-
-    <button class="btn" onclick="closeStatsSettings()" style="width: 100%;">Done</button>
-  </div>
-</div>
-
 
 <div class="modal" id="ttsuSyncModal">
   <div class="modal-content">
@@ -1471,71 +1432,12 @@ Book title 2"></textarea>
   </div>
 </div>
 
-<!-- Backup Settings Modal -->
-<div class="modal" id="backupModal">
-  <div class="modal-content" style="max-width: 500px;">
-    <h2>Automatic Backup Settings</h2>
-    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
-      Automatically save backup copies of your reading data to protect against data loss.
-    </p>
-    
-    <div class="form-group">
-      <label class="form-label">Backup Frequency</label>
-      <select class="form-input" id="backupFrequency" onchange="updateBackupFrequency()">
-        <option value="none">Disabled</option>
-        <option value="daily">Daily</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-      </select>
-    </div>
-    
-    <div class="form-group">
-      <label class="form-label">Keep Last</label>
-      <select class="form-input" id="backupRetention">
-        <option value="3">3 backups</option>
-        <option value="5">5 backups</option>
-        <option value="10">10 backups</option>
-        <option value="20">20 backups</option>
-        <option value="all">All backups</option>
-      </select>
-    </div>
-    
-    <div id="backupStatus" style="font-size: 13px; color: var(--text-secondary); margin: 16px 0; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
-      Last backup: <span id="lastBackupTime">Never</span>
-    </div>
-    
-    <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
-      <button class="btn" onclick="createManualBackup()" style="width: 100%; margin-bottom: 8px;">💾 Create Backup Now</button>
-      <button class="btn" onclick="viewBackups()" style="width: 100%; margin-bottom: 8px;">📂 View & Restore Backups</button>
-      <button class="btn" onclick="deleteAllBackups()" style="width: 100%; margin-bottom: 8px; opacity: 0.7;">🗑️ Delete All Backups</button>
-    </div>
-    
-    <button class="btn" onclick="closeBackupSettings()" style="width: 100%; margin-top: 12px;">Close</button>
-  </div>
-</div>
-
-<!-- View Backups Modal -->
-<div class="modal" id="viewBackupsModal">
-  <div class="modal-content" style="max-width: 600px; max-height: 80vh; overflow-y: auto;">
-    <h2>Available Backups</h2>
-    <div id="backupsList" style="margin-top: 16px;"></div>
-    <button class="btn" onclick="closeViewBackups()" style="width: 100%; margin-top: 12px;">Close</button>
-  </div>
-</div>
-
   <script>
     const STORAGE_KEY = 'reading_heatmap_data';
     const GOALS_KEY = 'reading_heatmap_goals';
     const BOOKS_KEY = 'reading_heatmap_books';
     const THEME_KEY = 'reading_heatmap_theme';
     const USER_KEY = 'reading_heatmap_user';
-    const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
-    const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
-    const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
-    const BACKUPS_KEY = 'reading_heatmap_backups';
-
-    let backupInterval = null;
-    
     
     let data = [];
     let dailyData = {};
@@ -2393,16 +2295,6 @@ async function wipeAllData() {
   await customAlert('All data has been wiped.', 'Data Wiped');
 }
 
-    document.getElementById('statsModal').addEventListener('click', (e) => {
-  if (e.target.id === 'statsModal') closeStatsSettings();
-});
-document.getElementById('backupModal').addEventListener('click', (e) => {
-  if (e.target.id === 'backupModal') closeBackupSettings();
-});
-
-document.getElementById('viewBackupsModal').addEventListener('click', (e) => {
-  if (e.target.id === 'viewBackupsModal') closeViewBackups();
-});
     document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === 'Esc') {
     // Don't close modals if custom confirm/alert is open
@@ -2411,13 +2303,10 @@ document.getElementById('viewBackupsModal').addEventListener('click', (e) => {
       return;
     }
     
-    try { closeBackupSettings(); } catch (err) {}
-    try { closeViewBackups(); } catch (err) {}
     try { hideTooltip(); } catch (err) {}
     try { closeModal(); } catch (err) {}
     try { closeMenu(); } catch (err) {}
     try { closeGoalModal(); } catch (err) {}
-    try { closeStatsSettings(); } catch (err) {}
     try { closeTtsuSyncModal(); } catch (err) {}
 
     try {
@@ -2482,13 +2371,7 @@ document.getElementById('ttsuSyncModal').addEventListener('click', (e) => {
     function closeGoalModal() {
       document.getElementById('goalModal').className = 'modal';
     }
-function openStatsSettings() {
-  document.getElementById('statsModal').className = 'modal show';
-}
 
-function closeStatsSettings() {
-  document.getElementById('statsModal').className = 'modal';
-}
 async function saveGoal() {
   const type = document.getElementById('goalType').value;
   const target = parseInt(document.getElementById('goalTarget').value);
@@ -2931,326 +2814,7 @@ function customPrompt(message, title = 'Input') {
     document.addEventListener('keydown', handleEscape);
   });
 }
- 
- // Backup functionality
-function openBackupSettings() {
-  const modal = document.getElementById('backupModal');
-  const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
-  const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-  const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
-  
-  document.getElementById('backupFrequency').value = frequency;
-  document.getElementById('backupRetention').value = retention;
-  
-  if (lastBackup) {
-    const date = new Date(parseInt(lastBackup));
-    document.getElementById('lastBackupTime').textContent = date.toLocaleString();
-  } else {
-    document.getElementById('lastBackupTime').textContent = 'Never';
-  }
-  
-  modal.className = 'modal show';
-  closeMenu();
-}
 
-function closeBackupSettings() {
-  document.getElementById('backupModal').className = 'modal';
-}
-
-function updateBackupFrequency() {
-  const frequency = document.getElementById('backupFrequency').value;
-  const retention = document.getElementById('backupRetention').value;
-  
-  localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
-  localStorage.setItem(BACKUP_RETENTION_KEY, retention);
-  
-  // Stop existing interval
-  if (backupInterval) {
-    clearInterval(backupInterval);
-    backupInterval = null;
-  }
-  
-  // Start new interval based on frequency
-  if (frequency !== 'none') {
-    startBackupSchedule(frequency);
-  }
-}
-
-function startBackupSchedule(frequency) {
-  const intervals = {
-    'daily': 24 * 60 * 60 * 1000,      // 24 hours
-    'weekly': 7 * 24 * 60 * 60 * 1000, // 7 days
-    'monthly': 30 * 24 * 60 * 60 * 1000 // 30 days
-  };
-  
-  const intervalMs = intervals[frequency];
-  if (!intervalMs) return;
-  
-  // Check if backup is needed now
-  const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
-  const now = Date.now();
-  
-  if (!lastBackup || (now - parseInt(lastBackup)) >= intervalMs) {
-    createAutomaticBackup();
-  }
-  
-  // Set up recurring interval
-  backupInterval = setInterval(() => {
-    createAutomaticBackup();
-  }, intervalMs);
-}
-
-function createAutomaticBackup() {
-  try {
-    const backups = getBackups();
-    const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-    
-    const backup = {
-      timestamp: Date.now(),
-      data: window.data || [],
-      goals: window.goals || [],
-      recentBooks: window.recentBooks || [],
-      type: 'automatic'
-    };
-    
-    backups.push(backup);
-    
-    // Apply retention policy
-    if (retention !== 'all') {
-      const maxBackups = parseInt(retention);
-      if (backups.length > maxBackups) {
-        // Keep only the most recent backups
-        backups.sort((a, b) => b.timestamp - a.timestamp);
-        backups.splice(maxBackups);
-      }
-    }
-    
-    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    localStorage.setItem(LAST_BACKUP_KEY, Date.now().toString());
-    
-    console.log('Automatic backup created');
-  } catch (error) {
-    console.error('Backup error:', error);
-  }
-}
-
-async function createManualBackup() {
-  try {
-    const backups = getBackups();
-    const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-    
-    const backup = {
-      timestamp: Date.now(),
-      data: window.data || [],
-      goals: window.goals || [],
-      recentBooks: window.recentBooks || [],
-      type: 'manual'
-    };
-    
-    backups.push(backup);
-    
-    // Apply retention policy
-    if (retention !== 'all') {
-      const maxBackups = parseInt(retention);
-      if (backups.length > maxBackups) {
-        backups.sort((a, b) => b.timestamp - a.timestamp);
-        backups.splice(maxBackups);
-      }
-    }
-    
-    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    localStorage.setItem(LAST_BACKUP_KEY, Date.now().toString());
-    
-    // Update display
-    const date = new Date(backup.timestamp);
-    document.getElementById('lastBackupTime').textContent = date.toLocaleString();
-    
-    await customAlert('Backup created successfully!', 'Backup Created');
-  } catch (error) {
-    console.error('Manual backup error:', error);
-    await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
-  }
-}
-
-function getBackups() {
-  try {
-    const stored = localStorage.getItem(BACKUPS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Error loading backups:', error);
-    return [];
-  }
-}
-
-function viewBackups() {
-  const backups = getBackups();
-  const container = document.getElementById('backupsList');
-  
-  if (backups.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No backups available</div>';
-  } else {
-    // Sort by timestamp, newest first
-    backups.sort((a, b) => b.timestamp - a.timestamp);
-    
-    container.innerHTML = '';
-    backups.forEach((backup, index) => {
-      const date = new Date(backup.timestamp);
-      const backupDiv = document.createElement('div');
-      backupDiv.className = 'entry-item';
-      backupDiv.style.marginBottom = '8px';
-      
-      const entriesCount = backup.data ? backup.data.length : 0;
-      const goalsCount = backup.goals ? backup.goals.length : 0;
-      const type = backup.type === 'manual' ? '👤 Manual' : '🤖 Automatic';
-      
-      backupDiv.innerHTML = `
-        <div class="entry-info">
-          <strong>${date.toLocaleString()}</strong><br>
-          <span class="entry-detail">${type} • ${entriesCount} entries • ${goalsCount} goals</span>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn" onclick="restoreBackup(${index})" style="padding: 4px 12px; font-size: 12px;">Restore</button>
-          <button class="btn" onclick="downloadBackup(${index})" style="padding: 4px 12px; font-size: 12px;">Download</button>
-          <button class="delete-btn" onclick="deleteBackup(${index})">Delete</button>
-        </div>
-      `;
-      
-      container.appendChild(backupDiv);
-    });
-  }
-  
-  closeBackupSettings();
-  document.getElementById('viewBackupsModal').className = 'modal show';
-}
-
-function closeViewBackups() {
-  document.getElementById('viewBackupsModal').className = 'modal';
-}
-
-async function restoreBackup(index) {
-  const backups = getBackups();
-  if (index < 0 || index >= backups.length) {
-    await customAlert('Backup not found.', 'Error');
-    return;
-  }
-  
-  const backup = backups[index];
-  const date = new Date(backup.timestamp);
-  
-  const confirmed = await customConfirm(
-    `Restore backup from ${date.toLocaleString()}?\n\nThis will replace your current data with the backup data.\n\nCurrent data will be lost unless you create a backup first.`,
-    'Restore Backup'
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    window.data = backup.data || [];
-    window.goals = backup.goals || [];
-    window.recentBooks = backup.recentBooks || [];
-    
-    data = window.data;
-    goals = window.goals;
-    recentBooks = window.recentBooks;
-    
-    await saveToStorage();
-    aggregateData();
-    loadYear();
-    renderGoals();
-    
-    if (window.saveCloudState) {
-      await window.saveCloudState();
-    }
-    
-    closeViewBackups();
-    await customAlert('Backup restored successfully!', 'Restore Complete');
-  } catch (error) {
-    console.error('Restore error:', error);
-    await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
-  }
-}
-
-function downloadBackup(index) {
-  const backups = getBackups();
-  if (index < 0 || index >= backups.length) return;
-  
-  const backup = backups[index];
-  const date = new Date(backup.timestamp);
-  const dateStr = date.toISOString().split('T')[0];
-  
-  const exportData = {
-    data: backup.data || [],
-    goals: backup.goals || [],
-    recentBooks: backup.recentBooks || [],
-    backupDate: date.toISOString(),
-    type: backup.type || 'manual'
-  };
-  
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `reading-backup-${dateStr}-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-async function deleteBackup(index) {
-  const confirmed = await customConfirm(
-    'Delete this backup?',
-    'Delete Backup'
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    const backups = getBackups();
-    backups.splice(index, 1);
-    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    
-    // Refresh the view
-    viewBackups();
-  } catch (error) {
-    console.error('Delete backup error:', error);
-    await customAlert('Failed to delete backup: ' + error.message, 'Delete Error');
-  }
-}
-
-async function deleteAllBackups() {
-  const backups = getBackups();
-  if (backups.length === 0) {
-    await customAlert('No backups to delete.', 'No Backups');
-    return;
-  }
-  
-  const confirmed = await customConfirm(
-    `Delete all ${backups.length} backup(s)?\n\nThis action cannot be undone.`,
-    'Delete All Backups'
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    localStorage.removeItem(BACKUPS_KEY);
-    localStorage.removeItem(LAST_BACKUP_KEY);
-    
-    await customAlert('All backups have been deleted.', 'Backups Deleted');
-    closeBackupSettings();
-  } catch (error) {
-    console.error('Delete all backups error:', error);
-    await customAlert('Failed to delete backups: ' + error.message, 'Delete Error');
-  }
-}
-
-// Initialize backup schedule on load
-function initializeBackups() {
-  const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY);
-  if (frequency && frequency !== 'none') {
-    startBackupSchedule(frequency);
-  }
-}
  </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
