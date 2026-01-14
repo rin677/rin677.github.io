@@ -399,13 +399,10 @@ function renderSpeedChart(filteredData) {
     // Create simplified labels based on number of days
     const labels = allDates.map((d, i) => {
       if (allDates.length <= 30) {
-        // Show dates for short ranges
         return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       } else if (allDates.length <= 90) {
-        // Show every 3rd date
         return i % 3 === 0 ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
       } else {
-        // Show day numbers (1, 50, 100, etc)
         return i % 50 === 0 ? i.toString() : '';
       }
     });
@@ -430,13 +427,21 @@ function renderSpeedChart(filteredData) {
         maintainAspectRatio: true,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { color: colors.text } },
+          y: { 
+            beginAtZero: true, 
+            ticks: { color: colors.text },
+            grid: { color: colors.text + '20' }
+          },
           x: { 
             ticks: { 
               color: colors.text,
               maxRotation: 45,
               minRotation: 45,
               autoSkip: false
+            },
+            grid: { 
+              color: colors.text + '20',
+              display: allDates.length <= 90
             }
           }
         }
@@ -444,7 +449,6 @@ function renderSpeedChart(filteredData) {
     });
   }
 }
-
 function renderDailyTimeChart(filteredData) {
   destroyChart('dailyTimeChart');
   
@@ -454,7 +458,6 @@ function renderDailyTimeChart(filteredData) {
     const allDates = dates;
     const minutes = allDates.map(date => filteredData[date]?.minutes || 0);
     
-    // Create simplified labels based on number of days
     const labels = allDates.map((d, i) => {
       if (allDates.length <= 30) {
         return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -481,13 +484,21 @@ function renderDailyTimeChart(filteredData) {
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { color: colors.text } },
+          y: { 
+            beginAtZero: true, 
+            ticks: { color: colors.text },
+            grid: { color: colors.text + '20' }
+          },
           x: { 
             ticks: { 
               color: colors.text,
               maxRotation: 45,
               minRotation: 45,
               autoSkip: false
+            },
+            grid: { 
+              color: colors.text + '20',
+              display: allDates.length <= 90
             }
           }
         }
@@ -505,7 +516,6 @@ function renderDailyCharsChart(filteredData) {
     const allDates = dates;
     const characters = allDates.map(date => filteredData[date]?.characters || 0);
     
-    // Create simplified labels based on number of days
     const labels = allDates.map((d, i) => {
       if (allDates.length <= 30) {
         return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -537,7 +547,8 @@ function renderDailyCharsChart(filteredData) {
             ticks: { 
               color: colors.text,
               callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v
-            } 
+            },
+            grid: { color: colors.text + '20' }
           },
           x: { 
             ticks: { 
@@ -545,6 +556,10 @@ function renderDailyCharsChart(filteredData) {
               maxRotation: 45,
               minRotation: 45,
               autoSkip: false
+            },
+            grid: { 
+              color: colors.text + '20',
+              display: allDates.length <= 90
             }
           }
         }
