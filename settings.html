@@ -560,12 +560,12 @@ async function updateBackupRetention() {
   await customAlert('Backup retention updated to: ' + retention + ' backups', 'Settings Updated');
 }
 
-// filename: settings.html - replace createManualBackup entirely
+// filename: settings.html — replace createManualBackup
 async function createManualBackup() {
   try {
     const backups = getBackups();
     const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-    
+
     const backup = {
       timestamp: Date.now(),
       data: getCurrentData(),
@@ -573,10 +573,8 @@ async function createManualBackup() {
       recentBooks: getCurrentBooks(),
       type: 'manual'
     };
-    
-    backups.push(backup);
 
-    // Sort newest-first and apply retention correctly
+    backups.push(backup);
     backups.sort((a, b) => b.timestamp - a.timestamp);
     if (retention !== 'all') {
       const maxBackups = parseInt(retention);
@@ -584,25 +582,20 @@ async function createManualBackup() {
         backups.splice(maxBackups);
       }
     }
-    
+
     localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
     localStorage.setItem(LAST_BACKUP_KEY, String(backup.timestamp));
-    
-    // Update display immediately
+
     const date = new Date(backup.timestamp);
     const timeEl = document.getElementById('lastBackupTime');
-    if (timeEl) {
-      timeEl.textContent = date.toLocaleString();
-    }
-    
+    if (timeEl) timeEl.textContent = date.toLocaleString();
+
     await customAlert(`Backup created successfully!\n\n${backup.data.length} entries backed up`, 'Backup Created');
   } catch (error) {
     console.error('Manual backup error:', error);
     await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
   }
 }
-
-
 
 async function viewBackups() {
   const backups = getBackups();
@@ -988,27 +981,31 @@ document.getElementById('ttsuInput').addEventListener('change', async (event) =>
 });
 
 // filename: index.html - replace wipeAllData entirely
+// filename: index.html — replace the entire wipeAllData function
 async function wipeAllData() {
   const firstConfirm = await customConfirm(
     'Are you sure? This will permanently delete all reading data, goals, recent books, backups, and visibility preferences.\n\nThis action cannot be undone.',
     'Wipe All Data'
   );
   if (!firstConfirm) return;
-  
+
   const secondConfirm = await customConfirm(
     'Really delete ALL data? Click OK to confirm.',
     'Final Confirmation'
   );
   if (!secondConfirm) return;
-  
+
   try {
+    // Define keys locally so there are no undeclared references
     const STORAGE_KEY = 'reading_heatmap_data';
     const GOALS_KEY = 'reading_heatmap_goals';
     const BOOKS_KEY = 'reading_heatmap_books';
     const BACKUPS_KEY = 'reading_heatmap_backups';
     const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
-    
-    // Clear app data
+    const USER_KEY = 'reading_heatmap_user';
+    const THEME_KEY = 'reading_heatmap_theme';
+
+    // Clear app data (preserve theme if you want; comment out removal below if preserving)
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
@@ -1020,25 +1017,24 @@ async function wipeAllData() {
     localStorage.removeItem('show_avgSpeed');
     localStorage.removeItem('show_total');
     localStorage.removeItem('selectedMetric');
-    
-    // Reset in-memory state
+
+    // Optional: also sign-out local user cache
+    localStorage.removeItem(USER_KEY);
+
+    // Reset in-memory state without calling helper functions
     window.data = [];
     window.dailyData = {};
     window.goals = [];
     window.recentBooks = [];
-    aggregateData();
-    loadYear();
-    renderGoals();
-    
+
     await customAlert('All data has been wiped. Reloading…', 'Data Wiped');
-    
-    // Hard reload to ensure clean state
+
+    // Hard reload to reset the runtime and UI
     window.location.reload();
   } catch (error) {
     await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }
 }
-
 
 window.onload = function() {
   loadTheme();

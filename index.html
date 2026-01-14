@@ -2522,47 +2522,63 @@ async function deleteGoal(id) {
     }
     
 // filename: index.html (Firebase module script) - replace loadLeaderboardData entirely
+// filename: index.html (inside the <script type="module"> with Firebase) — replace loadLeaderboardData entirely
 async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
   const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
-  
+
+  // Guard: Firebase not ready
+  if (typeof db === 'undefined') {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
+    return;
+  }
+
   try {
     const leaderboardRef = collection(db, 'leaderboard');
     const snapshot = await getDocs(leaderboardRef);
-    
+
     const leaderboardData = [];
     snapshot.forEach((docSnap) => {
       const d = docSnap.data();
-      if ((metric === 'minutes' && d.totalMinutes > 0) ||
-          (metric === 'characters' && d.totalCharacters > 0) ||
-          (metric === 'speed' && d.avgSpeed > 0)) {
-        leaderboardData.push(d);
+      // include only if selected metric has data
+      if ((metric === 'minutes' && (d.totalMinutes || 0) > 0) ||
+          (metric === 'characters' && (d.totalCharacters || 0) > 0) ||
+          (metric === 'speed' && (d.avgSpeed || 0) > 0)) {
+        leaderboardData.push({
+          userId: d.userId,
+          name: d.name || 'User',
+          avatar: d.avatar || '',
+          totalMinutes: d.totalMinutes || 0,
+          totalCharacters: d.totalCharacters || 0,
+          avgSpeed: d.avgSpeed || 0,
+          lastUpdated: d.lastUpdated || ''
+        });
       }
     });
-    
+
     if (leaderboardData.length === 0) {
       container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
       return;
     }
-    
+
     if (metric === 'minutes') {
       leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
     } else if (metric === 'characters') {
       leaderboardData.sort((a, b) => b.totalCharacters - a.totalCharacters);
-    } else if (metric === 'speed') {
+    } else {
       leaderboardData.sort((a, b) => b.avgSpeed - a.avgSpeed);
     }
-    
+
     let userPosition = -1;
-    if (window.currentUser) {
+    if (window.currentUser && window.currentUser.id) {
       userPosition = leaderboardData.findIndex(entry => entry.userId === window.currentUser.id);
     }
-    
+
     const showAll = container.dataset.showAll === 'true';
     const displayCount = showAll ? leaderboardData.length : 10;
-    
+
     container.innerHTML = '';
-    
+
     leaderboardData.slice(0, displayCount).forEach((entry, index) => {
       const rankDiv = document.createElement('div');
       rankDiv.className = 'leaderboard-entry';
@@ -2572,18 +2588,18 @@ async function loadLeaderboardData() {
         rankDiv.style.color = '#ffffff';
         rankDiv.style.fontWeight = '600';
       }
-      
+
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-      
+
       let displayValue;
       if (metric === 'minutes') {
         displayValue = `${entry.totalMinutes.toLocaleString()} min`;
       } else if (metric === 'characters') {
         displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
-      } else if (metric === 'speed') {
+      } else {
         displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
       }
-      
+
       rankDiv.innerHTML = `
         <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
         <div class="leaderboard-user">
@@ -2592,10 +2608,10 @@ async function loadLeaderboardData() {
         </div>
         <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
       `;
-      
+
       container.appendChild(rankDiv);
     });
-    
+
     if (leaderboardData.length > 10) {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'btn';
@@ -2608,7 +2624,7 @@ async function loadLeaderboardData() {
       };
       container.appendChild(toggleBtn);
     }
-    
+
     if (!showAll && userPosition >= 10 && window.currentUser) {
       const userEntry = leaderboardData[userPosition];
       const separatorDiv = document.createElement('div');
@@ -2620,34 +2636,34 @@ async function loadLeaderboardData() {
       separatorDiv.style.fontSize = '12px';
       separatorDiv.textContent = 'Your Position';
       container.appendChild(separatorDiv);
-      
+
       const userRankDiv = document.createElement('div');
       userRankDiv.className = 'leaderboard-entry';
       userRankDiv.style.background = 'var(--accent-color)';
       userRankDiv.style.color = '#ffffff';
       userRankDiv.style.fontWeight = '600';
-      
+
       let displayValue;
       if (metric === 'minutes') {
         displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
       } else if (metric === 'characters') {
         displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
-      } else if (metric === 'speed') {
+      } else {
         displayValue = `${userEntry.avgSpeed.toLocaleString()} char/hr`;
       }
-      
+
       userRankDiv.innerHTML = `
         <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
         <div class="leaderboard-user">
-          <img src="${userEntry.avatar}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
+          <img src="${userEntry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
           <span>${userEntry.name} (You)</span>
         </div>
         <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
       `;
-      
+
       container.appendChild(userRankDiv);
     }
-    
+
   } catch (error) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
     console.error('Leaderboard error details:', error);
