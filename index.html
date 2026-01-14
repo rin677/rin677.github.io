@@ -1343,8 +1343,49 @@ Book title 2"></textarea>
     
 window.onload = function() {
   loadTheme();
-  
-  // Initialize empty state - Firebase will load data if user is signed in
+// Confetti animation
+    function createConfetti() {
+      const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#a29bfe'];
+      const confettiCount = 50;
+      
+      for (let i = 0; i < confettiCount; i++) {
+        const confetti = document.createElement('div');
+        confetti.style.position = 'fixed';
+        confetti.style.width = '10px';
+        confetti.style.height = '10px';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.left = Math.random() * 100 + '%';
+        confetti.style.top = '-10px';
+        confetti.style.opacity = '1';
+        confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+        confetti.style.zIndex = '10000';
+        confetti.style.pointerEvents = 'none';
+        confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        
+        document.body.appendChild(confetti);
+        
+        const duration = 3000 + Math.random() * 2000;
+        const startTime = Date.now();
+        const xMovement = (Math.random() - 0.5) * 200;
+        
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = elapsed / duration;
+          
+          if (progress < 1) {
+            confetti.style.top = (progress * 100 + 10) + 'vh';
+            confetti.style.transform = `translateX(${xMovement * Math.sin(progress * Math.PI * 2)}px) rotate(${progress * 720}deg)`;
+            confetti.style.opacity = 1 - progress;
+            requestAnimationFrame(animate);
+          } else {
+            confetti.remove();
+          }
+        }
+        
+        animate();
+      }
+    }
+    
   window.data = data = [];
   window.dailyData = dailyData = {};
   window.goals = goals = [];
@@ -2609,48 +2650,7 @@ async function loadLeaderboardData() {
     console.error('Leaderboard error details:', error);
   }
 }
-// Confetti animation
-function createConfetti() {
-  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#a29bfe'];
-  const confettiCount = 50;
-  
-  for (let i = 0; i < confettiCount; i++) {
-    const confetti = document.createElement('div');
-    confetti.style.position = 'fixed';
-    confetti.style.width = '10px';
-    confetti.style.height = '10px';
-    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-    confetti.style.left = Math.random() * 100 + '%';
-    confetti.style.top = '-10px';
-    confetti.style.opacity = '1';
-    confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
-    confetti.style.zIndex = '10000';
-    confetti.style.pointerEvents = 'none';
-    confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
-    
-    document.body.appendChild(confetti);
-    
-    const duration = 3000 + Math.random() * 2000;
-    const startTime = Date.now();
-    const xMovement = (Math.random() - 0.5) * 200;
-    
-    function animate() {
-      const elapsed = Date.now() - startTime;
-      const progress = elapsed / duration;
-      
-      if (progress < 1) {
-        confetti.style.top = (progress * 100 + 10) + 'vh';
-        confetti.style.transform = `translateX(${xMovement * Math.sin(progress * Math.PI * 2)}px) rotate(${progress * 720}deg)`;
-        confetti.style.opacity = 1 - progress;
-        requestAnimationFrame(animate);
-      } else {
-        confetti.remove();
-      }
-    }
-    
-    animate();
-  }
-}
+
   // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
