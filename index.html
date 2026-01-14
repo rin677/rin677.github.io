@@ -1151,23 +1151,23 @@ body.theme-ereader .log-btn:hover {
       
       <div class="stats-section">
         <div class="stats">
-          <div class="stat-line">
+          <div class="stat-line" id="stat-longest">
             <span>Longest streak:</span>
             <span class="stat-value" id="longestStreak">0 days</span>
           </div>
-          <div class="stat-line">
+          <div class="stat-line" id="stat-current">
             <span>Streak:</span>
             <span class="stat-value" id="currentStreak">0 days</span>
           </div>
-          <div class="stat-line">
+          <div class="stat-line" id="stat-average">
             <span>Average:</span>
             <span class="stat-value" id="avgValue">0</span>
           </div>
-          <div class="stat-line">
+          <div class="stat-line" id="stat-speed">
             <span>Avg speed:</span>
             <span class="stat-value" id="avgSpeed">0 char/hr</span>
           </div>
-          <div class="stat-line">
+          <div class="stat-line" id="stat-total">
             <span>Total:</span>
             <span class="stat-value" id="totalValue">0</span>
           </div>
@@ -1369,6 +1369,7 @@ Book title 2"></textarea>
     
 window.onload = function() {
   loadTheme();
+  loadStatVisibility();
 // Confetti animation
     function createConfetti() {
       const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#a29bfe'];
@@ -1410,6 +1411,41 @@ window.onload = function() {
         
         animate();
       }
+    }
+  // Stat visibility toggle
+    function toggleStat(statName) {
+      const statMap = {
+        'longestStreak': 'stat-longest',
+        'currentStreak': 'stat-current',
+        'average': 'stat-average',
+        'avgSpeed': 'stat-speed',
+        'total': 'stat-total'
+      };
+      
+      const elementId = statMap[statName];
+      const checkbox = document.getElementById(`show${statName.charAt(0).toUpperCase() + statName.slice(1)}`);
+      const statElement = document.getElementById(elementId);
+      
+      if (statElement) {
+        statElement.style.display = checkbox.checked ? 'flex' : 'none';
+      }
+      
+      // Save preference
+      localStorage.setItem(`show_${statName}`, checkbox.checked);
+    }
+    
+    function loadStatVisibility() {
+      const stats = ['longestStreak', 'currentStreak', 'average', 'avgSpeed', 'total'];
+      stats.forEach(stat => {
+        const saved = localStorage.getItem(`show_${stat}`);
+        if (saved !== null) {
+          const checkbox = document.getElementById(`show${stat.charAt(0).toUpperCase() + stat.slice(1)}`);
+          if (checkbox) {
+            checkbox.checked = saved === 'true';
+            toggleStat(stat);
+          }
+        }
+      });
     }
     
   window.data = data = [];
