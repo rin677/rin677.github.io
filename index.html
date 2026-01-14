@@ -2171,6 +2171,10 @@ goalDiv.innerHTML = `
   </div>
   <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
 `;
+
+container.appendChild(goalDiv);
+      });
+    }
     
     function calculateGoalProgress(goal) {
       const today = getAustralianDate();
