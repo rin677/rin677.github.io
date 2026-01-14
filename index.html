@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Reading Heatmap</title>
+  <title>ReadingTracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
 
@@ -70,15 +70,15 @@ body.theme-dracula {
   --border-color: #44475a;
   --text-primary: #f8f8f2;
   --text-secondary: #6272a4;
-  --accent-color: #50fa7b;
-  --accent-hover: #5af78e;
+  --accent-color: #ff5555;
+  --accent-hover: #ff6e6e;
   --danger-color: #ff5555;
   --danger-hover: #ff6e6e;
   --level-0: #44475a;
-  --level-1: #3d9970;
-  --level-2: #42c285;
-  --level-3: #50fa7b;
-  --level-4: #7dffa0;
+  --level-1: #6e3a3a;
+  --level-2: #8b4545;
+  --level-3: #ff5555;
+  --level-4: #ff7979;
 }
 
 body.theme-everforest {
@@ -328,6 +328,11 @@ body.theme-ereader .leaderboard-entry {
       font-weight: 700;
       color: #ffffff;
     }
+    body.theme-everforest h1,
+    body.theme-nord-light h1,
+    body.theme-ereader h1 {
+      color: var(--text-primary);
+}
 
     .header-actions {
       display: flex;
@@ -400,6 +405,46 @@ body.theme-ereader .leaderboard-entry {
       border-color: var(--text-secondary);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
+
+    /* Reduce shadows on light themes */
+body.theme-everforest .heatmap-panel,
+body.theme-everforest .leaderboard-panel,
+body.theme-everforest .modal-content,
+body.theme-nord-light .heatmap-panel,
+body.theme-nord-light .leaderboard-panel,
+body.theme-nord-light .modal-content,
+body.theme-ereader .heatmap-panel,
+body.theme-ereader .leaderboard-panel,
+body.theme-ereader .modal-content {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+body.theme-everforest .btn,
+body.theme-everforest .day,
+body.theme-nord-light .btn,
+body.theme-nord-light .day,
+body.theme-ereader .btn,
+body.theme-ereader .day {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+body.theme-everforest .btn:hover,
+body.theme-nord-light .btn:hover,
+body.theme-ereader .btn:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+body.theme-everforest .log-btn,
+body.theme-nord-light .log-btn,
+body.theme-ereader .log-btn {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+body.theme-everforest .log-btn:hover,
+body.theme-nord-light .log-btn:hover,
+body.theme-ereader .log-btn:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
 
     select, input[type="number"] {
       background: var(--bg-secondary);
@@ -546,26 +591,26 @@ body.theme-ereader .leaderboard-entry {
     }
 
     .log-btn {
-      background: var(--accent-color);
-      border: none;
-      color: #ffffff;
-      padding: 10px 20px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
-    }
+  background: var(--accent-color);
+  border: none;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
 
-    .log-btn:hover {
-      background: var(--accent-hover);
-      box-shadow: 0 6px 16px rgba(46, 160, 67, 0.4);
-      transform: translateY(-2px);
-    }
+.log-btn:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
 
     .tooltip {
       position: fixed;
@@ -993,9 +1038,9 @@ body.theme-ereader .leaderboard-entry {
     }
     
     .theme-preview.dracula {
-      background: linear-gradient(135deg, #282a36 0%, #44475a 100%);
-      color: #f8f8f2;
-    }
+  background: linear-gradient(135deg, #282a36 0%, #44475a 100%);
+  color: #ff5555;
+}
 
     .theme-preview.everforest {
   background: linear-gradient(135deg, #fdf6e3 0%, #f4f0d9 100%);
@@ -1070,13 +1115,42 @@ body.theme-ereader .leaderboard-entry {
 <body>
   <div class="container">
     <header>
-      <h1>読書</h1>
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Person's head -->
+      <circle cx="50" cy="30" r="12" fill="var(--accent-color)"/>
+      
+      <!-- Person's body -->
+      <path d="M 50 42 L 45 55 L 40 75 M 50 42 L 55 55 L 60 75" 
+            stroke="var(--accent-color)" stroke-width="4" fill="none" stroke-linecap="round"/>
+      
+      <!-- Book pages (left page) -->
+      <rect x="25" y="50" width="20" height="28" rx="2" fill="var(--text-primary)" opacity="0.9"/>
+      <line x1="30" y1="56" x2="40" y2="56" stroke="var(--text-secondary)" stroke-width="1.5"/>
+      <line x1="30" y1="61" x2="40" y2="61" stroke="var(--text-secondary)" stroke-width="1.5"/>
+      <line x1="30" y1="66" x2="38" y2="66" stroke="var(--text-secondary)" stroke-width="1.5"/>
+      
+      <!-- Book pages (right page) -->
+      <rect x="55" y="50" width="20" height="28" rx="2" fill="var(--text-primary)" opacity="0.9"/>
+      <line x1="60" y1="56" x2="70" y2="56" stroke="var(--text-secondary)" stroke-width="1.5"/>
+      <line x1="60" y1="61" x2="70" y2="61" stroke="var(--text-secondary)" stroke-width="1.5"/>
+      <line x1="60" y1="66" x2="68" y2="66" stroke="var(--text-secondary)" stroke-width="1.5"/>
+      
+      <!-- Book spine -->
+      <rect x="48" y="50" width="4" height="28" fill="var(--accent-color)"/>
+      
+      <!-- Arms holding book -->
+      <path d="M 38 48 Q 32 50 28 52" stroke="var(--accent-color)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M 62 48 Q 68 50 72 52" stroke="var(--accent-color)" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+    <h1>読書</h1>
+  </div>
       <div class="header-actions">
-        <div id="authSection"></div>
-        <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
-      </div>
-      <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
-    </header>
+    <div id="authSection"></div>
+    <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
+  </div>
+  <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
+</header>
 
     <div class="controls">
       <button class="btn" onclick="changeYear(-1)">← Prev</button>
@@ -1118,6 +1192,10 @@ body.theme-ereader .leaderboard-entry {
             <span class="stat-value" id="avgValue">0</span>
           </div>
           <div class="stat-line">
+            <span>Avg speed:</span>
+            <span class="stat-value" id="avgSpeed">0 char/min</span>
+          </div>
+          <div class="stat-line">
             <span>Total:</span>
             <span class="stat-value" id="totalValue">0</span>
           </div>
@@ -1155,10 +1233,16 @@ body.theme-ereader .leaderboard-entry {
     </div>
     
     <div class="leaderboard-panel" id="leaderboardPanel" style="display: none;">
-      <h2 style="margin-bottom: 16px;">Leaderboard</h2>
-      <div id="leaderboardList"></div>
-    </div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <h2 style="margin: 0;">Leaderboard</h2>
+    <select id="leaderboardMetric" onchange="loadLeaderboard()" class="form-input" style="width: auto; padding: 6px 12px; font-size: 13px;">
+      <option value="minutes">Total Time</option>
+      <option value="characters">Total Characters</option>
+      <option value="speed">Avg Speed</option>
+    </select>
   </div>
+  <div id="leaderboardList"></div>
+</div>
 
   <div class="tooltip" id="tooltip">
     <div class="tooltip-date" id="tooltipDate"></div>
@@ -1507,16 +1591,32 @@ function signOut() {
       let weekDiv = null;
       let monthDiv = null;
       
-      while (currentDate <= endDate) {
-        if (currentDate.getDay() === 0) {
-          weekDiv = document.createElement('div');
-          weekDiv.className = 'week';
-        }
-        
-        if (!weekDiv) {
-          weekDiv = document.createElement('div');
-          weekDiv.className = 'week';
-        }
+      // Get the day of week for Jan 1 (0=Sun, 1=Mon, etc.)
+const startDay = startDate.getDay();
+let isFirstWeek = true;
+
+while (currentDate <= endDate) {
+  const dayOfWeek = currentDate.getDay();
+  
+  // Start a new week on Sunday
+  if (dayOfWeek === 0 || !weekDiv) {
+    if (weekDiv && monthDiv) {
+      const weeksContainer = monthDiv.querySelector('.weeks');
+      if (weeksContainer) {
+        weeksContainer.appendChild(weekDiv);
+      }
+    }
+    
+    weekDiv = document.createElement('div');
+    weekDiv.className = 'week';
+    
+    // Add offset for the first week to align with day labels
+    if (isFirstWeek && startDay !== 0) {
+      weekDiv.className += ' partial-start';
+      weekDiv.style.setProperty('--offset', startDay);
+      isFirstWeek = false;
+    }
+  }
         
         const month = currentDate.getMonth();
         if (month !== currentMonth) {
@@ -1668,8 +1768,32 @@ function signOut() {
         }
       }
       currentStreak = streak;
-      
-      const avg = count > 0 ? total / count : 0;
+      // Calculate average reading speed
+let totalMinutes = 0;
+let totalCharacters = 0;
+Object.values(dailyData).forEach(day => {
+  totalMinutes += day.minutes || 0;
+  totalCharacters += day.characters || 0;
+});
+
+const avgSpeed = totalMinutes > 0 ? Math.round(totalCharacters / totalMinutes) : 0;
+document.getElementById('avgSpeed').textContent = avgSpeed.toLocaleString() + ' char/min';
+      // Calculate average only from first logged day
+let firstLoggedDate = null;
+Object.keys(dailyData).forEach(dateStr => {
+  if (!firstLoggedDate || dateStr < firstLoggedDate) {
+    firstLoggedDate = dateStr;
+  }
+});
+
+let daysToCount = 0;
+if (firstLoggedDate) {
+  for (let d = new Date(firstLoggedDate + 'T00:00:00'); d <= endDate && d <= new Date(); d.setDate(d.getDate() + 1)) {
+    daysToCount++;
+  }
+}
+
+const avg = daysToCount > 0 ? total / daysToCount : 0;
       const suffix = metric === 'minutes' ? ' minutes' : ' characters';
       
       document.getElementById('longestStreak').textContent = `${longestStreak} days`;
@@ -2049,18 +2173,22 @@ function signOut() {
           streak: 'Streak Days'
         }[goal.type];
         
-        goalDiv.innerHTML = `
-          <div style="flex: 1;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span>${typeText}: ${goal.target}</span>
-              <span style="color: var(--accent-color); font-weight: 600;">${progress.current} / ${goal.target}</span>
-            </div>
-            <div class="goal-progress">
-              <div class="goal-progress-bar" style="width: ${Math.min(100, (progress.current / goal.target) * 100)}%"></div>
-            </div>
-          </div>
-          <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
-        `;
+        const isAchieved = progress.current >= goal.target;
+const achievedStyle = isAchieved ? 'background: var(--accent-color); color: #ffffff; border-radius: 6px; padding: 8px;' : '';
+
+goalDiv.innerHTML = `
+  <div style="flex: 1; ${achievedStyle}">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
+      <span>${typeText}: ${goal.target} ${isAchieved ? '🎉' : ''}</span>
+      <span style="color: ${isAchieved ? '#ffffff' : 'var(--accent-color)'}; font-weight: 600;">${progress.current} / ${goal.target}</span>
+    </div>
+    ${isAchieved ? '<div style="font-size: 12px; margin-top: 4px;">🎊 Congratulations! Goal achieved! 🎊</div>' : ''}
+    <div class="goal-progress">
+      <div class="goal-progress-bar" style="width: ${Math.min(100, (progress.current / goal.target) * 100)}%"></div>
+    </div>
+  </div>
+  <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
+`;
         
         container.appendChild(goalDiv);
       });
@@ -2332,30 +2460,37 @@ async function deleteGoal(id) {
   }
 
   async function updateCloudLeaderboard() {
-    if (!window.currentUser) return;
-    
-    let totalMinutes = 0;
-    Object.values(window.dailyData || {}).forEach(day => {
-      totalMinutes += day.minutes || 0;
-    });
-    
-    const leaderboardEntry = {
-      userId: window.currentUser.id,
-      name: window.currentUser.name,
-      avatar: window.currentUser.avatar,
-      totalMinutes: totalMinutes,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    try {
-      const ref = doc(db, 'leaderboard', window.currentUser.id);
-      await setDoc(ref, leaderboardEntry);
-    } catch (error) {
-      console.error('Failed to update leaderboard:', error);
-    }
+  if (!window.currentUser) return;
+  
+  let totalMinutes = 0;
+  let totalCharacters = 0;
+  Object.values(window.dailyData || {}).forEach(day => {
+    totalMinutes += day.minutes || 0;
+    totalCharacters += day.characters || 0;
+  });
+  
+  const avgSpeed = totalMinutes > 0 ? Math.round(totalCharacters / totalMinutes) : 0;
+  
+  const leaderboardEntry = {
+    userId: window.currentUser.id,
+    name: window.currentUser.name,
+    avatar: window.currentUser.avatar,
+    totalMinutes: totalMinutes,
+    totalCharacters: totalCharacters,
+    avgSpeed: avgSpeed,
+    lastUpdated: new Date().toISOString()
+  };
+  
+  try {
+    const ref = doc(db, 'leaderboard', window.currentUser.id);
+    await setDoc(ref, leaderboardEntry);
+  } catch (error) {
+    console.error('Failed to update leaderboard:', error);
   }
+}
 async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
+  const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
   
   try {
     const leaderboardRef = collection(db, 'leaderboard');
@@ -2364,8 +2499,10 @@ async function loadLeaderboardData() {
     const leaderboardData = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      // Only include users with more than 0 minutes
-      if (data.totalMinutes > 0) {
+      // Only include users with data
+      if ((metric === 'minutes' && data.totalMinutes > 0) ||
+          (metric === 'characters' && data.totalCharacters > 0) ||
+          (metric === 'speed' && data.avgSpeed > 0)) {
         leaderboardData.push(data);
       }
     });
@@ -2375,7 +2512,14 @@ async function loadLeaderboardData() {
       return;
     }
     
-    leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+    // Sort by selected metric
+    if (metric === 'minutes') {
+      leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+    } else if (metric === 'characters') {
+      leaderboardData.sort((a, b) => b.totalCharacters - a.totalCharacters);
+    } else if (metric === 'speed') {
+      leaderboardData.sort((a, b) => b.avgSpeed - a.avgSpeed);
+    }
     
     // Find current user's position
     let userPosition = -1;
@@ -2403,13 +2547,22 @@ async function loadLeaderboardData() {
       
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
       
+      let displayValue;
+      if (metric === 'minutes') {
+        displayValue = `${entry.totalMinutes.toLocaleString()} min`;
+      } else if (metric === 'characters') {
+        displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
+      } else if (metric === 'speed') {
+        displayValue = `${entry.avgSpeed.toLocaleString()} ch/m`;
+      }
+      
       rankDiv.innerHTML = `
         <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
         <div class="leaderboard-user">
           <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
           <span>${entry.name}${isCurrentUser ? ' (You)' : ''}</span>
         </div>
-        <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${entry.totalMinutes.toLocaleString()} min</div>
+        <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
       `;
       
       container.appendChild(rankDiv);
@@ -2448,13 +2601,22 @@ async function loadLeaderboardData() {
       userRankDiv.style.color = '#ffffff';
       userRankDiv.style.fontWeight = '600';
       
+      let displayValue;
+      if (metric === 'minutes') {
+        displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
+      } else if (metric === 'characters') {
+        displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
+      } else if (metric === 'speed') {
+        displayValue = `${userEntry.avgSpeed.toLocaleString()} ch/m`;
+      }
+      
       userRankDiv.innerHTML = `
         <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
         <div class="leaderboard-user">
           <img src="${userEntry.avatar}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
           <span>${userEntry.name} (You)</span>
         </div>
-        <div class="leaderboard-value" style="color: #ffffff;">${userEntry.totalMinutes.toLocaleString()} min</div>
+        <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
       `;
       
       container.appendChild(userRankDiv);
