@@ -1899,10 +1899,8 @@ while (currentDate <= endDate) {
 let totalMinutes = 0;
 let totalCharacters = 0;
 Object.values(dailyData).forEach(day => {
-  if (day.characters > 0) {  // Only count days with characters logged
-    totalMinutes += day.minutes || 0;
-    totalCharacters += day.characters;
-  }
+  totalMinutes += day.minutes || 0;
+  totalCharacters += day.characters || 0;
 });
 
 const totalHours = totalMinutes / 60;
