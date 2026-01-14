@@ -3033,9 +3033,7 @@ async function findTtsuFolder() {
     console.log('Searching for ttu-reader-data folder...');
     
     // Search for exact name first
-    let query = "mimeType='application/vnd.google-apps.folder' and (name contains 'ttsu' or name contains 'ttu' or name contains 'reader')";
-    console.log('Query:', query);
-    
+    let query = "mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data'";    console.log('Query:', query);
     let data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)`, googleAccessToken);
     
     console.log('Search results:', data);
@@ -3087,9 +3085,9 @@ async function syncFromTtsuGDrive() {
     console.log('Fetching book folders from ttu-reader-data...');
     
     // First, get all book folders inside ttu-reader-data
-    const bookFoldersQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder'`);
-    const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)`, googleAccessToken);
-    
+  const bookFoldersQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`, googleAccessToken);
+
     const bookFolders = bookFoldersData.files || [];
     console.log(`Found ${bookFolders.length} book folders`);
     
