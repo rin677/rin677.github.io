@@ -235,7 +235,7 @@ body.theme-ereader h1 {
       </div>
       
       <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Most Read Books</h3>
+        <h3 style="font-size: 18px; margin-bottom: 20px;">Top Books by Time Spent</h3>
         <div id="topBooksList" style="max-height: 300px; overflow-y: auto;"></div>
       </div>
       
@@ -572,58 +572,111 @@ function renderDayOfWeekChart(filteredData) {
     }
   });
 }
+function renderTopBooks(filteredData) {
+  const bookStats = {};
+  
+  Object.values(filteredData).forEach(day => {
+    day.titles.forEach(title => {
+      if (!bookStats[title]) bookStats[title] = { minutes: 0, characters: 0, days: 0 };
+      bookStats[title].minutes += day.minutes || 0;
+      bookStats[title].characters += day.characters || 0;
+      bookStats[title].days++;
+    });
+  });
+  
+  const sortedBooks = Object.entries(bookStats).sort((a, b) => b[1].minutes - a[1].minutes).slice(0, 10);
+  const container = document.getElementById('topBooksList');
+  
+  if (sortedBooks.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-secondary); padding: 20px; text-align: center;">No books tracked yet</div>';
+    return;
+  }
+  
+  const colors = getChartColors();
+  container.innerHTML = sortedBooks.map(([title, stats], i) => `
+    <div style="padding: 10px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 8px;">
+      <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-primary);">${i + 1}. ${title}</div>
+      <div style="font-size: 12px; color: ${colors.text}">${stats.minutes} min • ${stats.characters.toLocaleString()} chars • ${stats.days} days</div>
+    </div>
+  `).join('');
+}
 
 function renderConsistencyChart(filteredData) {
   destroyChart('consistencyChart');
   
-  const dates = Object.keys(filteredData).sort();
+  const timeRange = document.getElementById('statsTimeRange').value;
+  const days = timeRange === 'all' ? 9999 : parseInt(timeRange);
   
-  // Fill in missing dates
-  if (dates.length > 0) {
-    const startDate = new Date(dates[0]);
-    const endDate = new Date(dates[dates.length - 1]);
-    const allDates = [];
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      allDates.push(d.toISOString().split('T')[0]);
+  // Calculate consistency as: (days with reading / total days in range) * 100
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  let daysWithReading = 0;
+  let totalDays = 0;
+  
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    totalDays++;
+    const dateStr = d.toISOString().split('T')[0];
+    const dayData = filteredData[dateStr];
+    if (dayData && (dayData.minutes > 0 || dayData.characters > 0)) {
+      daysWithReading++;
     }
-    
-    const hasReading = allDates.map(date => 
-      (filteredData[date]?.minutes > 0 || filteredData[date]?.characters > 0) ? 1 : 0
-    );
-    
-    const rolling7Day = [];
-    for (let i = 0; i < hasReading.length; i++) {
-      const start = Math.max(0, i - 6);
-      const slice = hasReading.slice(start, i + 1);
-      rolling7Day.push(Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100));
-    }
-    
-    const colors = getChartColors();
-    const ctx = document.getElementById('consistencyChart');
-    chartInstances['consistencyChart'] = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-        datasets: [{
-          label: '7-Day Consistency %',
-          data: rolling7Day,
-          borderColor: colors.primary,
-          backgroundColor: colors.primary + '20',
-          tension: 0.4,
-          fill: true
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, max: 100, ticks: { color: colors.text, callback: v => v + '%' } },
-          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+  }
+  
+  const consistencyPercent = totalDays > 0 ? Math.round((daysWithReading / totalDays) * 100) : 0;
+  
+  const colors = getChartColors();
+  const ctx = document.getElementById('consistencyChart');
+  
+  // Create a simple bar chart showing the percentage
+  chartInstances['consistencyChart'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Days with Reading', 'Days without Reading'],
+      datasets: [{
+        data: [daysWithReading, totalDays - daysWithReading],
+        backgroundColor: [colors.primary + 'CC', colors.primary + '20'],
+        borderColor: [colors.primary, 'transparent'],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: { color: colors.text }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const label = context.label || '';
+              const value = context.parsed || 0;
+              const percent = totalDays > 0 ? Math.round((value / totalDays) * 100) : 0;
+              return label + ': ' + value + ' days (' + percent + '%)';
+            }
+          }
         }
       }
-    });
+    }
+  });
+  
+  // Add text showing the percentage
+  const container = ctx.parentElement;
+  let textDiv = container.querySelector('.consistency-text');
+  if (!textDiv) {
+    textDiv = document.createElement('div');
+    textDiv.className = 'consistency-text';
+    textDiv.style.textAlign = 'center';
+    textDiv.style.marginTop = '16px';
+    textDiv.style.fontSize = '14px';
+    textDiv.style.color = 'var(--text-secondary)';
+    container.appendChild(textDiv);
   }
+  textDiv.textContent = `You read on ${daysWithReading} out of ${totalDays} days (${consistencyPercent}%)`;
 }
 
 window.onload = function() {
