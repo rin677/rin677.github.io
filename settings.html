@@ -983,13 +983,13 @@ async function wipeAllData() {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
+    localStorage.removeItem(BACKUPS_KEY); // Add this line
     
     await customAlert('All data has been wiped. Return to the main page to start fresh.', 'Data Wiped');
   } catch (error) {
     await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }
-}
-    
+} 
  window.onload = function() {
   loadTheme();
   loadStatVisibility();
