@@ -3031,12 +3031,16 @@ async function setupTtsuSync() {
 async function findTtsuFolder() {
   try {
     console.log('Searching for ttu-reader-data folder...');
+    console.log('Access token:', googleAccessToken ? 'exists' : 'missing');
     
     // Search for exact name first
-    let query = "mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data'";    console.log('Query:', query);
-    let data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)`, googleAccessToken);
+    let query = "mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data' and trashed=false";
+    console.log('Query:', query);
+    
+    let data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)&pageSize=10`, googleAccessToken);
     
     console.log('Search results:', data);
+    console.log('Files found:', data.files ? data.files.length : 0);
     
     if (data.files && data.files.length > 0) {
       console.log('Found folder:', data.files[0].name, 'ID:', data.files[0].id);
