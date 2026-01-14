@@ -3055,45 +3055,38 @@ async function driveDownloadFile(fileId, accessToken) {
 
 async function setupTtsuSync() {
   try {
-    // Wait for GIS to load
+    // Wait for GIS
     let attempts = 0;
     while (!initGIS() && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(r => setTimeout(r, 500));
       attempts++;
     }
-    if (!tokenClient) {
-      throw new Error('Google Identity Services not loaded. Please refresh the page.');
-    }
+    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh.');
 
-    // Request access token
+    // Request token with consent once
     await new Promise((resolve, reject) => {
-      tokenClient.callback = async (resp) => {
-        if (resp.error) {
-          reject(resp);
-          return;
-        }
+      tokenClient.callback = (resp) => {
+        if (resp.error) return reject(resp);
         googleAccessToken = resp.access_token;
         resolve();
       };
       tokenClient.requestAccessToken({ prompt: 'consent' });
     });
 
-    // Find ttsu folder
+    // Find folder and persist keys
     const folderId = await findTtsuFolder();
     if (!folderId) {
-      alert('Could not find ttsu data folder in your Google Drive.\n\nMake sure ttsu has exported data to Google Drive first!');
+      alert('Could not find ttsu data folder in Google Drive. Export from ttsu first.');
       return;
     }
-
-    // Persist configuration
     localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
     localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
 
-    // Initial sync
+    // Initial sync + start auto-sync
     await syncFromTtsuGDrive();
-
-    // Start auto-sync and update status
     startAutoSync();
+
+    // Update status UI
     const statusEl = document.getElementById('ttsuSyncStatusText');
     if (statusEl) {
       const s = checkTtsuSyncStatus();
@@ -3101,7 +3094,7 @@ async function setupTtsuSync() {
       statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
     }
 
-    alert('✅ ttsu sync enabled!\n\nYour reading data will automatically sync from Google Drive every 5 minutes.');
+    alert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.');
     closeTtsuSyncModal();
   } catch (error) {
     console.error('Setup error:', error);
@@ -3302,34 +3295,61 @@ function stopAutoSync() {
 
 async function manualSyncTtsu() {
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-  
-  if (!enabled) {
+  const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+
+  if (!enabled || !folderId) {
     alert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Sync" first.');
     return;
   }
-  
+
+  // Ensure we have a valid token; try silent refresh first
+  try {
+    if (tokenClient && !googleAccessToken) {
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (resp) => {
+          if (resp.error) return reject(resp);
+          googleAccessToken = resp.access_token;
+          resolve();
+        };
+        tokenClient.requestAccessToken({ prompt: '' }); // silent
+      });
+    }
+  } catch (e) {
+    // Fallback: request with prompt once if silent fails
+    try {
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (resp) => {
+          if (resp.error) return reject(resp);
+          googleAccessToken = resp.access_token;
+          resolve();
+        };
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+    } catch (err) {
+      alert('Google Drive authorization required. Please press "Setup Auto-Sync" once.');
+      return;
+    }
+  }
+
   try {
     const count = await syncFromTtsuGDrive();
-    
     const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
     const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
-    
-    alert(
-      `✅ Sync complete!\n\n` +
-      `New sessions imported: ${count || 0}\n` +
-      `Last sync: ${lastSyncStr}`
-    );
-    const statusEl = document.getElementById('ttsuSyncStatusText');
-if (statusEl) {
-  const s = checkTtsuSyncStatus();
-  statusEl.textContent = s;
-  statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
-}
 
+    alert(`✅ Sync complete!\n\nNew sessions imported: ${count || 0}\nLast sync: ${lastSyncStr}`);
+
+    // Update status UI
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+    if (statusEl) {
+      const s = checkTtsuSyncStatus();
+      statusEl.textContent = s;
+      statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+    }
   } catch (error) {
     alert('Sync failed:\n\n' + error.message);
   }
 }
+
 
 function disableTtsuSync() {
   if (confirm('Disable automatic ttsu sync from Google Drive?')) {
@@ -3384,7 +3404,7 @@ setTimeout(() => {
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
 
   if (enabled && folderId) {
-    // Try to silently get an access token if GIS is ready; if not, we’ll still start the interval and pick up after you re-consent once
+    // Try silent token; non-blocking if Google requires consent
     try {
       if (tokenClient && !googleAccessToken) {
         tokenClient.callback = (resp) => {
@@ -3392,16 +3412,15 @@ setTimeout(() => {
             googleAccessToken = resp.access_token;
           }
         };
-        // Attempt a no-prompt token request; if it needs consent, GIS will ignore it and you’ll sync on manual “Sync Now”
-        tokenClient.requestAccessToken({ prompt: '' });
+        tokenClient.requestAccessToken({ prompt: '' }); // silent attempt
       }
     } catch (e) {
-      console.log('Silent token attempt failed (non-blocking):', e.message || e);
+      console.log('Silent token attempt failed (non-blocking):', e?.message || e);
     }
 
     startAutoSync();
 
-    // Update the status pill if modal is present
+    // Refresh status pill if modal exists
     const statusEl = document.getElementById('ttsuSyncStatusText');
     if (statusEl) {
       const s = checkTtsuSyncStatus();
@@ -3412,6 +3431,7 @@ setTimeout(() => {
     console.log('ttsu auto-sync enabled on load');
   }
 }, 1000);
+
 
 
 window.setupTtsuSync = setupTtsuSync;
