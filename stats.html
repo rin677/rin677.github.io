@@ -266,6 +266,18 @@ function loadTheme() {
 }
 
 async function loadFromStorage() {
+  // Check if user is signed in
+  const storedUser = localStorage.getItem(USER_KEY);
+  if (storedUser) {
+    try {
+      currentUser = JSON.parse(storedUser);
+      window.currentUser = currentUser;
+    } catch (e) {
+      console.error('Error loading user:', e);
+    }
+  }
+  
+  // Try to load from localStorage first (fallback)
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -282,7 +294,7 @@ async function loadFromStorage() {
       window.recentBooks = recentBooks = JSON.parse(storedBooks);
     }
   } catch (e) {
-    console.error('Error loading data:', e);
+    console.error('Error loading data from localStorage:', e);
   }
   
   aggregateData();
@@ -564,5 +576,52 @@ window.onload = function() {
   updateStatistics();
 };
   </script>
+  <!-- Firebase integration for stats page -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAmGPOSR03tCzi3cftfaP6JTBSk30JUgIw",
+    authDomain: "timetracker-79479.firebaseapp.com",
+    projectId: "timetracker-79479",
+    storageBucket: "timetracker-79479.appspot.com",
+    appId: "1:374798694344:web:77b1e15a27fc03ce76b2fd"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Listen for auth state and load cloud data
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      window.currentUser = {
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || ''
+      };
+      
+      // Load data from cloud
+      try {
+        const ref = doc(db, 'users', user.uid, 'reading', 'heatmap');
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const cloud = snap.data();
+          window.data = Array.isArray(cloud.data) ? cloud.data : [];
+          window.goals = Array.isArray(cloud.goals) ? cloud.goals : [];
+          window.recentBooks = Array.isArray(cloud.recentBooks) ? cloud.recentBooks : [];
+          
+          // Update the page
+          aggregateData();
+          updateStatistics();
+        }
+      } catch (error) {
+        console.error('Error loading cloud data:', error);
+      }
+    }
+  });
+</script>
 </body>
 </html>
