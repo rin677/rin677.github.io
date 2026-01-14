@@ -1360,6 +1360,8 @@ Book title 2"></textarea>
   🔄 ttsu Sync Settings
 </button>      <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
     </div>
+    <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px; margin-bottom: 12px;">
+  <button class="btn" onclick="openStatsSettings()" style="width: 100%; margin-bottom: 8px;">⚙️ Customise more</button>
   <button class="btn" onclick="openBackupSettings()" style="width: 100%;">💾 Backup Settings</button>
 </div>
 <div>
@@ -2418,7 +2420,7 @@ document.getElementById('viewBackupsModal').addEventListener('click', (e) => {
         document.getElementById('alertModal').classList.contains('show')) {
       return;
     }
-
+    
     try { closeBackupSettings(); } catch (err) {}
     try { closeViewBackups(); } catch (err) {}
     try { hideTooltip(); } catch (err) {}
