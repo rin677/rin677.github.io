@@ -2018,6 +2018,31 @@ function updateStats() {
   document.getElementById('totalValue').textContent = Math.round(total).toLocaleString() + suffix;
 }
 
+// filename: index.html (non-module script)
+// Returns year-scoped avg speed in char/hr, matching the heatmap's display logic
+function getYearAvgSpeedCharPerHour(year) {
+  const startDate = new Date(year, 0, 1);
+  const endDate = new Date(year, 11, 31);
+
+  let yearMinutesWithChars = 0;
+  let yearCharactersWithChars = 0;
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    const day = dailyData[dateStr];
+    if (!day) continue;
+    const hasChars = (day.characters || 0) > 0;
+    if (hasChars) {
+      yearMinutesWithChars += day.minutes || 0;
+      yearCharactersWithChars += day.characters || 0;
+    }
+  }
+
+  const yearHoursWithChars = yearMinutesWithChars / 60;
+  return yearHoursWithChars > 0
+    ? Math.round(yearCharactersWithChars / yearHoursWithChars)
+    : 0;
+}
 
     function openModal(dateStr) {
       const modal = document.getElementById('modal');
@@ -2544,6 +2569,16 @@ async function loadLeaderboard() {
       container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 20px;">Failed to load leaderboard.</div>';
       return;
     }
+    // filename: index.html (Firebase module script) — inside loadLeaderboardData rendering
+let displayValue;
+if (metric === 'minutes') {
+  displayValue = `${entry.totalMinutes.toLocaleString()} min`;
+} else if (metric === 'characters') {
+  displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
+} else { // speed
+  displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
+}
+
 
     // Wait 300ms and retry
     await new Promise(r => setTimeout(r, 300));
@@ -2990,62 +3025,60 @@ function customPrompt(message, title = 'Input') {
     }
   }
 
-// filename: index.html (Firebase module script)
+// filename: index.html (Firebase module script) — replace updateCloudLeaderboard
 async function updateCloudLeaderboard() {
   if (!window.currentUser) return;
 
-  // Past 30 days from dailyData
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(start.getDate() - 30);
+  // Year to align with heatmap display (uses currentYear global)
+  const year = window.currentYear || new Date().getFullYear();
 
+  // Calculate totals and year avg speed using window.dailyData (already aggregated)
   let totalMinutes = 0;
   let totalCharacters = 0;
-  let minutesWithChars = 0;
-  let charactersWithChars = 0;
 
-  const dd = window.dailyData || {};
-  Object.keys(dd).forEach(dateStr => {
+  Object.entries(window.dailyData || {}).forEach(([dateStr, day]) => {
     const d = new Date(dateStr + 'T00:00:00');
-    if (d >= start && d <= today) {
-      const mins = dd[dateStr].minutes || 0;
-      const chars = dd[dateStr].characters || 0;
-      totalMinutes += mins;
-      totalCharacters += chars;
-      if (mins > 0 && chars > 0) {
-        minutesWithChars += mins;
-        charactersWithChars += chars;
-      }
+    if (d.getFullYear() === year) {
+      totalMinutes += day.minutes || 0;
+      totalCharacters += day.characters || 0;
     }
   });
 
- const globalHoursWithChars = globalMinutesWithChars / 60;
-  const globalAvgSpeed = globalHoursWithChars > 0
-    ? Math.round(globalCharactersWithChars / globalHoursWithChars)
-    : 0;
-
-  // Year-scoped avg speed for currentYear
-  let yearMinutesWithChars = 0;
-  let yearCharactersWithChars = 0;
-
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split('T')[0];
-    const day = dailyData[dateStr];
-    if (!day) continue;
-    const hasChars = (day.characters || 0) > 0;
-    if (hasChars) {
-      yearMinutesWithChars += day.minutes || 0;
-      yearCharactersWithChars += day.characters || 0;
+  // Use the exact same year-scoped char/hr as heatmap
+  // Call the helper from non-module via window
+  let avgSpeed = 0;
+  try {
+    if (typeof window.getYearAvgSpeedCharPerHour === 'function') {
+      avgSpeed = window.getYearAvgSpeedCharPerHour(year);
+    } else {
+      // Fallback: compute inline if the helper isn't bound yet
+      let minutesWithChars = 0;
+      let charactersWithChars = 0;
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31);
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const day = (window.dailyData || {})[dateStr];
+        if (!day) continue;
+        if ((day.characters || 0) > 0) {
+          minutesWithChars += day.minutes || 0;
+          charactersWithChars += day.characters || 0;
+        }
+      }
+      const hoursWithChars = minutesWithChars / 60;
+      avgSpeed = hoursWithChars > 0 ? Math.round(charactersWithChars / hoursWithChars) : 0;
     }
+  } catch (e) {
+    avgSpeed = 0;
   }
-  
+
   const leaderboardEntry = {
     userId: window.currentUser.id,
     name: window.currentUser.name || 'User',
     avatar: window.currentUser.avatar || '',
     totalMinutes,
     totalCharacters,
-    avgSpeed,
+    avgSpeed, // char/hr, year-scoped
     lastUpdated: new Date().toISOString()
   };
 
@@ -3056,6 +3089,7 @@ async function updateCloudLeaderboard() {
     console.error('Failed to update leaderboard:', error);
   }
 }
+
 
 // filename: index.html (Firebase module script) — replace loadLeaderboardData
 async function loadLeaderboardData() {
