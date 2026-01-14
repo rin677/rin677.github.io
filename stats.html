@@ -324,29 +324,41 @@ function updateStatistics() {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
   
-// Create filteredData with ALL dates in range, including empty days
-const filteredData = {};
+  // Create filteredData with ALL dates in range, including empty days
+  const filteredData = {};
 
-// For "all time", just use the actual data without filling gaps
-if (timeRange === 'all') {
-  // Get the earliest and latest dates from actual data
-  const allDataDates = Object.keys(dailyData).sort();
-  if (allDataDates.length > 0) {
-    const firstDate = new Date(allDataDates[0]);
-    const lastDate = new Date(allDataDates[allDataDates.length - 1]);
-    
-    for (let d = new Date(firstDate); d <= lastDate; d.setDate(d.getDate() + 1)) {
+  // For "all time", just use the actual data without filling gaps
+  if (timeRange === 'all') {
+    // Get the earliest and latest dates from actual data
+    const allDataDates = Object.keys(dailyData).sort();
+    if (allDataDates.length > 0) {
+      const firstDate = new Date(allDataDates[0]);
+      const lastDate = new Date(allDataDates[allDataDates.length - 1]);
+      
+      for (let d = new Date(firstDate); d <= lastDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
+      }
+    }
+  } else {
+    // For specific time ranges, fill all days
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
       filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
     }
   }
-} else {
-  // For specific time ranges, fill all days
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const dateStr = d.toISOString().split('T')[0];
-    filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
-  }
-}
+  
+  let totalMinutes = 0;
+  let totalCharacters = 0;
+  let readingDays = 0;
+  
+  Object.values(filteredData).forEach(day => {
+    totalMinutes += day.minutes || 0;
+    totalCharacters += day.characters || 0;
+    if ((day.minutes || 0) > 0 || (day.characters || 0) > 0) {
+      readingDays++;
+    }
+  });
   
   const totalHours = totalMinutes / 60;
   const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
