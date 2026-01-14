@@ -344,11 +344,12 @@ for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     }
   });
   
-  const avgSpeed = totalMinutes > 0 ? Math.round(totalCharacters / totalMinutes) : 0;
+  const totalHours = totalMinutes / 60;
+  const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
   
   document.getElementById('statTotalMinutes').textContent = totalMinutes.toLocaleString() + ' min';
   document.getElementById('statTotalChars').textContent = totalCharacters.toLocaleString();
-  document.getElementById('statAvgSpeed').textContent = avgSpeed.toLocaleString() + ' ch/min';
+  document.getElementById('statAvgSpeed').textContent = avgSpeed.toLocaleString() + ' ch/hr';
   document.getElementById('statReadingDays').textContent = readingDays;
   
   renderSpeedChart(filteredData);
@@ -382,19 +383,27 @@ function renderSpeedChart(filteredData) {
   
   const dates = Object.keys(filteredData).sort();
   
-  // Fill in missing dates
   if (dates.length > 0) {
-    const startDate = new Date(dates[0]);
-    const endDate = new Date(dates[dates.length - 1]);
-    const allDates = [];
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      allDates.push(d.toISOString().split('T')[0]);
-    }
+    const allDates = dates;
     
     const speeds = allDates.map(date => {
       const day = filteredData[date];
-      return day && day.minutes > 0 ? Math.round(day.characters / day.minutes) : 0;
+      const hours = (day?.minutes || 0) / 60;
+      return hours > 0 ? Math.round(day.characters / hours) : 0;
+    });
+    
+    // Create simplified labels based on number of days
+    const labels = allDates.map((d, i) => {
+      if (allDates.length <= 30) {
+        // Show dates for short ranges
+        return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (allDates.length <= 90) {
+        // Show every 3rd date
+        return i % 3 === 0 ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      } else {
+        // Show day numbers (1, 50, 100, etc)
+        return i % 50 === 0 ? i.toString() : '';
+      }
     });
     
     const colors = getChartColors();
@@ -402,9 +411,9 @@ function renderSpeedChart(filteredData) {
     chartInstances['speedChart'] = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        labels: labels,
         datasets: [{
-          label: 'Characters per Minute',
+          label: 'Characters per Hour',
           data: speeds,
           borderColor: colors.primary,
           backgroundColor: colors.primary + '20',
@@ -418,7 +427,14 @@ function renderSpeedChart(filteredData) {
         plugins: { legend: { display: false } },
         scales: {
           y: { beginAtZero: true, ticks: { color: colors.text } },
-          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+          x: { 
+            ticks: { 
+              color: colors.text,
+              maxRotation: 45,
+              minRotation: 45,
+              autoSkip: false
+            }
+          }
         }
       }
     });
@@ -430,24 +446,27 @@ function renderDailyTimeChart(filteredData) {
   
   const dates = Object.keys(filteredData).sort();
   
-  // Fill in missing dates
   if (dates.length > 0) {
-    const startDate = new Date(dates[0]);
-    const endDate = new Date(dates[dates.length - 1]);
-    const allDates = [];
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      allDates.push(d.toISOString().split('T')[0]);
-    }
-    
+    const allDates = dates;
     const minutes = allDates.map(date => filteredData[date]?.minutes || 0);
+    
+    // Create simplified labels based on number of days
+    const labels = allDates.map((d, i) => {
+      if (allDates.length <= 30) {
+        return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (allDates.length <= 90) {
+        return i % 3 === 0 ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      } else {
+        return i % 50 === 0 ? i.toString() : '';
+      }
+    });
     
     const colors = getChartColors();
     const ctx = document.getElementById('dailyTimeChart');
     chartInstances['dailyTimeChart'] = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        labels: labels,
         datasets: [{
           label: 'Minutes',
           data: minutes,
@@ -459,7 +478,14 @@ function renderDailyTimeChart(filteredData) {
         plugins: { legend: { display: false } },
         scales: {
           y: { beginAtZero: true, ticks: { color: colors.text } },
-          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+          x: { 
+            ticks: { 
+              color: colors.text,
+              maxRotation: 45,
+              minRotation: 45,
+              autoSkip: false
+            }
+          }
         }
       }
     });
@@ -471,24 +497,27 @@ function renderDailyCharsChart(filteredData) {
   
   const dates = Object.keys(filteredData).sort();
   
-  // Fill in missing dates
   if (dates.length > 0) {
-    const startDate = new Date(dates[0]);
-    const endDate = new Date(dates[dates.length - 1]);
-    const allDates = [];
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      allDates.push(d.toISOString().split('T')[0]);
-    }
-    
+    const allDates = dates;
     const characters = allDates.map(date => filteredData[date]?.characters || 0);
+    
+    // Create simplified labels based on number of days
+    const labels = allDates.map((d, i) => {
+      if (allDates.length <= 30) {
+        return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (allDates.length <= 90) {
+        return i % 3 === 0 ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      } else {
+        return i % 50 === 0 ? i.toString() : '';
+      }
+    });
     
     const colors = getChartColors();
     const ctx = document.getElementById('dailyCharsChart');
     chartInstances['dailyCharsChart'] = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: allDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+        labels: labels,
         datasets: [{
           label: 'Characters',
           data: characters,
@@ -506,7 +535,14 @@ function renderDailyCharsChart(filteredData) {
               callback: v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v
             } 
           },
-          x: { ticks: { color: colors.text, maxRotation: 45, minRotation: 45 } }
+          x: { 
+            ticks: { 
+              color: colors.text,
+              maxRotation: 45,
+              minRotation: 45,
+              autoSkip: false
+            }
+          }
         }
       }
     });
