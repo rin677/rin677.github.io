@@ -980,17 +980,30 @@ async function wipeAllData() {
   if (!secondConfirm) return;
   
   try {
+    // Clear all local storage
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
-    localStorage.removeItem(BACKUPS_KEY); // Add this line
+    localStorage.removeItem(BACKUPS_KEY);
+    localStorage.removeItem('show_longestStreak');
+    localStorage.removeItem('show_currentStreak');
+    localStorage.removeItem('show_average');
+    localStorage.removeItem('show_avgSpeed');
+    localStorage.removeItem('show_total');
+    localStorage.removeItem('selectedMetric');
     
     await customAlert('All data has been wiped. Return to the main page to start fresh.', 'Data Wiped');
+    
+    // Redirect to main page after a short delay
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 1500);
   } catch (error) {
     await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }
-} 
- window.onload = function() {
+}
+
+window.onload = function() {
   loadTheme();
   loadStatVisibility();
   loadBackupSettings();
