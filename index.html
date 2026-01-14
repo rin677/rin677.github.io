@@ -1366,10 +1366,7 @@ Book title 2"></textarea>
     let currentUser = null;
     let currentYear = 2026;
     let googleInitialized = false;
-    
-window.onload = function() {
-  loadTheme();
-  loadStatVisibility();
+
 // Confetti animation
     function createConfetti() {
       const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#a29bfe'];
@@ -1447,6 +1444,10 @@ window.onload = function() {
         }
       });
     }
+  
+window.onload = function() {
+  loadTheme();
+  loadStatVisibility();
     
   window.data = data = [];
   window.dailyData = dailyData = {};
