@@ -980,24 +980,24 @@ async function wipeAllData() {
   if (!secondConfirm) return;
   
   try {
-    // Clear all local storage
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(GOALS_KEY);
-    localStorage.removeItem(BOOKS_KEY);
-    localStorage.removeItem(BACKUPS_KEY);
-    localStorage.removeItem('show_longestStreak');
-    localStorage.removeItem('show_currentStreak');
-    localStorage.removeItem('show_average');
-    localStorage.removeItem('show_avgSpeed');
-    localStorage.removeItem('show_total');
-    localStorage.removeItem('selectedMetric');
+    // Get list of all keys to clear
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('reading_heatmap_')) {
+        keysToRemove.push(key);
+      }
+    }
     
-    await customAlert('All data has been wiped. Return to the main page to start fresh.', 'Data Wiped');
+    // Remove all reading heatmap keys
+    keysToRemove.forEach(key => localStorage.removeItem(key));
     
-    // Redirect to main page after a short delay
+    await customAlert('All data has been wiped.', 'Data Wiped');
+    
+    // Redirect to main page
     setTimeout(() => {
       window.location.href = 'index.html';
-    }, 1500);
+    }, 1000);
   } catch (error) {
     await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }

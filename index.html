@@ -2983,18 +2983,23 @@ function customPrompt(message, title = 'Input') {
     }
   }
 
-  async function updateCloudLeaderboard() {
+async function updateCloudLeaderboard() {
   if (!window.currentUser) return;
   
   let totalMinutes = 0;
   let totalCharacters = 0;
+  
+  // Only count days with both minutes AND characters
   Object.values(window.dailyData || {}).forEach(day => {
-    totalMinutes += day.minutes || 0;
-    totalCharacters += day.characters || 0;
+    if ((day.characters || 0) > 0 && (day.minutes || 0) > 0) {
+      totalMinutes += day.minutes || 0;
+      totalCharacters += day.characters || 0;
+    }
   });
   
-const totalHours = totalMinutes / 60;
-const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;  
+  const totalHours = totalMinutes / 60;
+  const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
+  
   const leaderboardEntry = {
     userId: window.currentUser.id,
     name: window.currentUser.name,
@@ -3012,6 +3017,7 @@ const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
     console.error('Failed to update leaderboard:', error);
   }
 }
+
 async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
   const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
