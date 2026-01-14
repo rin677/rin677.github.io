@@ -1289,7 +1289,33 @@ Book title 2"></textarea>
         </div>
       </div>
     </div>
-    
+      <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+      <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Visible Stats</h3>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked style="cursor: pointer;">
+          <span style="font-size: 13px;">Longest streak</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked style="cursor: pointer;">
+          <span style="font-size: 13px;">Current streak</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked style="cursor: pointer;">
+          <span style="font-size: 13px;">Average</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked style="cursor: pointer;">
+          <span style="font-size: 13px;">Average speed</span>
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked style="cursor: pointer;">
+          <span style="font-size: 13px;">Total</span>
+        </label>
+      </div>
+    </div>
+
+
     <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
       <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
       <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
