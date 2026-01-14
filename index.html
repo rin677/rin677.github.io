@@ -1437,6 +1437,29 @@ Book title 2"></textarea>
    </div>
   </div>
 
+  <!-- Custom Confirmation Modal -->
+<div class="modal" id="confirmModal">
+  <div class="modal-content" style="max-width: 500px;">
+    <h2 id="confirmTitle">Confirm</h2>
+    <p id="confirmMessage" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 16px 0;"></p>
+    <div class="modal-actions">
+      <button class="btn" id="confirmCancel">Cancel</button>
+      <button class="log-btn" id="confirmOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Alert Modal -->
+<div class="modal" id="alertModal">
+  <div class="modal-content" style="max-width: 500px;">
+    <h2 id="alertTitle">Notice</h2>
+    <p id="alertMessage" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 16px 0; white-space: pre-line;"></p>
+    <div class="modal-actions">
+      <button class="log-btn" id="alertOk" style="width: 100%;">OK</button>
+    </div>
+  </div>
+</div>
+
   <script>
     const STORAGE_KEY = 'reading_heatmap_data';
     const GOALS_KEY = 'reading_heatmap_goals';
@@ -2279,11 +2302,17 @@ document.getElementById('statsModal').addEventListener('click', (e) => {
 });
     document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === 'Esc') {
+    // Don't close modals if custom confirm/alert is open
+    if (document.getElementById('confirmModal').classList.contains('show') ||
+        document.getElementById('alertModal').classList.contains('show')) {
+      return;
+    }
+    
     try { hideTooltip(); } catch (err) {}
     try { closeModal(); } catch (err) {}
     try { closeMenu(); } catch (err) {}
     try { closeGoalModal(); } catch (err) {}
-    try { closeStatsSettings(); } catch (err) {}  // Add this line
+    try { closeStatsSettings(); } catch (err) {}
     try { closeTtsuSyncModal(); } catch (err) {}
 
     try {
@@ -2656,7 +2685,88 @@ async function importTtsuData(event) {
   reader.readAsText(file);
   event.target.value = ''; // Reset file input
 }
-  </script>
+ 
+// Custom themed confirm dialog
+function customConfirm(message, title = 'Confirm') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmModal');
+    const titleEl = document.getElementById('confirmTitle');
+    const messageEl = document.getElementById('confirmMessage');
+    const okBtn = document.getElementById('confirmOk');
+    const cancelBtn = document.getElementById('confirmCancel');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    modal.className = 'modal show';
+    
+    const handleOk = () => {
+      cleanup();
+      resolve(true);
+    };
+    
+    const handleCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve(false);
+      }
+    };
+    
+    const cleanup = () => {
+      modal.className = 'modal';
+      okBtn.removeEventListener('click', handleOk);
+      cancelBtn.removeEventListener('click', handleCancel);
+      document.removeEventListener('keydown', handleEscape);
+    };
+    
+    okBtn.addEventListener('click', handleOk);
+    cancelBtn.addEventListener('click', handleCancel);
+    document.addEventListener('keydown', handleEscape);
+  });
+}
+
+// Custom themed alert dialog
+function customAlert(message, title = 'Notice') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('alertModal');
+    const titleEl = document.getElementById('alertTitle');
+    const messageEl = document.getElementById('alertMessage');
+    const okBtn = document.getElementById('alertOk');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    modal.className = 'modal show';
+    
+    const handleOk = () => {
+      cleanup();
+      resolve();
+    };
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        cleanup();
+        resolve();
+      }
+    };
+    
+    const cleanup = () => {
+      modal.className = 'modal';
+      okBtn.removeEventListener('click', handleOk);
+      document.removeEventListener('keydown', handleEscape);
+    };
+    
+    okBtn.addEventListener('click', handleOk);
+    document.addEventListener('keydown', handleEscape);
+    
+    // Auto-focus OK button
+    setTimeout(() => okBtn.focus(), 100);
+  });
+}
+ </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
@@ -3265,14 +3375,20 @@ if (totalImported > 0) {
 
 async function batchLoadAllTtsu() {
   // First confirmation
-  if (!confirm('⚠️ BATCH LOAD ALL FROM TTSU ⚠️\n\nThis will:\n1. Load ALL reading data from ttsu Google Drive\n2. OVERWRITE your existing data\n3. This action CANNOT be undone\n\nAre you sure you want to continue?')) {
-    return;
-  }
+  const firstConfirm = await customConfirm(
+    '⚠️ BATCH LOAD ALL FROM TTSU ⚠️\n\nThis will:\n1. Load ALL reading data from ttsu Google Drive\n2. OVERWRITE your existing data\n3. This action CANNOT be undone\n\nAre you sure you want to continue?',
+    'Batch Load Warning'
+  );
+  
+  if (!firstConfirm) return;
   
   // Second confirmation to prevent accidents
-  if (!confirm('FINAL CONFIRMATION\n\nYour current reading data will be PERMANENTLY REPLACED with all data from ttsu.\n\nClick OK to proceed or Cancel to abort.')) {
-    return;
-  }
+  const secondConfirm = await customConfirm(
+    'FINAL CONFIRMATION\n\nYour current reading data will be PERMANENTLY REPLACED with all data from ttsu.\n\nClick OK to proceed or Cancel to abort.',
+    'Final Confirmation'
+  );
+  
+  if (!secondConfirm) return;
   
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -3286,7 +3402,10 @@ async function batchLoadAllTtsu() {
       
       const foundFolderId = await findTtsuFolder();
       if (!foundFolderId) {
-        alert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!');
+        await customAlert(
+          'Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!',
+          'Folder Not Found'
+        );
         return;
       }
       
@@ -3295,7 +3414,10 @@ async function batchLoadAllTtsu() {
       // Ensure we have a valid token
       const hasToken = await ensureDriveToken({ allowPrompt: false });
       if (!hasToken) {
-        alert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization.');
+        await customAlert(
+          'Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization.',
+          'Authorization Expired'
+        );
         return;
       }
     }
@@ -3318,7 +3440,7 @@ async function batchLoadAllTtsu() {
     console.log(`Found ${bookFolders.length} book folders`);
     
     if (bookFolders.length === 0) {
-      alert('No book folders found in ttsu Google Drive.');
+      await customAlert('No book folders found in ttsu Google Drive.', 'No Data Found');
       return;
     }
     
@@ -3383,7 +3505,7 @@ async function batchLoadAllTtsu() {
     }
     
     if (totalImported === 0) {
-      alert('No reading data found in ttsu Google Drive.');
+      await customAlert('No reading data found in ttsu Google Drive.', 'No Data Found');
       return;
     }
     
@@ -3414,11 +3536,9 @@ async function batchLoadAllTtsu() {
     const bookList = Array.from(bookTitles).slice(0, 10).join(', ');
     const moreBooks = bookTitles.size > 10 ? `\n...and ${bookTitles.size - 10} more books` : '';
     
-    alert(
-      `✅ Batch Load Complete!\n\n` +
-      `Imported: ${totalImported} reading sessions\n` +
-      `Books: ${bookList}${moreBooks}\n\n` +
-      `Your data has been overwritten with ttsu data.`
+    await customAlert(
+      `✅ Batch Load Complete!\n\nImported: ${totalImported} reading sessions\nBooks: ${bookList}${moreBooks}\n\nYour data has been overwritten with ttsu data.`,
+      'Success'
     );
     
     if (statusEl) {
@@ -3431,7 +3551,10 @@ async function batchLoadAllTtsu() {
     
   } catch (error) {
     console.error('Batch load error:', error);
-    alert('Failed to batch load from ttsu:\n\n' + (error.message || error));
+    await customAlert(
+      'Failed to batch load from ttsu:\n\n' + (error.message || error),
+      'Error'
+    );
     
     const statusEl = document.getElementById('ttsuSyncStatusText');
     if (statusEl) {
