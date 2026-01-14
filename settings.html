@@ -523,8 +523,8 @@
       localStorage.setItem(`show_${statName}`, checkbox.checked);
     }
     
-    // Load backup settings
-    const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
+// Load backup settings
+const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
 const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
 const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
 
@@ -533,25 +533,31 @@ function loadBackupSettings() {
   const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
   const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
   
-  document.getElementById('backupFrequency').value = frequency;
-  document.getElementById('backupRetention').value = retention;
+  const freqSelect = document.getElementById('backupFrequency');
+  const retSelect = document.getElementById('backupRetention');
+  
+  if (freqSelect) freqSelect.value = frequency;
+  if (retSelect) retSelect.value = retention;
   
   if (lastBackup) {
     const date = new Date(parseInt(lastBackup));
-    document.getElementById('lastBackupTime').textContent = date.toLocaleString();
+    const timeEl = document.getElementById('lastBackupTime');
+    if (timeEl) {
+      timeEl.textContent = date.toLocaleString();
+    }
   }
 }
 
 async function updateBackupFrequency() {
   const frequency = document.getElementById('backupFrequency').value;
   localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
-  await customAlert('Backup frequency updated. Changes will take effect when you return to the main page.', 'Settings Updated');
+  await customAlert('Backup frequency updated to: ' + frequency, 'Settings Updated');
 }
 
 async function updateBackupRetention() {
   const retention = document.getElementById('backupRetention').value;
   localStorage.setItem(BACKUP_RETENTION_KEY, retention);
-  await customAlert('Backup retention updated.', 'Settings Updated');
+  await customAlert('Backup retention updated to: ' + retention + ' backups', 'Settings Updated');
 }
 
 async function createManualBackup() {
@@ -579,13 +585,16 @@ async function createManualBackup() {
     }
     
     localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    localStorage.setItem(LAST_BACKUP_KEY, Date.now().toString());
+    localStorage.setItem(LAST_BACKUP_KEY, backup.timestamp.toString());
     
-    // Update display
+    // Update display immediately
     const date = new Date(backup.timestamp);
-    document.getElementById('lastBackupTime').textContent = date.toLocaleString();
+    const timeEl = document.getElementById('lastBackupTime');
+    if (timeEl) {
+      timeEl.textContent = date.toLocaleString();
+    }
     
-    await customAlert('Backup created successfully!', 'Backup Created');
+    await customAlert(`Backup created successfully!\n\n${backup.data.length} entries backed up`, 'Backup Created');
   } catch (error) {
     console.error('Manual backup error:', error);
     await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
@@ -610,12 +619,13 @@ async function viewBackups() {
       
       const entriesCount = backup.data ? backup.data.length : 0;
       const goalsCount = backup.goals ? backup.goals.length : 0;
+      const booksCount = backup.recentBooks ? backup.recentBooks.length : 0;
       const type = backup.type === 'manual' ? '👤 Manual' : '🤖 Automatic';
       
       backupDiv.innerHTML = `
         <div style="flex: 1;">
           <strong style="color: var(--text-primary);">${date.toLocaleString()}</strong><br>
-          <span style="font-size: 12px; color: var(--text-secondary);">${type} • ${entriesCount} entries • ${goalsCount} goals</span>
+          <span style="font-size: 12px; color: var(--text-secondary);">${type} • ${entriesCount} entries • ${goalsCount} goals • ${booksCount} books</span>
         </div>
         <div style="display: flex; gap: 8px;">
           <button class="btn" onclick="restoreBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Restore</button>
@@ -966,51 +976,38 @@ document.getElementById('ttsuInput').addEventListener('change', async (event) =>
 
 async function wipeAllData() {
   const firstConfirm = await customConfirm(
-    'Are you sure? This will permanently delete all reading data, goals, and recent books.\n\nThis action cannot be undone.',
-    'Wipe All Data'
+    'Are you sure you want to delete all reading data?\n\nThis will delete:\n• All reading entries\n• All goals\n• Recent books list\n• All backups\n\nThis will NOT delete:\n• Theme settings\n• Statistics visibility settings\n• ttsu sync settings\n\nThis action cannot be undone.',
+    'Delete All Reading Data'
   );
   
   if (!firstConfirm) return;
   
   const secondConfirm = await customConfirm(
-    'Really delete ALL data? Click OK to confirm.',
+    'FINAL CONFIRMATION\n\nAll reading data will be permanently deleted.\n\nClick OK to proceed or Cancel to abort.',
     'Final Confirmation'
   );
   
   if (!secondConfirm) return;
   
   try {
-    // Clear all localStorage keys
+    // Only clear reading data, goals, books, and backups
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
     localStorage.removeItem(BACKUPS_KEY);
-    localStorage.removeItem(USER_KEY);
-    localStorage.removeItem(THEME_KEY);
-    localStorage.removeItem(BACKUP_FREQUENCY_KEY);
-    localStorage.removeItem(BACKUP_RETENTION_KEY);
     localStorage.removeItem(LAST_BACKUP_KEY);
-    localStorage.removeItem('show_longestStreak');
-    localStorage.removeItem('show_currentStreak');
-    localStorage.removeItem('show_average');
-    localStorage.removeItem('show_avgSpeed');
-    localStorage.removeItem('show_total');
-    localStorage.removeItem('selectedMetric');
-    localStorage.removeItem(TTSU_SYNC_ENABLED_KEY);
-    localStorage.removeItem(TTSU_LAST_SYNC_KEY);
-    localStorage.removeItem(TTSU_FOLDER_ID_KEY);
-    localStorage.removeItem(TTSU_TOKEN_KEY);
-    localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
     
-    await customAlert('All data has been wiped. Redirecting to main page...', 'Data Wiped');
+    // Do NOT remove: theme, stat visibility, ttsu sync, backup settings
     
-    // Redirect to main page
+    await customAlert('All reading data has been deleted.\n\nYour settings have been preserved.\n\nReturning to main page...', 'Data Deleted');
+    
+    // Redirect to main page after delay
     setTimeout(() => {
       window.location.href = 'index.html';
-    }, 1000);
+    }, 1500);
   } catch (error) {
-    console.error('Wipe error:', error);
-    await customAlert('Failed to wipe data: ' + error.message, 'Error');
+    console.error('Delete error:', error);
+    await customAlert('Failed to delete data: ' + error.message, 'Error');
   }
 }
 
