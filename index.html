@@ -2658,7 +2658,7 @@ async function importTtsuData(event) {
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+  import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -3055,38 +3055,15 @@ async function driveDownloadFile(fileId, accessToken) {
 
 async function setupTtsuSync() {
   try {
-    let attempts = 0;
-    while (!initGIS() && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
-    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh the page.');
-
-    // Explicit consent only during setup
+    // ... existing code ...
     const ok = await ensureDriveToken({ allowPrompt: true });
     if (!ok) throw new Error('Authorization failed. Please try again.');
 
-    const folderId = await findTtsuFolder();
-    if (!folderId) {
-      alert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!');
-      return;
-    }
-
-    localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
-    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
-
-    await syncFromTtsuGDrive();
+    // ... find folder, save keys, first sync ...
     startAutoSync();
+    startDriveTokenAutoRefresh(); // <— add this
 
-    const statusEl = document.getElementById('ttsuSyncStatusText');
-    if (statusEl) {
-      const s = checkTtsuSyncStatus();
-      statusEl.textContent = s;
-      statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
-    }
-
-    alert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.');
-    closeTtsuSyncModal();
+    // ... status UI, alert, close modal ...
   } catch (error) {
     console.error('Setup error:', error);
     alert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)));
