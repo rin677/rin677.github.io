@@ -3082,7 +3082,7 @@ async function syncFromTtsuGDrive() {
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
     if (!folderId) {
-      throw new Error('ttsu folder not configured');
+      throw new Error('ttsu folder not configured. Please run setup first.');
     }
     
     // Initialize API if needed
@@ -3094,6 +3094,121 @@ async function syncFromTtsuGDrive() {
     } else {
       gapi.client.setToken({ access_token: googleAccessToken });
     }
+    
+    // Find all JSON files in ttsu folder
+    const response = await gapi.client.drive.files.list({
+      q: `'${folderId}' in parents and mimeType='application/json'`,
+      spaces: 'drive',
+      fields: 'files(id, name, modifiedTime)',
+      orderBy: 'modifiedTime desc'
+    });
+    
+    const files = response.result.files || [];
+    
+    if (files.length === 0) {
+      console.log('No ttsu data files found');
+      return 0;
+    }
+    
+    let totalImported = 0;
+    const bookTitles = new Set();
+    
+    // Process each book's statistics file
+    for (const file of files) {
+      try {
+        // Download file content
+        const fileResponse = await gapi.client.drive.files.get({
+          fileId: file.id,
+          alt: 'media'
+        });
+        
+        const ttsuData = JSON.parse(fileResponse.body);
+        
+        if (!Array.isArray(ttsuData)) continue;
+        
+        // Transform and import data
+        ttsuData.forEach(session => {
+          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+            return;
+          }
+          
+          const date = session.dateKey;
+          const minutes = Math.round(session.readingTime / 60);
+          const characters = session.charactersRead || 0;
+          
+          if (minutes === 0 && characters === 0) return;
+          
+          // Check if exists
+          const exists = window.data.some(entry => 
+            entry.date === date && 
+            entry.title === session.title &&
+            Math.abs(entry.minutes - minutes) < 2 &&
+            Math.abs(entry.characters - characters) < 100
+          );
+          
+          if (!exists) {
+            window.data.push({
+              date: date,
+              minutes: minutes,
+              characters: characters,
+              title: session.title || 'Reading'
+            });
+            totalImported++;
+            bookTitles.add(session.title);
+          }
+        });
+        
+      } catch (fileError) {
+        console.error('Error processing file:', file.name, fileError);
+      }
+    }
+    
+    if (totalImported > 0) {
+      // Update recent books
+      bookTitles.forEach(title => {
+        if (title && !window.recentBooks.includes(title)) {
+          window.recentBooks.unshift(title);
+        }
+      });
+      window.recentBooks = window.recentBooks.slice(0, 10);
+      recentBooks = window.recentBooks;
+      
+      // Sync with local variables
+      data = window.data;
+      
+      // Save and update
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      renderGoals();
+      
+      // Cloud save
+      if (window.saveCloudState) {
+        await window.saveCloudState();
+      }
+      
+      console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
+    }
+    
+    // Update last sync time
+    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+    
+    return totalImported;
+    
+  } catch (error) {
+    console.error('Sync error:', error);
+    
+    // If auth error, try to re-authenticate
+    if (error.status === 401 || error.status === 403) {
+      googleAccessToken = null;
+      await authenticateGoogleDrive();
+      // Try again
+      return await syncFromTtsuGDrive();
+    }
+    
+    throw error;
+  }
+}
 // ============================================
 // Auto-Sync Management
 // ============================================
