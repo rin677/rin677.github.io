@@ -1514,19 +1514,12 @@ Book title 2"></textarea>
       // Save preference
       localStorage.setItem(`show_${statName}`, checkbox.checked);
     }
-    function openTtsuSyncSettings() {
-  const modal = document.getElementById('ttsuSyncModal');
-  const statusEl = document.getElementById('ttsuSyncStatusText');
-
-  // Compute status
+   function openTtsuSyncSettings() {
   const statusText = checkTtsuSyncStatus();
-  statusEl.textContent = statusText;
-  statusEl.style.color = statusText.toLowerCase().startsWith('success')
-    ? 'var(--accent-color)'
-    : 'var(--text-secondary)';
-
-  // Show modal
-  modal.className = 'modal show';
+  const el = document.getElementById('ttsuSyncStatusText');
+  el.textContent = statusText;
+  el.style.color = statusText.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+  document.getElementById('ttsuSyncModal').className = 'modal show';
   closeMenu();
 }
 
@@ -3062,21 +3055,16 @@ async function driveDownloadFile(fileId, accessToken) {
 
 async function setupTtsuSync() {
   try {
-    console.log('Starting ttsu sync setup...');
-    
     // Wait for GIS to load
     let attempts = 0;
     while (!initGIS() && attempts < 20) {
       await new Promise(resolve => setTimeout(resolve, 500));
       attempts++;
     }
-    
     if (!tokenClient) {
       throw new Error('Google Identity Services not loaded. Please refresh the page.');
     }
-    
-    console.log('Requesting Google Drive access...');
-    
+
     // Request access token
     await new Promise((resolve, reject) => {
       tokenClient.callback = async (resp) => {
@@ -3085,49 +3073,42 @@ async function setupTtsuSync() {
           return;
         }
         googleAccessToken = resp.access_token;
-        console.log('Access token received');
         resolve();
       };
-      
       tokenClient.requestAccessToken({ prompt: 'consent' });
     });
-    
-    console.log('Finding ttsu folder...');
-    
+
     // Find ttsu folder
     const folderId = await findTtsuFolder();
-    
     if (!folderId) {
       alert('Could not find ttsu data folder in your Google Drive.\n\nMake sure ttsu has exported data to Google Drive first!');
       return;
     }
-    
-    console.log('Found ttsu folder:', folderId);
-    
-    // Save config
+
+    // Persist configuration
     localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
     localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
-    
+
     // Initial sync
     await syncFromTtsuGDrive();
-    
-    // Start auto-sync
+
+    // Start auto-sync and update status
     startAutoSync();
-    
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+    if (statusEl) {
+      const s = checkTtsuSyncStatus();
+      statusEl.textContent = s;
+      statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+    }
+
     alert('✅ ttsu sync enabled!\n\nYour reading data will automatically sync from Google Drive every 5 minutes.');
     closeTtsuSyncModal();
-    const statusEl = document.getElementById('ttsuSyncStatusText');
-if (statusEl) {
-  const s = checkTtsuSyncStatus();
-  statusEl.textContent = s;
-  statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
-}
-
   } catch (error) {
     console.error('Setup error:', error);
     alert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)));
   }
 }
+
 
 async function findTtsuFolder() {
   try {
@@ -3395,16 +3376,43 @@ function checkTtsuSyncStatus() {
 }
 
 
-// Initialize on load
+// Initialize on load: auto-start if previously configured
 setTimeout(() => {
   initGIS();
-  
+
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-  if (enabled) {
+  const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+
+  if (enabled && folderId) {
+    // Try to silently get an access token if GIS is ready; if not, we’ll still start the interval and pick up after you re-consent once
+    try {
+      if (tokenClient && !googleAccessToken) {
+        tokenClient.callback = (resp) => {
+          if (!resp.error) {
+            googleAccessToken = resp.access_token;
+          }
+        };
+        // Attempt a no-prompt token request; if it needs consent, GIS will ignore it and you’ll sync on manual “Sync Now”
+        tokenClient.requestAccessToken({ prompt: '' });
+      }
+    } catch (e) {
+      console.log('Silent token attempt failed (non-blocking):', e.message || e);
+    }
+
     startAutoSync();
-    console.log('ttsu auto-sync enabled');
+
+    // Update the status pill if modal is present
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+    if (statusEl) {
+      const s = checkTtsuSyncStatus();
+      statusEl.textContent = s;
+      statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+    }
+
+    console.log('ttsu auto-sync enabled on load');
   }
 }, 1000);
+
 
 window.setupTtsuSync = setupTtsuSync;
 window.syncFromTtsuGDrive = syncFromTtsuGDrive;
