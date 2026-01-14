@@ -1592,8 +1592,10 @@ window.onload = function() {
   
   // Warn if not running on server
   if (window.location.protocol === 'file:') {
-    alert("Warning: Google Sign-In will NOT work if you open this file directly.\nPlease use a local server (e.g., Live Server in VS Code).");
-  }
+  setTimeout(async () => {
+    await customAlert("Warning: Google Sign-In will NOT work if you open this file directly.\n\nPlease use a local server (e.g., Live Server in VS Code).", 'Warning');
+  }, 500);
+}
 };
 
 function initializeAuthButton() {
@@ -1619,7 +1621,7 @@ function initializeAuthButton() {
 window.initializeAuthButton = initializeAuthButton;
 
 // Fallback prompt-based sign-in if Google OAuth not configured
-function promptSignIn() {
+async function promptSignIn() {
   // Try Firebase sign-in first
   if (window.promptSignIn && typeof window.firebaseSignIn === 'function') {
     window.firebaseSignIn();
@@ -1627,10 +1629,10 @@ function promptSignIn() {
   }
   
   // Fallback to manual sign-in
-  const name = prompt('Enter your name:');
+  const name = await customPrompt('Enter your name:', 'Sign In');
   if (!name) return;
   
-  const email = prompt('Enter your email (optional):') || 'user@example.com';
+  const email = await customPrompt('Enter your email (optional):', 'Email (Optional)') || 'user@example.com';
   
   currentUser = {
     id: Date.now().toString(),
@@ -1642,23 +1644,28 @@ function promptSignIn() {
   localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
   renderUserProfile();
   updateLeaderboard();
-  alert('Welcome, ' + name + '! You can now use the leaderboard.');
+  await customAlert('Welcome, ' + name + '! You can now use the leaderboard.', 'Welcome');
 }
 
-function signOut() {
-  if (confirm('Sign out of your account?')) {
-    if (window.firebaseSignOut && typeof window.firebaseSignOut === 'function') {
-      window.firebaseSignOut();
-    } else {
-      // Fallback for manual sign-in users
-      window.currentUser = null;
-      currentUser = null;
-      localStorage.removeItem(USER_KEY);
-      initializeAuthButton();
-    }
+async function signOut() {
+  const confirmed = await customConfirm(
+    'Sign out of your account?',
+    'Sign Out'
+  );
+  
+  if (!confirmed) return;
+  
+  if (window.firebaseSignOut && typeof window.firebaseSignOut === 'function') {
+    window.firebaseSignOut();
+  } else {
+    // Fallback for manual sign-in users
+    window.currentUser = null;
+    currentUser = null;
+    localStorage.removeItem(USER_KEY);
+    initializeAuthButton();
   }
-}
-    
+} 
+
     function renderUserProfile() {
       const authSection = document.getElementById('authSection');
       // Use window.currentUser instead of currentUser to ensure we're reading the global variable
@@ -1675,26 +1682,26 @@ function signOut() {
     // Make renderUserProfile globally available for Firebase to call
     window.renderUserProfile = renderUserProfile;
     
-    function exportToToggl() {
-      const togglData = data.map(entry => ({
-        description: entry.title || 'Reading',
-        start: `${entry.date}T00:00:00Z`,
-        duration: entry.minutes * 60,
-        tags: ['reading'],
-        created_with: 'Reading Heatmap'
-      }));
-      
-      const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'reading-toggl-export.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      alert('Exported to Toggl format! Import this file to Toggl Track.');
-      closeMenu();
-    }
+async function exportToToggl() {
+  const togglData = data.map(entry => ({
+    description: entry.title || 'Reading',
+    start: `${entry.date}T00:00:00Z`,
+    duration: entry.minutes * 60,
+    tags: ['reading'],
+    created_with: 'Reading Heatmap'
+  }));
+  
+  const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'reading-toggl-export.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  
+  await customAlert('Exported to Toggl format! Import this file to Toggl Track.', 'Export Successful');
+  closeMenu();
+}
 
     function getAustralianDate() {
       const now = new Date();
@@ -2212,7 +2219,7 @@ function updateStats() {
       URL.revokeObjectURL(url);
       closeMenu();
     }
-    function loadData(event) {
+async function loadData(event) {
   const file = event.target.files[0];
   if (!file) return;
 
@@ -2232,18 +2239,25 @@ function updateStats() {
         importedGoals = imported.goals || [];
         importedBooks = imported.recentBooks || [];
       } else {
-        alert('Invalid data format.');
+        await customAlert('Invalid data format.', 'Invalid File');
         return;
       }
       
-      if (importedData.length > 0 && confirm('Replace existing data?')) {
-        window.data = importedData;
-        window.goals = importedGoals;
-        window.recentBooks = importedBooks;
-      } else if (importedData.length > 0) {
-        window.data = [...window.data, ...importedData];
-        window.goals = [...window.goals, ...importedGoals];
-        window.recentBooks = [...new Set([...window.recentBooks, ...importedBooks])];
+      if (importedData.length > 0) {
+        const replace = await customConfirm(
+          'Replace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.',
+          'Import Data'
+        );
+        
+        if (replace) {
+          window.data = importedData;
+          window.goals = importedGoals;
+          window.recentBooks = importedBooks;
+        } else {
+          window.data = [...window.data, ...importedData];
+          window.goals = [...window.goals, ...importedGoals];
+          window.recentBooks = [...new Set([...window.recentBooks, ...importedBooks])];
+        }
       }
       
       // Sync with local variables
@@ -2261,9 +2275,9 @@ function updateStats() {
       }
       
       closeMenu();
-      alert('Data loaded successfully!');
+      await customAlert('Data loaded successfully!', 'Import Successful');
     } catch (error) {
-      alert('Error reading file: ' + error.message);
+      await customAlert('Error reading file: ' + error.message, 'Import Error');
     }
   };
   
@@ -2281,23 +2295,33 @@ function updateStats() {
       document.getElementById('menuModal').className = 'modal';
     }
 
-    function wipeAllData() {
-      if (confirm('Are you sure? This will permanently delete all data. This action cannot be undone.')) {
-        if (confirm('Really delete ALL data? Click OK to confirm.')) {
-          data = [];
-          dailyData = {};
-          goals = [];
-          recentBooks = [];
-          saveToStorage().then(() => {
-            loadYear();
-            renderGoals();
-            closeMenu();
-            alert('All data has been wiped.');
-          });
-        }
-      }
-    }
-document.getElementById('statsModal').addEventListener('click', (e) => {
+async function wipeAllData() {
+  const firstConfirm = await customConfirm(
+    'Are you sure? This will permanently delete all data. This action cannot be undone.',
+    'Wipe All Data'
+  );
+  
+  if (!firstConfirm) return;
+  
+  const secondConfirm = await customConfirm(
+    'Really delete ALL data? Click OK to confirm.',
+    'Final Confirmation'
+  );
+  
+  if (!secondConfirm) return;
+  
+  data = [];
+  dailyData = {};
+  goals = [];
+  recentBooks = [];
+  await saveToStorage();
+  loadYear();
+  renderGoals();
+  closeMenu();
+  await customAlert('All data has been wiped.', 'Data Wiped');
+}
+
+    document.getElementById('statsModal').addEventListener('click', (e) => {
   if (e.target.id === 'statsModal') closeStatsSettings();
 });
     document.addEventListener('keydown', (e) => {
@@ -2384,12 +2408,12 @@ function openStatsSettings() {
 function closeStatsSettings() {
   document.getElementById('statsModal').className = 'modal';
 }
-    async function saveGoal() {
+async function saveGoal() {
   const type = document.getElementById('goalType').value;
   const target = parseInt(document.getElementById('goalTarget').value);
   
   if (!target || target <= 0) {
-    alert('Please enter a valid target');
+    await customAlert('Please enter a valid target', 'Invalid Target');
     return;
   }
   
@@ -2406,8 +2430,8 @@ function closeStatsSettings() {
   if (window.saveCloudState && typeof window.saveCloudState === 'function') {
     await window.saveCloudState();
   }
-}
-    
+}    
+
     function renderGoals() {
       const container = document.getElementById('goalsList');
       if (goals.length === 0) {
@@ -2589,7 +2613,7 @@ async function importTtsuData(event) {
       console.log('ttsu data structure:', ttsuData);
       
       if (!Array.isArray(ttsuData)) {
-        alert('Invalid ttsu export format. Expected an array of reading sessions.');
+        await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
         return;
       }
       
@@ -2639,7 +2663,7 @@ async function importTtsuData(event) {
       });
       
       if (transformedData.length === 0) {
-        alert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.');
+        await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.');
         return;
       }
       
@@ -2670,15 +2694,14 @@ async function importTtsuData(event) {
       closeMenu();
       
       const bookList = Array.from(bookTitles).join(', ');
-      alert(
-        `✅ Successfully imported ${importedCount} reading session(s) from ttsu!\n\n` +
-        `Books: ${bookList}\n\n` +
-        `Your heatmap has been updated.`
-      );
+      await customAlert(
+  `✅ Successfully imported ${importedCount} reading session(s) from ttsu!\n\nBooks: ${bookList}\n\nYour heatmap has been updated.`,
+  'Import Successful'
+);
       
     } catch (error) {
       console.error('Import error:', error);
-      alert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.');
+      await customAlert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.', 'Import Error');
     }
   };
   
@@ -2766,6 +2789,67 @@ function customAlert(message, title = 'Notice') {
     setTimeout(() => okBtn.focus(), 100);
   });
 }
+ 
+ // Custom themed prompt dialog
+function customPrompt(message, title = 'Input') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmModal');
+    const titleEl = document.getElementById('confirmTitle');
+    const messageEl = document.getElementById('confirmMessage');
+    const okBtn = document.getElementById('confirmOk');
+    const cancelBtn = document.getElementById('confirmCancel');
+    
+    titleEl.textContent = title;
+    
+    // Create input field
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-input';
+    input.style.marginTop = '12px';
+    input.placeholder = message;
+    
+    messageEl.textContent = message;
+    messageEl.appendChild(document.createElement('br'));
+    messageEl.appendChild(input);
+    
+    modal.className = 'modal show';
+    
+    setTimeout(() => input.focus(), 100);
+    
+    const handleOk = () => {
+      const value = input.value.trim();
+      cleanup();
+      resolve(value);
+    };
+    
+    const handleCancel = () => {
+      cleanup();
+      resolve(null);
+    };
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve(null);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleOk();
+      }
+    };
+    
+    const cleanup = () => {
+      modal.className = 'modal';
+      messageEl.textContent = '';
+      okBtn.removeEventListener('click', handleOk);
+      cancelBtn.removeEventListener('click', handleCancel);
+      document.removeEventListener('keydown', handleEscape);
+    };
+    
+    okBtn.addEventListener('click', handleOk);
+    cancelBtn.addEventListener('click', handleCancel);
+    document.addEventListener('keydown', handleEscape);
+  });
+}
  </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
@@ -2850,7 +2934,7 @@ function customAlert(message, title = 'Notice') {
       // Auth state change listener will handle the rest
     } catch (error) {
       console.error('Sign-in error:', error);
-      alert('Sign-in failed: ' + error.message);
+      await customAlert('Sign-in failed: ' + error.message, 'Sign-In Error');
     }
   }
 
@@ -2858,10 +2942,10 @@ function customAlert(message, title = 'Notice') {
     try {
       await signOut(auth);
       // Auth state change listener will handle the rest
-      alert('Successfully signed out');
+      await customAlert('Successfully signed out', 'Signed Out');
     } catch (error) {
       console.error('Sign-out error:', error);
-      alert('Sign-out failed: ' + error.message);
+      await customAlert('Sign-out failed: ' + error.message, 'Sign-Out Error');
     }
   }
 
@@ -2899,7 +2983,7 @@ function customAlert(message, title = 'Notice') {
       }
     } catch (error) {
       console.error('Error loading cloud state:', error);
-      alert('Failed to load your data from cloud. Please try again.');
+      await customAlert('Failed to load your data from cloud. Please try again.', 'Load Error');
     }
   }
 
@@ -3182,7 +3266,7 @@ async function setupTtsuSync() {
 
     const folderId = await findTtsuFolder();
     if (!folderId) {
-      alert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!');
+      await customAlert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!', 'Folder Not Found');
       return;
     }
 
@@ -3199,11 +3283,11 @@ async function setupTtsuSync() {
       statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
     }
 
-    alert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.');
+    await customAlert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.', 'Sync Enabled');
     closeTtsuSyncModal();
   } catch (error) {
     console.error('Setup error:', error);
-    alert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)));
+    await customAlert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)), 'Setup Error');
   }
 }
 
@@ -3596,7 +3680,7 @@ async function manualSyncTtsu() {
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
 
   if (!enabled || !folderId) {
-    alert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Auto-Sync" once to configure.');
+    await customAlert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Auto-Sync" once to configure.', 'Sync Not Enabled');
     return;
   }
 
@@ -3604,7 +3688,7 @@ async function manualSyncTtsu() {
   const hasToken = await ensureDriveToken({ allowPrompt: false });
   if (!hasToken) {
     // Do not show Google consent; just inform and return gracefully
-    alert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization. No changes made.');
+    await customAlert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization. No changes made.', 'Authorization Expired');
     return;
   }
 
@@ -3613,7 +3697,7 @@ async function manualSyncTtsu() {
     const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
     const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
 
-    alert(`✅ Sync complete!\n\nNew sessions imported: ${count || 0}\nLast sync: ${lastSyncStr}`);
+    await customAlert(`✅ Sync complete!\n\nNew sessions imported: ${count || 0}\nLast sync: ${lastSyncStr}`, 'Sync Complete');
 
     // Update status UI
     const statusEl = document.getElementById('ttsuSyncStatusText');
@@ -3623,20 +3707,26 @@ async function manualSyncTtsu() {
       statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
     }
   } catch (error) {
-    alert('Sync failed:\n\n' + (error.message || error));
+    await customAlert('Sync failed:\n\n' + (error.message || error), 'Sync Error');
   }
 }
 
-function disableTtsuSync() {
-  if (confirm('Disable automatic ttsu sync from Google Drive?')) {
-    stopAutoSync();
-    localStorage.removeItem(TTSU_SYNC_ENABLED_KEY);
-    localStorage.removeItem(TTSU_FOLDER_ID_KEY);
-    localStorage.removeItem(TTSU_TOKEN_KEY);
-    localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
-    googleAccessToken = null;
-    alert('ttsu sync disabled.');
-  }
+async function disableTtsuSync() {
+  const confirmed = await customConfirm(
+    'Disable automatic ttsu sync from Google Drive?',
+    'Disable Sync'
+  );
+  
+  if (!confirmed) return;
+  
+  stopAutoSync();
+  localStorage.removeItem(TTSU_SYNC_ENABLED_KEY);
+  localStorage.removeItem(TTSU_FOLDER_ID_KEY);
+  localStorage.removeItem(TTSU_TOKEN_KEY);
+  localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
+  googleAccessToken = null;
+  await customAlert('ttsu sync disabled.', 'Sync Disabled');
+  
   const statusEl = document.getElementById('ttsuSyncStatusText');
   if (statusEl) {
     const s = checkTtsuSyncStatus();
