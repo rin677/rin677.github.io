@@ -195,6 +195,40 @@ body.theme-ereader {
   --level-4: #333333;
 }
 
+/* Stats modal polish */
+#statsModal .modal-content {
+  /* Ensure consistent width across themes and avoid cramped layout */
+  width: 520px;
+  max-width: 95vw;
+}
+
+#statsModal label input[type="checkbox"] {
+  /* Match other inputs and avoid oversized checkbox hitbox */
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  #statsModal .modal-content {
+    width: 96vw;
+  }
+}
+
+/* Emphasize Disable Sync as a destructive action */
+#ttsuSyncModal .btn[onclick="disableTtsuSync()"] {
+  border: 1px solid var(--danger-color);
+}
+#ttsuSyncModal .btn[onclick="disableTtsuSync()"]:hover {
+  border-color: var(--danger-hover);
+}
+
+#ttsuSyncModal #ttsuSyncStatus.success {
+  background: rgba(35, 134, 54, 0.15);
+  border-color: var(--accent-color);
+}
+
+
 /* E-reader specific optimizations */
 body.theme-ereader {
   font-size: 16px;
@@ -1339,37 +1373,45 @@ Book title 2"></textarea>
       </div>
     </div>
   </div>
+<!-- Stats settings modal -->
 <div class="modal" id="statsModal">
-  <div class="modal-content">
+  <div class="modal-content" style="max-width: 520px; width: 520px;">
     <h2>Visible Stats Settings</h2>
-    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">Choose which statistics to display on the main heatmap panel:</p>
-    
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
-        <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked style="cursor: pointer;">
+    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">
+      Choose which statistics to display on the main heatmap panel:
+    </p>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked>
         <span style="font-size: 14px;">Longest streak</span>
       </label>
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
-        <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked style="cursor: pointer;">
+
+      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked>
         <span style="font-size: 14px;">Current streak</span>
       </label>
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
-        <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked style="cursor: pointer;">
+
+      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked>
         <span style="font-size: 14px;">Average</span>
       </label>
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
-        <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked style="cursor: pointer;">
+
+      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked>
         <span style="font-size: 14px;">Average speed</span>
       </label>
-      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; background: var(--bg-secondary);">
-        <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked style="cursor: pointer;">
+
+      <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color);">
+        <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked>
         <span style="font-size: 14px;">Total</span>
       </label>
-</div>
     </div>
-    <button class="btn" onclick="closeStatsSettings()" style="width: 100%; margin-top: 16px;">Done</button>
+
+    <button class="btn" onclick="closeStatsSettings()" style="width: 100%;">Done</button>
   </div>
 </div>
+
 
 <div class="modal" id="ttsuSyncModal">
   <div class="modal-content">
@@ -2252,7 +2294,14 @@ document.getElementById('statsModal').addEventListener('click', (e) => {
     document.getElementById('menuModal').addEventListener('click', (e) => {
       if (e.target.id === 'menuModal') closeMenu();
     });
-    
+   
+    // Close when clicking outside modal-content (ttsu settings)
+document.getElementById('ttsuSyncModal').addEventListener('click', (e) => {
+  if (e.target.id === 'ttsuSyncModal') {
+    closeTtsuSyncModal();
+  }
+});
+
     function loadTheme() {
       const theme = localStorage.getItem(THEME_KEY) || 'default';
       setTheme(theme, false);
@@ -3295,8 +3344,9 @@ function checkTtsuSyncStatus() {
     return 'Not configured';
   }
   
+  // If enabled, report Success (then append recency info if available)
   if (!lastSync) {
-    return 'Enabled (not synced yet)';
+    return 'Success (not synced yet)';
   }
   
   const lastSyncDate = new Date(lastSync);
@@ -3304,13 +3354,14 @@ function checkTtsuSyncStatus() {
   const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
   
   if (diffMinutes < 1) {
-    return 'Just synced';
+    return 'Success (just synced)';
   } else if (diffMinutes < 60) {
-    return `Last synced ${diffMinutes} min ago`;
+    return `Success (last synced ${diffMinutes} min ago)`;
   } else {
-    return `Last synced ${Math.floor(diffMinutes / 60)}h ago`;
+    return `Success (last synced ${Math.floor(diffMinutes / 60)}h ago)`;
   }
 }
+
 
 // Initialize on load
 setTimeout(() => {
