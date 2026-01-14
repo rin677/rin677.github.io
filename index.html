@@ -2520,16 +2520,21 @@ async function deleteGoal(id) {
         loadLeaderboard();
       }
     }
-    
-// filename: index.html (Firebase module script) - replace loadLeaderboardData entirely
-// filename: index.html (inside the <script type="module"> with Firebase) — replace loadLeaderboardData entirely
+
+// filename: index.html (Firebase module script)
 async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
   const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
 
-  // Guard: Firebase not ready
-  if (typeof db === 'undefined') {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
+  // Guard: Firebase objects not ready
+  try {
+    if (!container) return;
+    if (typeof collection !== 'function' || typeof getDocs !== 'function' || !db) {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
+      return;
+    }
+  } catch {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Initializing…</div>';
     return;
   }
 
@@ -2537,51 +2542,49 @@ async function loadLeaderboardData() {
     const leaderboardRef = collection(db, 'leaderboard');
     const snapshot = await getDocs(leaderboardRef);
 
-    const leaderboardData = [];
+    const rows = [];
     snapshot.forEach((docSnap) => {
-      const d = docSnap.data();
-      // include only if selected metric has data
-      if ((metric === 'minutes' && (d.totalMinutes || 0) > 0) ||
-          (metric === 'characters' && (d.totalCharacters || 0) > 0) ||
-          (metric === 'speed' && (d.avgSpeed || 0) > 0)) {
-        leaderboardData.push({
-          userId: d.userId,
-          name: d.name || 'User',
-          avatar: d.avatar || '',
-          totalMinutes: d.totalMinutes || 0,
-          totalCharacters: d.totalCharacters || 0,
-          avgSpeed: d.avgSpeed || 0,
-          lastUpdated: d.lastUpdated || ''
-        });
-      }
+      const d = docSnap.data() || {};
+      rows.push({
+        userId: d.userId || '',
+        name: d.name || 'User',
+        avatar: d.avatar || '',
+        totalMinutes: Number(d.totalMinutes || 0),
+        totalCharacters: Number(d.totalCharacters || 0),
+        avgSpeed: Number(d.avgSpeed || 0),
+        lastUpdated: d.lastUpdated || ''
+      });
     });
 
-    if (leaderboardData.length === 0) {
+    const filtered = rows.filter(r =>
+      metric === 'minutes' ? r.totalMinutes > 0 :
+      metric === 'characters' ? r.totalCharacters > 0 :
+      r.avgSpeed > 0
+    );
+
+    if (filtered.length === 0) {
       container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
       return;
     }
 
+    // Sort by selected metric
     if (metric === 'minutes') {
-      leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+      filtered.sort((a, b) => b.totalMinutes - a.totalMinutes);
     } else if (metric === 'characters') {
-      leaderboardData.sort((a, b) => b.totalCharacters - a.totalCharacters);
+      filtered.sort((a, b) => b.totalCharacters - a.totalCharacters);
     } else {
-      leaderboardData.sort((a, b) => b.avgSpeed - a.avgSpeed);
-    }
-
-    let userPosition = -1;
-    if (window.currentUser && window.currentUser.id) {
-      userPosition = leaderboardData.findIndex(entry => entry.userId === window.currentUser.id);
+      filtered.sort((a, b) => b.avgSpeed - a.avgSpeed);
     }
 
     const showAll = container.dataset.showAll === 'true';
-    const displayCount = showAll ? leaderboardData.length : 10;
+    const displayCount = showAll ? filtered.length : 10;
 
     container.innerHTML = '';
 
-    leaderboardData.slice(0, displayCount).forEach((entry, index) => {
+    filtered.slice(0, displayCount).forEach((entry, index) => {
       const rankDiv = document.createElement('div');
       rankDiv.className = 'leaderboard-entry';
+
       const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
       if (isCurrentUser) {
         rankDiv.style.background = 'var(--accent-color)';
@@ -2612,12 +2615,12 @@ async function loadLeaderboardData() {
       container.appendChild(rankDiv);
     });
 
-    if (leaderboardData.length > 10) {
+    if (filtered.length > 10) {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'btn';
       toggleBtn.style.width = '100%';
       toggleBtn.style.marginTop = '12px';
-      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${leaderboardData.length - 10} more)`;
+      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${filtered.length - 10} more)`;
       toggleBtn.onclick = () => {
         container.dataset.showAll = showAll ? 'false' : 'true';
         loadLeaderboardData();
@@ -2625,17 +2628,23 @@ async function loadLeaderboardData() {
       container.appendChild(toggleBtn);
     }
 
-    if (!showAll && userPosition >= 10 && window.currentUser) {
-      const userEntry = leaderboardData[userPosition];
-      const separatorDiv = document.createElement('div');
-      separatorDiv.style.margin = '16px 0 8px 0';
-      separatorDiv.style.padding = '8px 0';
-      separatorDiv.style.borderTop = '2px dashed var(--border-color)';
-      separatorDiv.style.color = 'var(--text-secondary)';
-      separatorDiv.style.textAlign = 'center';
-      separatorDiv.style.fontSize = '12px';
-      separatorDiv.textContent = 'Your Position';
-      container.appendChild(separatorDiv);
+    // Show user's position if outside top 10
+    let userPosition = -1;
+    if (window.currentUser && window.currentUser.id) {
+      userPosition = filtered.findIndex(e => e.userId === window.currentUser.id);
+    }
+    if (!showAll && userPosition >= 10) {
+      const userEntry = filtered[userPosition];
+
+      const sep = document.createElement('div');
+      sep.style.margin = '16px 0 8px 0';
+      sep.style.padding = '8px 0';
+      sep.style.borderTop = '2px dashed var(--border-color)';
+      sep.style.color = 'var(--text-secondary)';
+      sep.style.textAlign = 'center';
+      sep.style.fontSize = '12px';
+      sep.textContent = 'Your Position';
+      container.appendChild(sep);
 
       const userRankDiv = document.createElement('div');
       userRankDiv.className = 'leaderboard-entry';
@@ -2660,10 +2669,8 @@ async function loadLeaderboardData() {
         </div>
         <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
       `;
-
       container.appendChild(userRankDiv);
     }
-
   } catch (error) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
     console.error('Leaderboard error details:', error);
@@ -3105,11 +3112,11 @@ function customPrompt(message, title = 'Input') {
     }
   }
 
-// filename: index.html (Firebase module script) — replace updateCloudLeaderboard
+// filename: index.html (Firebase module script)
 async function updateCloudLeaderboard() {
   if (!window.currentUser) return;
 
-  // Compute past 30-day totals from window.dailyData
+  // Past 30 days from dailyData
   const today = new Date();
   const start = new Date(today);
   start.setDate(start.getDate() - 30);
@@ -3119,11 +3126,12 @@ async function updateCloudLeaderboard() {
   let minutesWithChars = 0;
   let charactersWithChars = 0;
 
-  Object.entries(window.dailyData || {}).forEach(([dateStr, day]) => {
+  const dd = window.dailyData || {};
+  Object.keys(dd).forEach(dateStr => {
     const d = new Date(dateStr + 'T00:00:00');
     if (d >= start && d <= today) {
-      const mins = day.minutes || 0;
-      const chars = day.characters || 0;
+      const mins = dd[dateStr].minutes || 0;
+      const chars = dd[dateStr].characters || 0;
       totalMinutes += mins;
       totalCharacters += chars;
       if (mins > 0 && chars > 0) {
