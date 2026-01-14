@@ -2817,8 +2817,8 @@ async function loadLeaderboardData() {
       } else if (metric === 'characters') {
         displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
       } else if (metric === 'speed') {
-        displayValue = `${entry.avgSpeed.toLocaleString()} ch/m`;
-      }
+        displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`; 
+    }
       
       rankDiv.innerHTML = `
         <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
