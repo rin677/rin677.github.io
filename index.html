@@ -3031,42 +3031,22 @@ async function setupTtsuSync() {
 async function findTtsuFolder() {
   try {
     console.log('Searching for ttu-reader-data folder...');
-    console.log('Access token:', googleAccessToken ? 'exists' : 'missing');
     
-    // Search for exact name first
-    let query = "mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data' and trashed=false";
-    console.log('Query:', query);
-    
-    let data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)&pageSize=10`, googleAccessToken);
+    // Simple search without complex query
+    const data = await driveApiCall(`files?q=name='ttu-reader-data'&fields=files(id,name)&spaces=drive`, googleAccessToken);
     
     console.log('Search results:', data);
-    console.log('Files found:', data.files ? data.files.length : 0);
     
     if (data.files && data.files.length > 0) {
       console.log('Found folder:', data.files[0].name, 'ID:', data.files[0].id);
       return data.files[0].id;
     }
     
-    // List ALL folders to debug
-    console.log('Exact match not found. Listing all folders...');
-    query = "mimeType='application/vnd.google-apps.folder'";
-    data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)&pageSize=50`, googleAccessToken);
+    // If not found, list all folders to debug
+    console.log('Not found. Listing all folders...');
+    const allFolders = await driveApiCall(`files?q=mimeType='application/vnd.google-apps.folder'&fields=files(id,name)&spaces=drive&pageSize=100`, googleAccessToken);
     
-    console.log('All folders in your Google Drive:');
-    data.files.forEach(f => console.log(' -', f.name));
-    
-    // Try to find any folder with 'ttu' or 'reader' in the name
-    const possibleFolder = data.files.find(f => 
-      f.name.toLowerCase().includes('ttu') || 
-      f.name.toLowerCase().includes('reader')
-    );
-    
-    if (possibleFolder) {
-      console.log('Found possible match:', possibleFolder.name);
-      if (confirm(`Found folder "${possibleFolder.name}". Is this your ttsu data folder?`)) {
-        return possibleFolder.id;
-      }
-    }
+    console.log('All folders:', allFolders.files);
     
     return null;
   } catch (error) {
