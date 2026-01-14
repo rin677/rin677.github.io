@@ -2271,7 +2271,7 @@ async function loadData(event) {
 
 async function wipeAllData() {
   const firstConfirm = await customConfirm(
-    'Are you sure? This will permanently delete all data. This action cannot be undone.',
+    'Are you sure? This will permanently delete all reading data, goals, and recent books.\n\nThis action cannot be undone.',
     'Wipe All Data'
   );
   
@@ -2284,15 +2284,28 @@ async function wipeAllData() {
   
   if (!secondConfirm) return;
   
-  data = [];
-  dailyData = {};
-  goals = [];
-  recentBooks = [];
-  await saveToStorage();
-  loadYear();
-  renderGoals();
-  closeMenu();
-  await customAlert('All data has been wiped.', 'Data Wiped');
+  try {
+    // Clear all local storage
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(GOALS_KEY);
+    localStorage.removeItem(BOOKS_KEY);
+    localStorage.removeItem(BACKUPS_KEY);
+    localStorage.removeItem('show_longestStreak');
+    localStorage.removeItem('show_currentStreak');
+    localStorage.removeItem('show_average');
+    localStorage.removeItem('show_avgSpeed');
+    localStorage.removeItem('show_total');
+    localStorage.removeItem('selectedMetric');
+    
+    await customAlert('All data has been wiped. Return to the main page to start fresh.', 'Data Wiped');
+    
+    // Redirect to main page after a short delay
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 1500);
+  } catch (error) {
+    await customAlert('Failed to wipe data: ' + error.message, 'Error');
+  }
 }
 
     document.addEventListener('keydown', (e) => {
