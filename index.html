@@ -82,6 +82,11 @@ body.theme-dracula {
   --level-4: #ff7979;
 }
 
+body.theme-dracula .month-label,
+body.theme-dracula .day-label {
+  color: #ff5555;
+}
+
 body.theme-everforest {
   --bg-primary: #fdf6e3;
   --bg-secondary: #f4f0d9;
@@ -1292,6 +1297,10 @@ Book title 2"></textarea>
     </div>
     <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
       <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
+      <input type="file" id="ttsuInput" style="display: none;" accept=".json" onchange="importTtsuData(event)">
+<button class="btn" onclick="document.getElementById('ttsuInput').click()" style="width: 100%; margin-bottom: 8px;">
+  📚 Import from ttsu
+</button>
       <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
       <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
       <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
@@ -2064,7 +2073,42 @@ const avg = daysToCount > 0 ? total / daysToCount : 0;
       URL.revokeObjectURL(url);
       closeMenu();
     }
-
+function importTtsuData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const ttsuData = JSON.parse(e.target.result);
+      
+      // Transform ttsu format to your format
+      const transformedData = [];
+      
+      // Assuming ttsu exports data with date, minutes, characters
+      Object.entries(ttsuData).forEach(([date, session]) => {
+        transformedData.push({
+          date: date, // format: YYYY-MM-DD
+          minutes: session.timeInMinutes || 0,
+          characters: session.charactersRead || 0,
+          title: session.bookTitle || 'Reading from ttsu'
+        });
+      });
+      
+      // Merge with existing data
+      window.data = [...window.data, ...transformedData];
+      
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      
+      alert('Ttsu data imported successfully!');
+    } catch (error) {
+      alert('Error importing ttsu data: ' + error.message);
+    }
+  };
+  reader.readAsText(file);
+}
     function loadData(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2408,6 +2452,180 @@ async function deleteGoal(id) {
     window.recentBooks = recentBooks;
     window.currentUser = currentUser;
     window.currentYear = currentYear;
+
+    async function importTtsuData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const ttsuData = JSON.parse(e.target.result);
+      
+      console.log('ttsu data structure:', ttsuData); // For debugging
+      
+      // Transform ttsu data to your format
+      const transformedData = [];
+      let importedCount = 0;
+      
+      // ttsu exports reading tracker data - structure may vary
+      // This handles common formats from ttsu exports
+      
+      // Format 1: Direct daily data object
+      if (ttsuData.trackerData || ttsuData.readingData) {
+        const trackerData = ttsuData.trackerData || ttsuData.readingData;
+        
+        Object.entries(trackerData).forEach(([date, dayData]) => {
+          // Skip if this date already exists (avoid duplicates)
+          const exists = window.data.some(entry => entry.date === date);
+          if (!exists && (dayData.minutes > 0 || dayData.characters > 0)) {
+            transformedData.push({
+              date: date, // YYYY-MM-DD format
+              minutes: dayData.minutes || 0,
+              characters: dayData.characters || 0,
+              title: dayData.title || dayData.bookTitle || 'Reading (from ttsu)'
+            });
+            importedCount++;
+          }
+        });
+      }
+      
+      // Format 2: Array of reading sessions
+      else if (Array.isArray(ttsuData)) {
+        ttsuData.forEach(session => {
+          const date = session.date || session.timestamp?.split('T')[0];
+          const exists = window.data.some(entry => entry.date === date);
+          
+          if (!exists && date && (session.minutes > 0 || session.characters > 0)) {
+            transformedData.push({
+              date: date,
+              minutes: session.minutes || session.timeMinutes || 0,
+              characters: session.characters || session.charactersRead || 0,
+              title: session.title || session.bookTitle || 'Reading (from ttsu)'
+            });
+            importedCount++;
+          }
+        });
+      }
+      
+      // Format 3: Books with sessions
+      else if (ttsuData.books) {
+        Object.values(ttsuData.books).forEach(book => {
+          if (book.sessions && Array.isArray(book.sessions)) {
+            book.sessions.forEach(session => {
+              const date = session.date || session.timestamp?.split('T')[0];
+              const exists = window.data.some(entry => entry.date === date);
+              
+              if (!exists && date && (session.minutes > 0 || session.characters > 0)) {
+                transformedData.push({
+                  date: date,
+                  minutes: session.minutes || 0,
+                  characters: session.characters || 0,
+                  title: book.title || 'Reading (from ttsu)'
+                });
+                importedCount++;
+              }
+            });
+          }
+        });
+      }
+      
+      if (transformedData.length === 0) {
+        alert('No new reading data found in ttsu export. The file might be in an unexpected format or all data has already been imported.');
+        console.log('Expected ttsu data but got:', ttsuData);
+        return;
+      }
+      
+      // Merge with existing data
+      window.data = [...window.data, ...transformedData];
+      data = window.data;
+      
+      // Save and update UI
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      renderGoals();
+      
+      // Trigger cloud save if available
+      if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+        await window.saveCloudState();
+      }
+      
+      closeMenu();
+      alert(`Successfully imported ${importedCount} reading session(s) from ttsu!`);
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = ''; // Reset file input
+}
+
+// Optional: Add a URL-based sync function for cloud-hosted ttsu exports
+async function syncFromTtsuCloud() {
+  const ttsuUrl = localStorage.getItem('ttsu_sync_url');
+  
+  if (!ttsuUrl) {
+    const url = prompt(
+      'Enter the URL where your ttsu data is hosted (e.g., Google Drive shared link, Dropbox public link):\n\n' +
+      'Tip: Export from ttsu to Google Drive, then get a shareable link.'
+    );
+    
+    if (!url) return;
+    localStorage.setItem('ttsu_sync_url', url);
+  }
+  
+  try {
+    const response = await fetch(ttsuUrl);
+    if (!response.ok) throw new Error('Failed to fetch from URL');
+    
+    const text = await response.text();
+    const ttsuData = JSON.parse(text);
+    
+    // Use the same import logic as importTtsuData
+    // (You can extract the transformation logic into a separate function)
+    
+    alert('Synced from ttsu cloud successfully!');
+    
+  } catch (error) {
+    console.error('Sync error:', error);
+    alert('Failed to sync from ttsu cloud. Please check:\n' +
+          '1. The URL is correct and publicly accessible\n' +
+          '2. The file is valid JSON\n' +
+          '3. You have an internet connection\n\n' +
+          'Error: ' + error.message);
+    
+    // Clear stored URL so user can try again
+    if (confirm('Clear stored URL and try again?')) {
+      localStorage.removeItem('ttsu_sync_url');
+    }
+  }
+}
+
+// Helper function to check ttsu data format (for debugging)
+function analyzeTtsuExport(ttsuData) {
+  console.log('=== ttsu Data Analysis ===');
+  console.log('Type:', Array.isArray(ttsuData) ? 'Array' : typeof ttsuData);
+  console.log('Keys:', Object.keys(ttsuData));
+  
+  if (ttsuData.trackerData) {
+    console.log('Found trackerData with', Object.keys(ttsuData.trackerData).length, 'dates');
+  }
+  
+  if (ttsuData.books) {
+    console.log('Found', Object.keys(ttsuData.books).length, 'books');
+  }
+  
+  if (Array.isArray(ttsuData)) {
+    console.log('Array with', ttsuData.length, 'items');
+    console.log('First item:', ttsuData[0]);
+  }
+  
+  console.log('========================');
+}
   </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
