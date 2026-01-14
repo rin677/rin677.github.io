@@ -379,38 +379,38 @@
       </div>
     </div>
     
-    <!-- ttsu Sync Settings -->
-    <div class="settings-section">
-      <h2>🔄 ttsu Google Drive Sync</h2>
-      <p>Automatically sync your reading data from the ttsu app via Google Drive.</p>
-      
-      <div class="setting-item">
-        <div class="setting-label">
-          <h3>Sync Status</h3>
-          <p id="ttsuSyncStatusText">Not configured</p>
-        </div>
-        <div class="action-buttons">
-          <button class="confirm-btn" onclick="setupTtsuSync()">Setup Sync</button>
-          <button class="btn" onclick="manualSyncTtsu()">Sync Now</button>
-        </div>
-      </div>
-      
-      <div class="setting-item">
-        <div class="setting-label">
-          <h3>Batch Load</h3>
-          <p>Load all ttsu data (overwrites existing data)</p>
-        </div>
-        <button class="btn" onclick="batchLoadAllTtsu()">📥 Batch Load All</button>
-      </div>
-      
-      <div class="setting-item">
-        <div class="setting-label">
-          <h3>Disable Sync</h3>
-          <p>Stop automatic syncing from ttsu</p>
-        </div>
-        <button class="danger-btn" onclick="disableTtsuSync()">Disable</button>
-      </div>
+<!-- ttsu Sync Settings -->
+<div class="settings-section">
+  <h2>🔄 ttsu Google Drive Sync</h2>
+  <p>Automatically sync your reading data from the ttsu app via Google Drive.</p>
+  
+  <div class="setting-item">
+    <div class="setting-label">
+      <h3>Sync Status</h3>
+      <p id="ttsuSyncStatusText">Not configured</p>
     </div>
+    <div class="action-buttons">
+      <button class="confirm-btn" onclick="goToMainForTtsuSetup()">Setup Sync</button>
+      <button class="btn" onclick="goToMainForTtsuSync()">Sync Now</button>
+    </div>
+  </div>
+  
+  <div class="setting-item">
+    <div class="setting-label">
+      <h3>Batch Load</h3>
+      <p>Load all ttsu data (overwrites existing data)</p>
+    </div>
+    <button class="btn" onclick="goToMainForBatchLoad()">📥 Batch Load All</button>
+  </div>
+  
+  <div class="setting-item">
+    <div class="setting-label">
+      <h3>Disable Sync</h3>
+      <p>Stop automatic syncing from ttsu</p>
+    </div>
+    <button class="danger-btn" onclick="disableTtsuSync()">Disable</button>
+  </div>
+</div>
     
     <!-- Data Management -->
     <div class="settings-section">
@@ -593,79 +593,215 @@ async function createManualBackup() {
 
 async function viewBackups() {
   const backups = getBackups();
+  const container = document.getElementById('backupsList');
   
   if (backups.length === 0) {
-    await customAlert('No backups available. Create a backup first!', 'No Backups');
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No backups available. Create a backup first!</div>';
+  } else {
+    // Sort by timestamp, newest first
+    backups.sort((a, b) => b.timestamp - a.timestamp);
+    
+    container.innerHTML = '';
+    backups.forEach((backup, index) => {
+      const date = new Date(backup.timestamp);
+      const backupDiv = document.createElement('div');
+      backupDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border-color);';
+      
+      const entriesCount = backup.data ? backup.data.length : 0;
+      const goalsCount = backup.goals ? backup.goals.length : 0;
+      const type = backup.type === 'manual' ? '👤 Manual' : '🤖 Automatic';
+      
+      backupDiv.innerHTML = `
+        <div style="flex: 1;">
+          <strong style="color: var(--text-primary);">${date.toLocaleString()}</strong><br>
+          <span style="font-size: 12px; color: var(--text-secondary);">${type} • ${entriesCount} entries • ${goalsCount} goals</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" onclick="restoreBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Restore</button>
+          <button class="btn" onclick="downloadBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Download</button>
+          <button class="danger-btn" onclick="deleteBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+        </div>
+      `;
+      
+      container.appendChild(backupDiv);
+    });
+  }
+  
+  document.getElementById('viewBackupsModal').style.display = 'flex';
+}
+
+function closeViewBackupsModal() {
+  document.getElementById('viewBackupsModal').style.display = 'none';
+}
+
+async function restoreBackup(index) {
+  const backups = getBackups();
+  if (index < 0 || index >= backups.length) {
+    await customAlert('Backup not found.', 'Error');
     return;
   }
   
-  // Sort by timestamp, newest first
-  backups.sort((a, b) => b.timestamp - a.timestamp);
+  const backup = backups[index];
+  const date = new Date(backup.timestamp);
   
-  let message = 'Available Backups:\n\n';
-  backups.forEach((backup, index) => {
-    const date = new Date(backup.timestamp);
-    const entriesCount = backup.data ? backup.data.length : 0;
-    const type = backup.type === 'manual' ? '👤' : '🤖';
-    message += `${index + 1}. ${type} ${date.toLocaleString()} (${entriesCount} entries)\n`;
-  });
-  
-  message += '\nTo restore or download backups, please use the main heatmap page.';
-  
-  await customAlert(message, 'Backups');
-}
-    // Load ttsu sync status
-    function loadTtsuSyncStatus() {
-      const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
-      const folderId = localStorage.getItem('ttsu_folder_id');
-      const lastSync = localStorage.getItem('ttsu_last_sync');
-      
-      const statusEl = document.getElementById('ttsuSyncStatusText');
-      
-      if (!enabled || !folderId) {
-        statusEl.textContent = 'Not configured';
-        statusEl.style.color = 'var(--text-secondary)';
-        return;
-      }
-      
-      if (!lastSync) {
-        statusEl.textContent = 'Configured (not synced yet)';
-        statusEl.style.color = 'var(--accent-color)';
-        return;
-      }
-      
-      const lastSyncDate = new Date(lastSync);
-      const now = new Date();
-      const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
-      
-      if (diffMinutes < 1) {
-        statusEl.textContent = 'Active (just synced)';
-      } else if (diffMinutes < 60) {
-        statusEl.textContent = `Active (synced ${diffMinutes} min ago)`;
-      } else {
-        statusEl.textContent = `Active (synced ${Math.floor(diffMinutes / 60)}h ago)`;
-      }
-      statusEl.style.color = 'var(--accent-color)';
-    }
-    
-    async function setupTtsuSync() {
-      await customAlert('Please use the main heatmap page to setup ttsu sync.', 'Redirect Required');
-      window.location.href = 'index.html';
-   }
-    
-    async function manualSyncTtsu() {
-      await customAlert('Please use the main heatmap page to sync.', 'Redirect Required');
-      window.location.href = 'index.html';
-   }
-    
-    async function batchLoadAllTtsu() {
-      await customAlert('Please use the main heatmap page for batch loading.', 'Redirect Required');
-      window.location.href = 'index.html';
-   }
-    
-    async function disableTtsuSync() {
   const confirmed = await customConfirm(
-    'Disable automatic ttsu sync from Google Drive?',
+    `Restore backup from ${date.toLocaleString()}?\n\nThis will replace your current data with the backup data.\n\nCurrent data will be lost unless you create a backup first.`,
+    'Restore Backup'
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.data || []));
+    localStorage.setItem(GOALS_KEY, JSON.stringify(backup.goals || []));
+    localStorage.setItem(BOOKS_KEY, JSON.stringify(backup.recentBooks || []));
+    
+    closeViewBackupsModal();
+    await customAlert('Backup restored successfully!\n\nReturn to the main page to see your restored data.', 'Restore Complete');
+  } catch (error) {
+    console.error('Restore error:', error);
+    await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
+  }
+}
+
+function downloadBackup(index) {
+  const backups = getBackups();
+  if (index < 0 || index >= backups.length) return;
+  
+  const backup = backups[index];
+  const date = new Date(backup.timestamp);
+  const dateStr = date.toISOString().split('T')[0];
+  
+  const exportData = {
+    data: backup.data || [],
+    goals: backup.goals || [],
+    recentBooks: backup.recentBooks || [],
+    backupDate: date.toISOString(),
+    type: backup.type || 'manual'
+  };
+  
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `reading-backup-${dateStr}-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function deleteBackup(index) {
+  const confirmed = await customConfirm(
+    'Delete this backup?\n\nThis action cannot be undone.',
+    'Delete Backup'
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    const backups = getBackups();
+    backups.splice(index, 1);
+    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
+    
+    // Refresh the view
+    viewBackups();
+    await customAlert('Backup deleted successfully.', 'Backup Deleted');
+  } catch (error) {
+    console.error('Delete backup error:', error);
+    await customAlert('Failed to delete backup: ' + error.message, 'Delete Error');
+  }
+}
+
+// Load ttsu sync status
+function loadTtsuSyncStatus() {
+  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+  const folderId = localStorage.getItem('ttsu_folder_id');
+  const lastSync = localStorage.getItem('ttsu_last_sync');
+  
+  const statusEl = document.getElementById('ttsuSyncStatusText');
+  
+  if (!enabled || !folderId) {
+    statusEl.textContent = 'Not configured';
+    statusEl.style.color = 'var(--text-secondary)';
+    return;
+  }
+  
+  if (!lastSync) {
+    statusEl.textContent = 'Configured (not synced yet)';
+    statusEl.style.color = 'var(--accent-color)';
+    return;
+  }
+  
+  const lastSyncDate = new Date(lastSync);
+  const now = new Date();
+  const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
+  
+  if (diffMinutes < 1) {
+    statusEl.textContent = 'Active (just synced)';
+  } else if (diffMinutes < 60) {
+    statusEl.textContent = `Active (synced ${diffMinutes} min ago)`;
+  } else {
+    statusEl.textContent = `Active (synced ${Math.floor(diffMinutes / 60)}h ago)`;
+  }
+  statusEl.style.color = 'var(--accent-color)';
+}
+
+async function goToMainForTtsuSetup() {
+  const confirmed = await customConfirm(
+    'ttsu sync setup requires the Google Drive API.\n\nYou will be redirected to the main page to complete setup.',
+    'Setup ttsu Sync'
+  );
+  
+  if (confirmed) {
+    // Store a flag to auto-open ttsu sync modal on main page
+    sessionStorage.setItem('openTtsuSync', 'setup');
+    window.location.href = 'index.html';
+  }
+}
+
+async function goToMainForTtsuSync() {
+  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+  const folderId = localStorage.getItem('ttsu_folder_id');
+  
+  if (!enabled || !folderId) {
+    await customAlert('ttsu sync is not configured.\n\nPlease setup sync first.', 'Not Configured');
+    return;
+  }
+  
+  const confirmed = await customConfirm(
+    'ttsu sync requires the Google Drive API.\n\nYou will be redirected to the main page to sync.',
+    'Sync Now'
+  );
+  
+  if (confirmed) {
+    sessionStorage.setItem('openTtsuSync', 'sync');
+    window.location.href = 'index.html';
+  }
+}
+
+async function goToMainForBatchLoad() {
+  const confirmed = await customConfirm(
+    '⚠️ Batch loading will OVERWRITE all your existing data.\n\nYou will be redirected to the main page to complete this action.',
+    'Batch Load'
+  );
+  
+  if (confirmed) {
+    sessionStorage.setItem('openTtsuSync', 'batchLoad');
+    window.location.href = 'index.html';
+  }
+}
+
+async function disableTtsuSync() {
+  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+  
+  if (!enabled) {
+    await customAlert('ttsu sync is already disabled.', 'Already Disabled');
+    return;
+  }
+  
+  const confirmed = await customConfirm(
+    'Disable automatic ttsu sync from Google Drive?\n\nYou can re-enable it anytime.',
     'Disable Sync'
   );
   
@@ -675,7 +811,7 @@ async function viewBackups() {
   localStorage.removeItem('ttsu_folder_id');
   localStorage.removeItem('ttsu_access_token');
   localStorage.removeItem('ttsu_token_expiry');
-  await customAlert('ttsu sync disabled.', 'Sync Disabled');
+  await customAlert('ttsu sync has been disabled.', 'Sync Disabled');
   loadTtsuSyncStatus();
 }
     
@@ -898,13 +1034,59 @@ async function wipeAllData() {
   }
 }
     
-    // Initialize
-    window.onload = function() {
-      loadStatVisibility();
-      loadBackupSettings();
-      loadTtsuSyncStatus();
-    };
-
+ window.onload = function() {
+  loadTheme();
+  loadStatVisibility();
+    
+  window.data = data = [];
+  window.dailyData = dailyData = {};
+  window.goals = goals = [];
+  window.recentBooks = recentBooks = [];
+  window.currentUser = currentUser = null;
+  
+  const storedUser = localStorage.getItem(USER_KEY);
+  if (storedUser) {
+    try {
+      window.currentUser = currentUser = JSON.parse(storedUser);
+    } catch (e) {
+      console.error('Error loading stored user:', e);
+    }
+  }
+  
+  initializeAuthButton();
+  renderHeatmap();
+  updateStats();
+  
+  // Initialize automatic backups
+  initializeBackups();
+  
+  // Check if redirected from settings page for ttsu sync
+  const ttsuAction = sessionStorage.getItem('openTtsuSync');
+  if (ttsuAction) {
+    sessionStorage.removeItem('openTtsuSync');
+    
+    setTimeout(() => {
+      openTtsuSyncSettings();
+      
+      // Auto-trigger the appropriate action
+      setTimeout(async () => {
+        if (ttsuAction === 'setup') {
+          setupTtsuSync();
+        } else if (ttsuAction === 'sync') {
+          manualSyncTtsu();
+        } else if (ttsuAction === 'batchLoad') {
+          batchLoadAllTtsu();
+        }
+      }, 500);
+    }, 1000);
+  }
+  
+  if (window.location.protocol === 'file:') {
+    setTimeout(async () => {
+      await customAlert("Warning: Google Sign-In will NOT work if you open this file directly.\n\nPlease use a local server (e.g., Live Server in VS Code).", 'Warning');
+    }, 500);
+  }
+};
     // Custom themed confirm dialog
 function customConfirm(message, title = 'Confirm') {
   return new Promise((resolve) => {
@@ -986,6 +1168,15 @@ function customAlert(message, title = 'Notice') {
   });
 }
   </script>
+
+<!-- View Backups Modal -->
+<div class="modal" id="viewBackupsModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
+  <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; width: 700px; max-width: 90vw; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);">
+    <h2 style="margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Available Backups</h2>
+    <div id="backupsList" style="margin-top: 16px;"></div>
+    <button class="btn" onclick="closeViewBackupsModal()" style="width: 100%; margin-top: 16px;">Close</button>
+  </div>
+</div>
 
 <!-- Custom Confirmation Modal -->
 <div class="modal" id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
