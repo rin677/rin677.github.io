@@ -1152,6 +1152,26 @@ body.theme-ereader .log-btn:hover {
       transform: translateY(0);
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
+
+.confirm-btn {
+  background: var(--border-color);
+  border: 1px solid var(--text-secondary);
+  color: var(--text-primary);
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-btn:hover {
+  background: var(--text-secondary);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+
   </style>
 </head>
 <body>
@@ -1437,14 +1457,14 @@ Book title 2"></textarea>
    </div>
   </div>
 
-  <!-- Custom Confirmation Modal -->
+<!-- Custom Confirmation Modal -->
 <div class="modal" id="confirmModal">
   <div class="modal-content" style="max-width: 500px;">
     <h2 id="confirmTitle">Confirm</h2>
     <p id="confirmMessage" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 16px 0;"></p>
     <div class="modal-actions">
       <button class="btn" id="confirmCancel">Cancel</button>
-      <button class="log-btn" id="confirmOk">OK</button>
+      <button class="confirm-btn" id="confirmOk">OK</button>
     </div>
   </div>
 </div>
@@ -1455,7 +1475,7 @@ Book title 2"></textarea>
     <h2 id="alertTitle">Notice</h2>
     <p id="alertMessage" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 16px 0; white-space: pre-line;"></p>
     <div class="modal-actions">
-      <button class="log-btn" id="alertOk" style="width: 100%;">OK</button>
+      <button class="confirm-btn" id="alertOk" style="width: 100%;">OK</button>
     </div>
   </div>
 </div>
