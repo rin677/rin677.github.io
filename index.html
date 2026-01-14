@@ -1364,7 +1364,13 @@ Book title 2"></textarea>
         <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked style="cursor: pointer;">
         <span style="font-size: 14px;">Total</span>
       </label>
-      <div class="modal" id="ttsuSyncModal">
+</div>
+    </div>
+    <button class="btn" onclick="closeStatsSettings()" style="width: 100%; margin-top: 16px;">Done</button>
+  </div>
+</div>
+
+<div class="modal" id="ttsuSyncModal">
   <div class="modal-content">
     <h2>ttsu Google Drive Sync</h2>
     
@@ -1383,13 +1389,9 @@ Book title 2"></textarea>
     </button>
     
     <button class="btn" onclick="closeTtsuSyncModal()" style="width: 100%; margin-top: 12px;">Close</button>
+   </div>
   </div>
-</div>
-    </div>
-    
-    <button class="btn" onclick="closeStatsSettings()" style="width: 100%; margin-top: 16px;">Done</button>
-  </div>
-</div>
+
   <script>
     const STORAGE_KEY = 'reading_heatmap_data';
     const GOALS_KEY = 'reading_heatmap_goals';
@@ -2196,6 +2198,7 @@ document.getElementById('statsModal').addEventListener('click', (e) => {
     try { closeMenu(); } catch (err) {}
     try { closeGoalModal(); } catch (err) {}
     try { closeStatsSettings(); } catch (err) {}  // Add this line
+    try { closeTtsuSyncModal(); } catch (err) {}
 
     try {
       const active = document.activeElement;
@@ -2910,7 +2913,7 @@ async function loadLeaderboardData() {
 
 const GDRIVE_CONFIG = {
   clientId: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
-  apiKey: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr',
+  apiKey: 'AIzaSyDOHQjTJYPXMQ-6p45ReF6dBRvmxUZ0P_k',
   discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
   scopes: 'https://www.googleapis.com/auth/drive.readonly'
 };
