@@ -3055,38 +3055,29 @@ async function driveDownloadFile(fileId, accessToken) {
 
 async function setupTtsuSync() {
   try {
-    // Wait for GIS
     let attempts = 0;
     while (!initGIS() && attempts < 20) {
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(resolve => setTimeout(resolve, 500));
       attempts++;
     }
-    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh.');
+    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh the page.');
 
-    // Request token with consent once
-    await new Promise((resolve, reject) => {
-      tokenClient.callback = (resp) => {
-        if (resp.error) return reject(resp);
-        googleAccessToken = resp.access_token;
-        resolve();
-      };
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    });
+    // Explicit consent only during setup
+    const ok = await ensureDriveToken({ allowPrompt: true });
+    if (!ok) throw new Error('Authorization failed. Please try again.');
 
-    // Find folder and persist keys
     const folderId = await findTtsuFolder();
     if (!folderId) {
-      alert('Could not find ttsu data folder in Google Drive. Export from ttsu first.');
+      alert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!');
       return;
     }
+
     localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
     localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
 
-    // Initial sync + start auto-sync
     await syncFromTtsuGDrive();
     startAutoSync();
 
-    // Update status UI
     const statusEl = document.getElementById('ttsuSyncStatusText');
     if (statusEl) {
       const s = checkTtsuSyncStatus();
@@ -3298,37 +3289,16 @@ async function manualSyncTtsu() {
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
 
   if (!enabled || !folderId) {
-    alert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Sync" first.');
+    alert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Auto-Sync" once to configure.');
     return;
   }
 
-  // Ensure we have a valid token; try silent refresh first
-  try {
-    if (tokenClient && !googleAccessToken) {
-      await new Promise((resolve, reject) => {
-        tokenClient.callback = (resp) => {
-          if (resp.error) return reject(resp);
-          googleAccessToken = resp.access_token;
-          resolve();
-        };
-        tokenClient.requestAccessToken({ prompt: '' }); // silent
-      });
-    }
-  } catch (e) {
-    // Fallback: request with prompt once if silent fails
-    try {
-      await new Promise((resolve, reject) => {
-        tokenClient.callback = (resp) => {
-          if (resp.error) return reject(resp);
-          googleAccessToken = resp.access_token;
-          resolve();
-        };
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      });
-    } catch (err) {
-      alert('Google Drive authorization required. Please press "Setup Auto-Sync" once.');
-      return;
-    }
+  // Never prompt here; try silent token only
+  const hasToken = await ensureDriveToken({ allowPrompt: false });
+  if (!hasToken) {
+    // Do not show Google consent; just inform and return gracefully
+    alert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization. No changes made.');
+    return;
   }
 
   try {
@@ -3346,7 +3316,7 @@ async function manualSyncTtsu() {
       statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
     }
   } catch (error) {
-    alert('Sync failed:\n\n' + error.message);
+    alert('Sync failed:\n\n' + (error.message || error));
   }
 }
 
@@ -3394,33 +3364,69 @@ function checkTtsuSyncStatus() {
     return `Success (last synced ${Math.floor(diffMinutes / 60)}h ago)`;
   }
 }
+// Helper: try to ensure we have a Google Drive access token
+// allowPrompt=false prevents any consent UI from appearing
+async function ensureDriveToken(options = { allowPrompt: false }) {
+  // If we already have a token, nothing to do
+  if (googleAccessToken) return true;
 
+  // GIS not ready
+  if (!tokenClient) {
+    initGIS();
+    if (!tokenClient) return false;
+  }
 
-// Initialize on load: auto-start if previously configured
-setTimeout(() => {
+  // Try silent first
+  try {
+    await new Promise((resolve, reject) => {
+      tokenClient.callback = (resp) => {
+        if (resp && !resp.error && resp.access_token) {
+          googleAccessToken = resp.access_token;
+          resolve();
+        } else {
+          reject(resp?.error || new Error('silent_token_failed'));
+        }
+      };
+      tokenClient.requestAccessToken({ prompt: '' }); // silent attempt
+    });
+    return true;
+  } catch (silentErr) {
+    // If not allowed to prompt, do not escalate to consent
+    if (!options.allowPrompt) {
+      return false;
+    }
+
+    // Fallback: explicit consent (only used during setup)
+    try {
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (resp) => {
+          if (resp && !resp.error && resp.access_token) {
+            googleAccessToken = resp.access_token;
+            resolve();
+          } else {
+            reject(resp?.error || new Error('prompt_token_failed'));
+          }
+        };
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+      return true;
+    } catch (promptErr) {
+      return false;
+    }
+  }
+}
+
+// Initialize on load: auto-start if previously configured (no consent prompts)
+setTimeout(async () => {
   initGIS();
 
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
 
   if (enabled && folderId) {
-    // Try silent token; non-blocking if Google requires consent
-    try {
-      if (tokenClient && !googleAccessToken) {
-        tokenClient.callback = (resp) => {
-          if (!resp.error) {
-            googleAccessToken = resp.access_token;
-          }
-        };
-        tokenClient.requestAccessToken({ prompt: '' }); // silent attempt
-      }
-    } catch (e) {
-      console.log('Silent token attempt failed (non-blocking):', e?.message || e);
-    }
-
+    await ensureDriveToken({ allowPrompt: false }); // try silent token; ok if it fails
     startAutoSync();
 
-    // Refresh status pill if modal exists
     const statusEl = document.getElementById('ttsuSyncStatusText');
     if (statusEl) {
       const s = checkTtsuSyncStatus();
@@ -3428,11 +3434,9 @@ setTimeout(() => {
       statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
     }
 
-    console.log('ttsu auto-sync enabled on load');
+    console.log('ttsu auto-sync initialized on load');
   }
 }, 1000);
-
-
 
 window.setupTtsuSync = setupTtsuSync;
 window.syncFromTtsuGDrive = syncFromTtsuGDrive;
