@@ -2986,19 +2986,39 @@ function customPrompt(message, title = 'Input') {
 async function updateCloudLeaderboard() {
   if (!window.currentUser) return;
   
+  // Calculate stats for the past 30 days only
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
   let totalMinutes = 0;
   let totalCharacters = 0;
+  let minutesWithChars = 0;
+  let charactersWithChars = 0;
   
-  // Only count days with both minutes AND characters
-  Object.values(window.dailyData || {}).forEach(day => {
-    if ((day.characters || 0) > 0 && (day.minutes || 0) > 0) {
+  // Only count days with both minutes AND characters, within past 30 days
+  Object.entries(window.dailyData || {}).forEach(([dateStr, day]) => {
+    const entryDate = new Date(dateStr + 'T00:00:00');
+    
+    // Only include entries from the past 30 days
+    if (entryDate >= thirtyDaysAgo && entryDate <= today) {
+      const hasChars = (day.characters || 0) > 0;
+      const hasMins = (day.minutes || 0) > 0;
+      
+      // For total stats, count everything
       totalMinutes += day.minutes || 0;
       totalCharacters += day.characters || 0;
+      
+      // For speed calculation, only count days with BOTH
+      if (hasChars && hasMins) {
+        minutesWithChars += day.minutes || 0;
+        charactersWithChars += day.characters || 0;
+      }
     }
   });
   
-  const totalHours = totalMinutes / 60;
-  const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
+  const hoursWithChars = minutesWithChars / 60;
+  const avgSpeed = hoursWithChars > 0 ? Math.round(charactersWithChars / hoursWithChars) : 0;
   
   const leaderboardEntry = {
     userId: window.currentUser.id,
