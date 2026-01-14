@@ -3030,22 +3030,40 @@ async function setupTtsuSync() {
 
 async function findTtsuFolder() {
   try {
-    // Search for ttu-reader-data folder
-    let query = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data'");
-    let data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name)`, googleAccessToken);
+    console.log('Searching for ttu-reader-data folder...');
+    
+    // Search for exact name first
+    let query = "mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data'";
+    console.log('Query:', query);
+    
+    let data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)`, googleAccessToken);
+    
+    console.log('Search results:', data);
     
     if (data.files && data.files.length > 0) {
-      console.log('Found folder:', data.files[0].name);
+      console.log('Found folder:', data.files[0].name, 'ID:', data.files[0].id);
       return data.files[0].id;
     }
     
-    // Try other possible names
-    query = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and (name='ttu-gdrive-default' or name='ttsu' or name='reader.ttsu.app')");
-    data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name)`, googleAccessToken);
+    // List ALL folders to debug
+    console.log('Exact match not found. Listing all folders...');
+    query = "mimeType='application/vnd.google-apps.folder'";
+    data = await driveApiCall(`files?q=${encodeURIComponent(query)}&spaces=drive&fields=files(id,name)&pageSize=50`, googleAccessToken);
     
-    if (data.files && data.files.length > 0) {
-      console.log('Found folder:', data.files[0].name);
-      return data.files[0].id;
+    console.log('All folders in your Google Drive:');
+    data.files.forEach(f => console.log(' -', f.name));
+    
+    // Try to find any folder with 'ttu' or 'reader' in the name
+    const possibleFolder = data.files.find(f => 
+      f.name.toLowerCase().includes('ttu') || 
+      f.name.toLowerCase().includes('reader')
+    );
+    
+    if (possibleFolder) {
+      console.log('Found possible match:', possibleFolder.name);
+      if (confirm(`Found folder "${possibleFolder.name}". Is this your ttsu data folder?`)) {
+        return possibleFolder.id;
+      }
     }
     
     return null;
