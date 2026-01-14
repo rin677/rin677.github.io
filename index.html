@@ -3030,10 +3030,21 @@ async function setupTtsuSync() {
 
 async function findTtsuFolder() {
   try {
-    const query = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and (name='ttu-gdrive-default' or name='ttsu' or name='reader.ttsu.app')");
-    const data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name)`, googleAccessToken);
+    // Search for ttu-reader-data folder
+    let query = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='ttu-reader-data'");
+    let data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name)`, googleAccessToken);
     
     if (data.files && data.files.length > 0) {
+      console.log('Found folder:', data.files[0].name);
+      return data.files[0].id;
+    }
+    
+    // Try other possible names
+    query = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and (name='ttu-gdrive-default' or name='ttsu' or name='reader.ttsu.app')");
+    data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name)`, googleAccessToken);
+    
+    if (data.files && data.files.length > 0) {
+      console.log('Found folder:', data.files[0].name);
       return data.files[0].id;
     }
     
@@ -3055,27 +3066,41 @@ async function syncFromTtsuGDrive() {
       throw new Error('Not authenticated. Please run setup first.');
     }
     
-    console.log('Fetching files from ttsu folder...');
+    console.log('Fetching book folders from ttu-reader-data...');
     
-    // Find all JSON files in ttsu folder
-    const query = encodeURIComponent(`'${folderId}' in parents and mimeType='application/json'`);
-    const data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
+    // First, get all book folders inside ttu-reader-data
+    const bookFoldersQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder'`);
+    const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)`, googleAccessToken);
     
-    const files = data.files || [];
+    const bookFolders = bookFoldersData.files || [];
+    console.log(`Found ${bookFolders.length} book folders`);
     
-    if (files.length === 0) {
-      console.log('No ttsu data files found');
+    if (bookFolders.length === 0) {
+      console.log('No book folders found');
       return 0;
     }
-    
-    console.log(`Found ${files.length} files`);
     
     let totalImported = 0;
     const bookTitles = new Set();
     
-    // Process each book's statistics file
-    for (const file of files) {
+    // For each book folder, get the statistics file
+    for (const bookFolder of bookFolders) {
       try {
+        console.log(`Checking folder: ${bookFolder.name}`);
+        
+        // Find statistics JSON file in this book folder
+        const statsQuery = encodeURIComponent(`'${bookFolder.id}' in parents and name contains 'statistics' and mimeType='application/json'`);
+        const statsData = await driveApiCall(`files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
+        
+        const files = statsData.files || [];
+        
+        if (files.length === 0) {
+          console.log(`No statistics file in ${bookFolder.name}`);
+          continue;
+        }
+        
+        // Process the statistics file (usually just one per book)
+        const file = files[0];
         console.log(`Processing ${file.name}...`);
         
         // Download file content
@@ -3109,15 +3134,15 @@ async function syncFromTtsuGDrive() {
               date: date,
               minutes: minutes,
               characters: characters,
-              title: session.title || 'Reading'
+              title: session.title || bookFolder.name || 'Reading'
             });
             totalImported++;
-            bookTitles.add(session.title);
+            bookTitles.add(session.title || bookFolder.name);
           }
         });
         
       } catch (fileError) {
-        console.error('Error processing file:', file.name, fileError);
+        console.error('Error processing folder:', bookFolder.name, fileError);
       }
     }
     
@@ -3154,7 +3179,6 @@ async function syncFromTtsuGDrive() {
     throw error;
   }
 }
-
 function startAutoSync() {
   if (ttsuSyncInterval) {
     clearInterval(ttsuSyncInterval);
