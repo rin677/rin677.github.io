@@ -7,7 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="google-site-verification" content="far4mB8aQQrQ4OshhK5PYwtcgJ1XDn02389aFZjIAjk" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
-
+ <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
@@ -2915,9 +2915,11 @@ async function loadLeaderboardData() {
 const GDRIVE_CONFIG = {
   clientId: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
   apiKey: 'AIzaSyDOHQjTJYPXMQ-6p45ReF6dBRvmxUZ0P_k',
-  discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
   scopes: 'https://www.googleapis.com/auth/drive.readonly'
 };
+
+let googleAccessToken = null;
+let tokenClient = null;
 
 // Storage keys
 const TTSU_SYNC_ENABLED_KEY = 'ttsu_sync_enabled';
@@ -2934,49 +2936,38 @@ async function initGoogleDriveAPI() {
   if (gapiInitialized) return true;
   
   return new Promise((resolve, reject) => {
+    // Load gapi for Drive API calls only
     if (typeof gapi === 'undefined') {
       const script = document.createElement('script');
       script.src = 'https://apis.google.com/js/api.js';
       script.onload = () => {
-        gapi.load('client:auth2', async () => {
+        gapi.load('client', async () => {
           try {
             await gapi.client.init({
               apiKey: GDRIVE_CONFIG.apiKey,
-              clientId: GDRIVE_CONFIG.clientId,
-              discoveryDocs: GDRIVE_CONFIG.discoveryDocs,
-              scope: GDRIVE_CONFIG.scopes
+              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
             });
             gapiInitialized = true;
-            console.log('Google Drive API initialized successfully');
+            console.log('Google Drive API initialized');
             resolve(true);
           } catch (error) {
-            console.error('Google API init error:', error);
-            alert('Failed to initialize Google Drive API. Please check:\n1. Your API credentials are correct\n2. Google Drive API is enabled\n3. Your domain is authorized');
+            console.error('GAPI init error:', error);
             reject(error);
           }
         });
       };
-      script.onerror = () => {
-        const error = new Error('Failed to load Google API script');
-        console.error(error);
-        alert('Failed to load Google API. Check your internet connection.');
-        reject(error);
-      };
+      script.onerror = () => reject(new Error('Failed to load Google API'));
       document.head.appendChild(script);
     } else {
-      gapi.load('client:auth2', async () => {
+      gapi.load('client', async () => {
         try {
           await gapi.client.init({
             apiKey: GDRIVE_CONFIG.apiKey,
-            clientId: GDRIVE_CONFIG.clientId,
-            discoveryDocs: GDRIVE_CONFIG.discoveryDocs,
-            scope: GDRIVE_CONFIG.scopes
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
           });
           gapiInitialized = true;
-          console.log('Google Drive API initialized successfully');
           resolve(true);
         } catch (error) {
-          console.error('Google API init error:', error);
           reject(error);
         }
       });
@@ -2984,7 +2975,35 @@ async function initGoogleDriveAPI() {
   });
 }
 // ============================================
-// Setup ttsu Google Drive Sync
+async function authenticateGoogleDrive() {
+  return new Promise((resolve, reject) => {
+    // Initialize token client if not already done
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GDRIVE_CONFIG.clientId,
+        scope: GDRIVE_CONFIG.scopes,
+        callback: (response) => {
+          if (response.error) {
+            reject(response);
+            return;
+          }
+          googleAccessToken = response.access_token;
+          gapi.client.setToken({ access_token: googleAccessToken });
+          console.log('Google Drive authenticated');
+          resolve(true);
+        }
+      });
+    }
+    
+    // Request access token
+    if (!googleAccessToken) {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+      gapi.client.setToken({ access_token: googleAccessToken });
+      resolve(true);
+    }
+  });
+}
 // ============================================
 async function setupTtsuSync() {
   try {
@@ -2992,22 +3011,22 @@ async function setupTtsuSync() {
     
     // Initialize Google Drive API
     await initGoogleDriveAPI();
-    console.log('API initialized, checking sign-in...');
+    console.log('API initialized');
     
-    // Sign in to Google
-    const auth = gapi.auth2.getAuthInstance();
-    if (!auth) {
-      throw new Error('Google Auth not initialized properly');
+    // Wait a bit for GIS library to load
+    if (typeof google === 'undefined' || !google.accounts) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    if (!auth.isSignedIn.get()) {
-      console.log('Signing in to Google...');
-      await auth.signIn();
+    if (typeof google === 'undefined' || !google.accounts) {
+      throw new Error('Google Identity Services library not loaded. Please refresh the page and try again.');
     }
     
-    console.log('Signed in, finding ttsu folder...');
+    // Authenticate
+    await authenticateGoogleDrive();
+    console.log('Authenticated, finding ttsu folder...');
     
-    // Find ttsu folder in Google Drive
+    // Find ttsu folder
     const folderId = await findTtsuFolder();
     
     if (!folderId) {
@@ -3017,27 +3036,24 @@ async function setupTtsuSync() {
     
     console.log('Found ttsu folder:', folderId);
     
-    // Save folder ID
+    // Save config
     localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
     localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
     
-    // Do initial sync
-    console.log('Doing initial sync...');
+    // Initial sync
     await syncFromTtsuGDrive();
     
-    // Start auto-sync every 5 minutes
+    // Start auto-sync
     startAutoSync();
     
     alert('✅ ttsu sync enabled!\n\nYour reading data will automatically sync from Google Drive every 5 minutes.');
     closeTtsuSyncModal();
     
   } catch (error) {
-    console.error('Setup error details:', error);
-    alert('Failed to setup ttsu sync:\n\n' + (error.message || 'Unknown error. Check browser console for details.'));
+    console.error('Setup error:', error);
+    alert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)));
   }
 }
-// ============================================
-// Find ttsu Folder in Google Drive
 // ============================================
 async function findTtsuFolder() {
   try {
@@ -3066,135 +3082,18 @@ async function syncFromTtsuGDrive() {
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
     if (!folderId) {
-      throw new Error('ttsu folder not configured. Please run setup first.');
+      throw new Error('ttsu folder not configured');
     }
     
     // Initialize API if needed
     await initGoogleDriveAPI();
     
-    // Check if signed in
-    const auth = gapi.auth2.getAuthInstance();
-    if (!auth.isSignedIn.get()) {
-      await auth.signIn();
+    // Re-authenticate if needed
+    if (!googleAccessToken) {
+      await authenticateGoogleDrive();
+    } else {
+      gapi.client.setToken({ access_token: googleAccessToken });
     }
-    
-    // Find all JSON files in ttsu folder
-    const response = await gapi.client.drive.files.list({
-      q: `'${folderId}' in parents and mimeType='application/json'`,
-      spaces: 'drive',
-      fields: 'files(id, name, modifiedTime)',
-      orderBy: 'modifiedTime desc'
-    });
-    
-    const files = response.result.files || [];
-    
-    if (files.length === 0) {
-      console.log('No ttsu data files found');
-      return;
-    }
-    
-    let totalImported = 0;
-    const bookTitles = new Set();
-    
-    // Process each book's statistics file
-    for (const file of files) {
-      try {
-        // Download file content
-        const fileResponse = await gapi.client.drive.files.get({
-          fileId: file.id,
-          alt: 'media'
-        });
-        
-        const ttsuData = JSON.parse(fileResponse.body);
-        
-        if (!Array.isArray(ttsuData)) continue;
-        
-        // Transform and import data
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          // Check if exists
-          const exists = window.data.some(entry => 
-            entry.date === date && 
-            entry.title === session.title &&
-            Math.abs(entry.minutes - minutes) < 2 &&
-            Math.abs(entry.characters - characters) < 100
-          );
-          
-          if (!exists) {
-            window.data.push({
-              date: date,
-              minutes: minutes,
-              characters: characters,
-              title: session.title || 'Reading'
-            });
-            totalImported++;
-            bookTitles.add(session.title);
-          }
-        });
-        
-      } catch (fileError) {
-        console.error('Error processing file:', file.name, fileError);
-      }
-    }
-    
-    if (totalImported > 0) {
-      // Update recent books
-      bookTitles.forEach(title => {
-        if (title && !window.recentBooks.includes(title)) {
-          window.recentBooks.unshift(title);
-        }
-      });
-      window.recentBooks = window.recentBooks.slice(0, 10);
-      recentBooks = window.recentBooks;
-      
-      // Sync with local variables
-      data = window.data;
-      
-      // Save and update
-      await saveToStorage();
-      aggregateData();
-      loadYear();
-      renderGoals();
-      
-      // Cloud save
-      if (window.saveCloudState) {
-        await window.saveCloudState();
-      }
-      
-      console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
-    }
-    
-    // Update last sync time
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-    
-    return totalImported;
-    
-  } catch (error) {
-    console.error('Sync error:', error);
-    
-    // If auth error, might need to re-sign in
-    if (error.status === 401 || error.status === 403) {
-      const auth = gapi.auth2.getAuthInstance();
-      if (auth) {
-        await auth.signIn();
-        // Try again
-        return await syncFromTtsuGDrive();
-      }
-    }
-    
-    throw error;
-  }
-}
-
 // ============================================
 // Auto-Sync Management
 // ============================================
