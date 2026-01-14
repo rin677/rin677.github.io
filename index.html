@@ -1128,6 +1128,7 @@ body.theme-ereader .log-btn:hover {
     <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
   </div>
   <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
+  <input type="file" id="ttsuInput" style="display: none;" accept=".json" onchange="importTtsuData(event)">
 </header>
 
     <div class="controls">
@@ -1299,7 +1300,10 @@ Book title 2"></textarea>
       <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
       <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
       <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
-      <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
+<!-- In your menuModal, add this button after "Customise more" -->
+<button class="btn" onclick="openTtsuSyncSettings()" style="width: 100%; margin-bottom: 8px;">
+  🔄 ttsu Sync Settings
+</button>      <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
     </div>
     <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px; margin-bottom: 12px;">
   <button class="btn" onclick="openStatsSettings()" style="width: 100%;">⚙️ Customise more</button>
@@ -1360,6 +1364,27 @@ Book title 2"></textarea>
         <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked style="cursor: pointer;">
         <span style="font-size: 14px;">Total</span>
       </label>
+      <div class="modal" id="ttsuSyncModal">
+  <div class="modal-content">
+    <h2>ttsu Google Drive Sync</h2>
+    
+    <div id="ttsuSyncStatus" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
+      Status: <span id="ttsuSyncStatusText">Not configured</span>
+    </div>
+    
+    <button class="btn" onclick="setupTtsuSync()" style="width: 100%; margin-bottom: 8px;">
+      🔄 Setup ttsu Auto-Sync
+    </button>
+    <button class="btn" onclick="manualSyncTtsu()" style="width: 100%; margin-bottom: 8px;">
+      ⬇️ Sync Now
+    </button>
+    <button class="btn" onclick="disableTtsuSync()" style="width: 100%; margin-bottom: 8px; opacity: 0.7;">
+      ❌ Disable Sync
+    </button>
+    
+    <button class="btn" onclick="closeTtsuSyncModal()" style="width: 100%; margin-top: 12px;">Close</button>
+  </div>
+</div>
     </div>
     
     <button class="btn" onclick="closeStatsSettings()" style="width: 100%; margin-top: 16px;">Done</button>
@@ -1444,7 +1469,14 @@ Book title 2"></textarea>
       // Save preference
       localStorage.setItem(`show_${statName}`, checkbox.checked);
     }
-    
+    function openTtsuSyncSettings() {
+  document.getElementById('ttsuSyncModal').className = 'modal show';
+  closeMenu();
+}
+
+function closeTtsuSyncModal() {
+  document.getElementById('ttsuSyncModal').className = 'modal';
+}
     function loadStatVisibility() {
       const stats = ['longestStreak', 'currentStreak', 'average', 'avgSpeed', 'total'];
       stats.forEach(stat => {
@@ -2412,6 +2444,124 @@ async function deleteGoal(id) {
     window.recentBooks = recentBooks;
     window.currentUser = currentUser;
     window.currentYear = currentYear;
+
+// Add this to your HTML (in the settings modal after the other buttons):
+/*
+<input type="file" id="ttsuInput" style="display: none;" accept=".json" onchange="importTtsuData(event)">
+<button class="btn" onclick="document.getElementById('ttsuInput').click()" style="width: 100%; margin-bottom: 8px;">
+  📚 Import from ttsu
+</button>
+*/
+
+// Updated function to handle the ACTUAL ttsu export format
+async function importTtsuData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const ttsuData = JSON.parse(e.target.result);
+      
+      console.log('ttsu data structure:', ttsuData);
+      
+      if (!Array.isArray(ttsuData)) {
+        alert('Invalid ttsu export format. Expected an array of reading sessions.');
+        return;
+      }
+      
+      const transformedData = [];
+      let importedCount = 0;
+      const bookTitles = new Set();
+      
+      // ttsu exports an array of sessions with this structure:
+      // { title, dateKey, charactersRead, readingTime (in seconds), ... }
+      
+      ttsuData.forEach(session => {
+        // Skip sessions with no actual reading data
+        if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+          return;
+        }
+        
+        // Convert dateKey from "2025-11-23" format to ISO date
+        const date = session.dateKey;
+        
+        // Convert readingTime from seconds to minutes
+        const minutes = Math.round(session.readingTime / 60);
+        const characters = session.charactersRead || 0;
+        
+        // Skip if no meaningful data
+        if (minutes === 0 && characters === 0) {
+          return;
+        }
+        
+        // Check if this exact entry already exists (same date, title, and similar values)
+        const exists = window.data.some(entry => 
+          entry.date === date && 
+          entry.title === session.title &&
+          Math.abs(entry.minutes - minutes) < 2 && // Allow 2 min difference
+          Math.abs(entry.characters - characters) < 100 // Allow 100 char difference
+        );
+        
+        if (!exists) {
+          transformedData.push({
+            date: date,
+            minutes: minutes,
+            characters: characters,
+            title: session.title || 'Reading (from ttsu)'
+          });
+          importedCount++;
+          bookTitles.add(session.title);
+        }
+      });
+      
+      if (transformedData.length === 0) {
+        alert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.');
+        return;
+      }
+      
+      // Merge with existing data
+      window.data = [...window.data, ...transformedData];
+      data = window.data;
+      
+      // Add book titles to recent books
+      bookTitles.forEach(title => {
+        if (title && !window.recentBooks.includes(title)) {
+          window.recentBooks.unshift(title);
+        }
+      });
+      window.recentBooks = window.recentBooks.slice(0, 10);
+      recentBooks = window.recentBooks;
+      
+      // Save and update UI
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      renderGoals();
+      
+      // Trigger cloud save if available
+      if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+        await window.saveCloudState();
+      }
+      
+      closeMenu();
+      
+      const bookList = Array.from(bookTitles).join(', ');
+      alert(
+        `✅ Successfully imported ${importedCount} reading session(s) from ttsu!\n\n` +
+        `Books: ${bookList}\n\n` +
+        `Your heatmap has been updated.`
+      );
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      alert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = ''; // Reset file input
+}
   </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
@@ -2743,6 +2893,387 @@ async function loadLeaderboardData() {
   window.loadLeaderboardData = loadLeaderboardData;
   // Override promptSignIn to use Firebase
   window.promptSignIn = firebaseSignIn;
+
+  // ============================================
+// ttsu Google Drive Auto-Sync Integration
+// ============================================
+// Add this entire section to your webapp
+
+// Google Drive API Configuration
+// YOU NEED TO CREATE YOUR OWN:
+// 1. Go to https://console.cloud.google.com
+// 2. Create a new project
+// 3. Enable Google Drive API
+// 4. Create OAuth 2.0 credentials
+// 5. Add authorized JavaScript origins: your domain (e.g., https://yourdomain.com)
+// 6. Replace these values below:
+
+const GDRIVE_CONFIG = {
+  clientId: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
+  apiKey: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr',
+  discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+  scopes: 'https://www.googleapis.com/auth/drive.readonly'
+};
+
+// Storage keys
+const TTSU_SYNC_ENABLED_KEY = 'ttsu_sync_enabled';
+const TTSU_LAST_SYNC_KEY = 'ttsu_last_sync';
+const TTSU_FOLDER_ID_KEY = 'ttsu_folder_id';
+
+let gapiInitialized = false;
+let ttsuSyncInterval = null;
+
+// ============================================
+// Initialize Google Drive API
+// ============================================
+async function initGoogleDriveAPI() {
+  if (gapiInitialized) return true;
+  
+  return new Promise((resolve, reject) => {
+    if (typeof gapi === 'undefined') {
+      // Load Google API
+      const script = document.createElement('script');
+      script.src = 'https://apis.google.com/js/api.js';
+      script.onload = () => {
+        gapi.load('client:auth2', async () => {
+          try {
+            await gapi.client.init({
+              apiKey: GDRIVE_CONFIG.apiKey,
+              clientId: GDRIVE_CONFIG.clientId,
+              discoveryDocs: GDRIVE_CONFIG.discoveryDocs,
+              scope: GDRIVE_CONFIG.scopes
+            });
+            gapiInitialized = true;
+            resolve(true);
+          } catch (error) {
+            console.error('Google API init error:', error);
+            reject(error);
+          }
+        });
+      };
+      script.onerror = () => reject(new Error('Failed to load Google API'));
+      document.head.appendChild(script);
+    } else {
+      gapiInitialized = true;
+      resolve(true);
+    }
+  });
+}
+
+// ============================================
+// Setup ttsu Google Drive Sync
+// ============================================
+async function setupTtsuSync() {
+  try {
+    // Initialize Google Drive API
+    await initGoogleDriveAPI();
+    
+    // Sign in to Google
+    const auth = gapi.auth2.getAuthInstance();
+    if (!auth.isSignedIn.get()) {
+      await auth.signIn();
+    }
+    
+    // Find ttsu folder in Google Drive
+    const folderId = await findTtsuFolder();
+    
+    if (!folderId) {
+      alert('Could not find ttsu data folder in your Google Drive.\n\nMake sure ttsu has exported data to Google Drive first!');
+      return;
+    }
+    
+    // Save folder ID
+    localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
+    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
+    
+    // Do initial sync
+    await syncFromTtsuGDrive();
+    
+    // Start auto-sync every 5 minutes
+    startAutoSync();
+    
+    alert('✅ ttsu sync enabled!\n\nYour reading data will automatically sync from Google Drive every 5 minutes.');
+    closeMenu();
+    
+  } catch (error) {
+    console.error('Setup error:', error);
+    alert('Failed to setup ttsu sync:\n\n' + error.message);
+  }
+}
+
+// ============================================
+// Find ttsu Folder in Google Drive
+// ============================================
+async function findTtsuFolder() {
+  try {
+    // Search for ttsu folder
+    const response = await gapi.client.drive.files.list({
+      q: "mimeType='application/vnd.google-apps.folder' and (name='ttu-gdrive-default' or name='ttsu' or name='reader.ttsu.app')",
+      spaces: 'drive',
+      fields: 'files(id, name)'
+    });
+    
+    if (response.result.files && response.result.files.length > 0) {
+      return response.result.files[0].id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error finding ttsu folder:', error);
+    return null;
+  }
+}
+
+// ============================================
+// Sync Data from Google Drive
+// ============================================
+async function syncFromTtsuGDrive() {
+  try {
+    const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+    if (!folderId) {
+      throw new Error('ttsu folder not configured. Please run setup first.');
+    }
+    
+    // Initialize API if needed
+    await initGoogleDriveAPI();
+    
+    // Check if signed in
+    const auth = gapi.auth2.getAuthInstance();
+    if (!auth.isSignedIn.get()) {
+      await auth.signIn();
+    }
+    
+    // Find all JSON files in ttsu folder
+    const response = await gapi.client.drive.files.list({
+      q: `'${folderId}' in parents and mimeType='application/json'`,
+      spaces: 'drive',
+      fields: 'files(id, name, modifiedTime)',
+      orderBy: 'modifiedTime desc'
+    });
+    
+    const files = response.result.files || [];
+    
+    if (files.length === 0) {
+      console.log('No ttsu data files found');
+      return;
+    }
+    
+    let totalImported = 0;
+    const bookTitles = new Set();
+    
+    // Process each book's statistics file
+    for (const file of files) {
+      try {
+        // Download file content
+        const fileResponse = await gapi.client.drive.files.get({
+          fileId: file.id,
+          alt: 'media'
+        });
+        
+        const ttsuData = JSON.parse(fileResponse.body);
+        
+        if (!Array.isArray(ttsuData)) continue;
+        
+        // Transform and import data
+        ttsuData.forEach(session => {
+          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+            return;
+          }
+          
+          const date = session.dateKey;
+          const minutes = Math.round(session.readingTime / 60);
+          const characters = session.charactersRead || 0;
+          
+          if (minutes === 0 && characters === 0) return;
+          
+          // Check if exists
+          const exists = window.data.some(entry => 
+            entry.date === date && 
+            entry.title === session.title &&
+            Math.abs(entry.minutes - minutes) < 2 &&
+            Math.abs(entry.characters - characters) < 100
+          );
+          
+          if (!exists) {
+            window.data.push({
+              date: date,
+              minutes: minutes,
+              characters: characters,
+              title: session.title || 'Reading'
+            });
+            totalImported++;
+            bookTitles.add(session.title);
+          }
+        });
+        
+      } catch (fileError) {
+        console.error('Error processing file:', file.name, fileError);
+      }
+    }
+    
+    if (totalImported > 0) {
+      // Update recent books
+      bookTitles.forEach(title => {
+        if (title && !window.recentBooks.includes(title)) {
+          window.recentBooks.unshift(title);
+        }
+      });
+      window.recentBooks = window.recentBooks.slice(0, 10);
+      recentBooks = window.recentBooks;
+      
+      // Sync with local variables
+      data = window.data;
+      
+      // Save and update
+      await saveToStorage();
+      aggregateData();
+      loadYear();
+      renderGoals();
+      
+      // Cloud save
+      if (window.saveCloudState) {
+        await window.saveCloudState();
+      }
+      
+      console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
+    }
+    
+    // Update last sync time
+    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+    
+    return totalImported;
+    
+  } catch (error) {
+    console.error('Sync error:', error);
+    
+    // If auth error, might need to re-sign in
+    if (error.status === 401 || error.status === 403) {
+      const auth = gapi.auth2.getAuthInstance();
+      if (auth) {
+        await auth.signIn();
+        // Try again
+        return await syncFromTtsuGDrive();
+      }
+    }
+    
+    throw error;
+  }
+}
+
+// ============================================
+// Auto-Sync Management
+// ============================================
+function startAutoSync() {
+  if (ttsuSyncInterval) {
+    clearInterval(ttsuSyncInterval);
+  }
+  
+  // Sync every 5 minutes
+  ttsuSyncInterval = setInterval(async () => {
+    try {
+      const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
+      if (enabled) {
+        console.log('Auto-syncing from ttsu...');
+        await syncFromTtsuGDrive();
+      }
+    } catch (error) {
+      console.error('Auto-sync error:', error);
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+}
+
+function stopAutoSync() {
+  if (ttsuSyncInterval) {
+    clearInterval(ttsuSyncInterval);
+    ttsuSyncInterval = null;
+  }
+  localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'false');
+}
+
+// ============================================
+// Manual Sync Button
+// ============================================
+async function manualSyncTtsu() {
+  const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
+  
+  if (!enabled) {
+    alert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Sync" first.');
+    return;
+  }
+  
+  try {
+    const count = await syncFromTtsuGDrive();
+    
+    const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
+    const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
+    
+    alert(
+      `✅ Sync complete!\n\n` +
+      `New sessions imported: ${count || 0}\n` +
+      `Last sync: ${lastSyncStr}`
+    );
+  } catch (error) {
+    alert('Sync failed:\n\n' + error.message);
+  }
+}
+
+// ============================================
+// Disable Sync
+// ============================================
+function disableTtsuSync() {
+  if (confirm('Disable automatic ttsu sync from Google Drive?')) {
+    stopAutoSync();
+    localStorage.removeItem(TTSU_SYNC_ENABLED_KEY);
+    localStorage.removeItem(TTSU_FOLDER_ID_KEY);
+    alert('ttsu sync disabled.');
+  }
+}
+
+// ============================================
+// Check Sync Status
+// ============================================
+function checkTtsuSyncStatus() {
+  const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
+  const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
+  
+  if (!enabled) {
+    return 'Not configured';
+  }
+  
+  if (!lastSync) {
+    return 'Enabled (not synced yet)';
+  }
+  
+  const lastSyncDate = new Date(lastSync);
+  const now = new Date();
+  const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
+  
+  if (diffMinutes < 1) {
+    return 'Just synced';
+  } else if (diffMinutes < 60) {
+    return `Last synced ${diffMinutes} min ago`;
+  } else {
+    return `Last synced ${Math.floor(diffMinutes / 60)}h ago`;
+  }
+}
+
+// ============================================
+// Initialize on page load
+// ============================================
+window.addEventListener('load', () => {
+  const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
+  if (enabled) {
+    startAutoSync();
+    console.log('ttsu auto-sync enabled');
+  }
+});
+
+// Make functions globally available
+window.setupTtsuSync = setupTtsuSync;
+window.syncFromTtsuGDrive = syncFromTtsuGDrive;
+window.manualSyncTtsu = manualSyncTtsu;
+window.disableTtsuSync = disableTtsuSync;
+window.checkTtsuSyncStatus = checkTtsuSyncStatus;
 </script>
 
 </body>
