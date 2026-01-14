@@ -1897,23 +1897,49 @@ function updateStats() {
   currentStreak = streak;
 
   // Calculate average reading speed (characters per hour)
-  // Only include entries with characters > 0
-  let totalMinutesWithChars = 0;
-  let totalCharactersWithChars = 0;
+  // Only include days that have characters > 0 to avoid skew by time-only entries
 
-  Object.values(dailyData).forEach(day => {
+  // Global (all-time) avg speed over dailyData
+  let globalMinutesWithChars = 0;
+  let globalCharactersWithChars = 0;
+
+  Object.entries(dailyData).forEach(([dateStr, day]) => {
     const hasChars = (day.characters || 0) > 0;
     if (hasChars) {
-      totalMinutesWithChars += day.minutes || 0;
-      totalCharactersWithChars += day.characters || 0;
+      globalMinutesWithChars += day.minutes || 0;
+      globalCharactersWithChars += day.characters || 0;
     }
   });
 
-  const totalHoursWithChars = totalMinutesWithChars / 60;
-  const avgSpeed = totalHoursWithChars > 0
-    ? Math.round(totalCharactersWithChars / totalHoursWithChars)
+  const globalHoursWithChars = globalMinutesWithChars / 60;
+  const globalAvgSpeed = globalHoursWithChars > 0
+    ? Math.round(globalCharactersWithChars / globalHoursWithChars)
     : 0;
-  document.getElementById('avgSpeed').textContent = avgSpeed.toLocaleString() + ' char/hr';
+
+  // Year-scoped avg speed for currentYear
+  let yearMinutesWithChars = 0;
+  let yearCharactersWithChars = 0;
+
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split('T')[0];
+    const day = dailyData[dateStr];
+    if (!day) continue;
+    const hasChars = (day.characters || 0) > 0;
+    if (hasChars) {
+      yearMinutesWithChars += day.minutes || 0;
+      yearCharactersWithChars += day.characters || 0;
+    }
+  }
+
+  const yearHoursWithChars = yearMinutesWithChars / 60;
+  const yearAvgSpeed = yearHoursWithChars > 0
+    ? Math.round(yearCharactersWithChars / yearHoursWithChars)
+    : 0;
+
+  // Display the year average speed in the UI (preferred)
+  document.getElementById('avgSpeed').textContent = yearAvgSpeed.toLocaleString() + ' char/hr';
+  // If you want to display the global instead, swap to:
+  // document.getElementById('avgSpeed').textContent = globalAvgSpeed.toLocaleString() + ' char/hr';
 
   // Calculate average only from first logged day
   let firstLoggedDate = null;
