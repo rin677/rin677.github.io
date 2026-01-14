@@ -577,18 +577,27 @@ body.theme-ereader .log-btn:hover {
     }
 
     .day {
-      width: 14px;
-      height: 14px;
-      border-radius: 2px;
-      cursor: pointer;
-      transition: all 0.15s;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-    }
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
 
-    .day.empty {
-      background: var(--level-0);
-      border: 1px solid var(--border-color);
-    }
+.day.empty {
+  background: var(--level-0);
+  border: 1px solid var(--border-color);
+}
+
+.day.invisible {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+  opacity: 0;
+}
 
     .day.level-1 { background: var(--level-1); }
     .day.level-2 { background: var(--level-2); }
@@ -1843,31 +1852,41 @@ while (currentDate <= endDate) {
         }
         
         const dayDiv = document.createElement('div');
-        dayDiv.className = 'day';
-        
-        const dateStr = currentDate.toISOString().split('T')[0];
-        const today = getAustralianDate();
-        
-        if (dateStr === today) {
-          dayDiv.classList.add('today');
-        }
-        
-        const dayData = dailyData[dateStr];
-        
-        if (dayData) {
-          const value = dayData[metric];
-          const level = getLevel(value, metric);
-          dayDiv.className += ` level-${level}`;
-        } else {
-          dayDiv.className += ' empty';
-        }
-        
-        dayDiv.dataset.date = dateStr;
-        dayDiv.addEventListener('mouseenter', showTooltip);
-        dayDiv.addEventListener('mouseleave', hideTooltip);
-        dayDiv.addEventListener('click', () => openModal(dateStr));
-        
-        weekDiv.appendChild(dayDiv);
+dayDiv.className = 'day';
+
+const dateStr = currentDate.toISOString().split('T')[0];
+const today = getAustralianDate();
+const now = new Date();
+const isFutureDate = currentDate > now;
+
+// Make future dates invisible and non-interactive
+if (isFutureDate) {
+  dayDiv.classList.add('invisible');
+  weekDiv.appendChild(dayDiv);
+  currentDate.setDate(currentDate.getDate() + 1);
+  continue;
+}
+
+if (dateStr === today) {
+  dayDiv.classList.add('today');
+}
+
+const dayData = dailyData[dateStr];
+
+if (dayData) {
+  const value = dayData[metric];
+  const level = getLevel(value, metric);
+  dayDiv.className += ` level-${level}`;
+} else {
+  dayDiv.className += ' empty';
+}
+
+dayDiv.dataset.date = dateStr;
+dayDiv.addEventListener('mouseenter', showTooltip);
+dayDiv.addEventListener('mouseleave', hideTooltip);
+dayDiv.addEventListener('click', () => openModal(dateStr));
+
+weekDiv.appendChild(dayDiv);
         
         if (dayOfWeekMonday === 6) {
           const weeksContainer = monthDiv.querySelector('.weeks');
