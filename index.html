@@ -1515,9 +1515,21 @@ Book title 2"></textarea>
       localStorage.setItem(`show_${statName}`, checkbox.checked);
     }
     function openTtsuSyncSettings() {
-  document.getElementById('ttsuSyncModal').className = 'modal show';
+  const modal = document.getElementById('ttsuSyncModal');
+  const statusEl = document.getElementById('ttsuSyncStatusText');
+
+  // Compute status
+  const statusText = checkTtsuSyncStatus();
+  statusEl.textContent = statusText;
+  statusEl.style.color = statusText.toLowerCase().startsWith('success')
+    ? 'var(--accent-color)'
+    : 'var(--text-secondary)';
+
+  // Show modal
+  modal.className = 'modal show';
   closeMenu();
 }
+
 
 function closeTtsuSyncModal() {
   document.getElementById('ttsuSyncModal').className = 'modal';
@@ -2293,9 +2305,7 @@ document.getElementById('statsModal').addEventListener('click', (e) => {
     });
     document.getElementById('menuModal').addEventListener('click', (e) => {
       if (e.target.id === 'menuModal') closeMenu();
-    });
-   
-    // Close when clicking outside modal-content (ttsu settings)
+    }); // Close when clicking outside modal-content (ttsu settings)
 document.getElementById('ttsuSyncModal').addEventListener('click', (e) => {
   if (e.target.id === 'ttsuSyncModal') {
     closeTtsuSyncModal();
@@ -3106,7 +3116,13 @@ async function setupTtsuSync() {
     
     alert('✅ ttsu sync enabled!\n\nYour reading data will automatically sync from Google Drive every 5 minutes.');
     closeTtsuSyncModal();
-    
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+if (statusEl) {
+  const s = checkTtsuSyncStatus();
+  statusEl.textContent = s;
+  statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+}
+
   } catch (error) {
     console.error('Setup error:', error);
     alert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)));
@@ -3322,6 +3338,13 @@ async function manualSyncTtsu() {
       `New sessions imported: ${count || 0}\n` +
       `Last sync: ${lastSyncStr}`
     );
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+if (statusEl) {
+  const s = checkTtsuSyncStatus();
+  statusEl.textContent = s;
+  statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+}
+
   } catch (error) {
     alert('Sync failed:\n\n' + error.message);
   }
@@ -3334,25 +3357,34 @@ function disableTtsuSync() {
     localStorage.removeItem(TTSU_FOLDER_ID_KEY);
     alert('ttsu sync disabled.');
   }
+  const statusEl = document.getElementById('ttsuSyncStatusText');
+if (statusEl) {
+  const s = checkTtsuSyncStatus();
+  statusEl.textContent = s;
+  statusEl.style.color = s.toLowerCase().startsWith('success') ? 'var(--accent-color)' : 'var(--text-secondary)';
+}
+
 }
 
 function checkTtsuSyncStatus() {
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
+  const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
   const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
-  
-  if (!enabled) {
+
+  // Not configured unless both enabled and a folderId exist
+  if (!enabled || !folderId) {
     return 'Not configured';
   }
-  
-  // If enabled, report Success (then append recency info if available)
+
+  // Configured → Success (append recency if available)
   if (!lastSync) {
     return 'Success (not synced yet)';
   }
-  
+
   const lastSyncDate = new Date(lastSync);
   const now = new Date();
   const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
-  
+
   if (diffMinutes < 1) {
     return 'Success (just synced)';
   } else if (diffMinutes < 60) {
