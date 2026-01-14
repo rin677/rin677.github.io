@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ReadingTracker</title>
+  <title>Reading Heatmap</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='30' r='12' fill='%2326a641'/%3E%3Cpath d='M 50 42 L 45 55 L 40 75 M 50 42 L 55 55 L 60 75' stroke='%2326a641' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Crect x='25' y='50' width='20' height='28' rx='2' fill='%23c9d1d9' opacity='0.9'/%3E%3Crect x='55' y='50' width='20' height='28' rx='2' fill='%23c9d1d9' opacity='0.9'/%3E%3Crect x='48' y='50' width='4' height='28' fill='%2326a641'/%3E%3Cpath d='M 38 48 Q 32 50 28 52' stroke='%2326a641' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M 62 48 Q 68 50 72 52' stroke='%2326a641' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
 
@@ -1115,36 +1116,7 @@ body.theme-ereader .log-btn:hover {
 <body>
   <div class="container">
     <header>
-  <div style="display: flex; align-items: center; gap: 12px;">
-    <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <!-- Person's head -->
-      <circle cx="50" cy="30" r="12" fill="var(--accent-color)"/>
-      
-      <!-- Person's body -->
-      <path d="M 50 42 L 45 55 L 40 75 M 50 42 L 55 55 L 60 75" 
-            stroke="var(--accent-color)" stroke-width="4" fill="none" stroke-linecap="round"/>
-      
-      <!-- Book pages (left page) -->
-      <rect x="25" y="50" width="20" height="28" rx="2" fill="var(--text-primary)" opacity="0.9"/>
-      <line x1="30" y1="56" x2="40" y2="56" stroke="var(--text-secondary)" stroke-width="1.5"/>
-      <line x1="30" y1="61" x2="40" y2="61" stroke="var(--text-secondary)" stroke-width="1.5"/>
-      <line x1="30" y1="66" x2="38" y2="66" stroke="var(--text-secondary)" stroke-width="1.5"/>
-      
-      <!-- Book pages (right page) -->
-      <rect x="55" y="50" width="20" height="28" rx="2" fill="var(--text-primary)" opacity="0.9"/>
-      <line x1="60" y1="56" x2="70" y2="56" stroke="var(--text-secondary)" stroke-width="1.5"/>
-      <line x1="60" y1="61" x2="70" y2="61" stroke="var(--text-secondary)" stroke-width="1.5"/>
-      <line x1="60" y1="66" x2="68" y2="66" stroke="var(--text-secondary)" stroke-width="1.5"/>
-      
-      <!-- Book spine -->
-      <rect x="48" y="50" width="4" height="28" fill="var(--accent-color)"/>
-      
-      <!-- Arms holding book -->
-      <path d="M 38 48 Q 32 50 28 52" stroke="var(--accent-color)" stroke-width="3" fill="none" stroke-linecap="round"/>
-      <path d="M 62 48 Q 68 50 72 52" stroke="var(--accent-color)" stroke-width="3" fill="none" stroke-linecap="round"/>
-    </svg>
     <h1>読書</h1>
-  </div>
       <div class="header-actions">
     <div id="authSection"></div>
     <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
@@ -1193,7 +1165,7 @@ body.theme-ereader .log-btn:hover {
           </div>
           <div class="stat-line">
             <span>Avg speed:</span>
-            <span class="stat-value" id="avgSpeed">0 char/min</span>
+            <span class="stat-value" id="avgSpeed">0 char/hr</span>
           </div>
           <div class="stat-line">
             <span>Total:</span>
@@ -1591,15 +1563,18 @@ function signOut() {
       let weekDiv = null;
       let monthDiv = null;
       
-      // Get the day of week for Jan 1 (0=Sun, 1=Mon, etc.)
+      // Get the day of week for Jan 1 (0=Sun, 1=Mon, 6=Sat)
 const startDay = startDate.getDay();
+// Convert to Monday-based (Mon=0, Sun=6)
+const startDayMonday = startDay === 0 ? 6 : startDay - 1;
 let isFirstWeek = true;
 
 while (currentDate <= endDate) {
   const dayOfWeek = currentDate.getDay();
+  const dayOfWeekMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  // Start a new week on Sunday
-  if (dayOfWeek === 0 || !weekDiv) {
+  // Start a new week on Monday
+  if (dayOfWeekMonday === 0 || !weekDiv) {
     if (weekDiv && monthDiv) {
       const weeksContainer = monthDiv.querySelector('.weeks');
       if (weeksContainer) {
@@ -1611,9 +1586,8 @@ while (currentDate <= endDate) {
     weekDiv.className = 'week';
     
     // Add offset for the first week to align with day labels
-    if (isFirstWeek && startDay !== 0) {
-      weekDiv.className += ' partial-start';
-      weekDiv.style.setProperty('--offset', startDay);
+    if (isFirstWeek && startDayMonday > 0) {
+      weekDiv.style.paddingTop = `calc(${startDayMonday} * (14px + 5px))`;
       isFirstWeek = false;
     }
   }
@@ -1663,7 +1637,7 @@ while (currentDate <= endDate) {
         
         weekDiv.appendChild(dayDiv);
         
-        if (currentDate.getDay() === 6) {
+        if (dayOfWeekMonday === 6) {
           const weeksContainer = monthDiv.querySelector('.weeks');
           if (weeksContainer) {
             weeksContainer.appendChild(weekDiv);
@@ -1776,8 +1750,9 @@ Object.values(dailyData).forEach(day => {
   totalCharacters += day.characters || 0;
 });
 
-const avgSpeed = totalMinutes > 0 ? Math.round(totalCharacters / totalMinutes) : 0;
-document.getElementById('avgSpeed').textContent = avgSpeed.toLocaleString() + ' char/min';
+const totalHours = totalMinutes / 60;
+const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
+document.getElementById('avgSpeed').textContent = avgSpeed.toLocaleString() + ' char/hr';
       // Calculate average only from first logged day
 let firstLoggedDate = null;
 Object.keys(dailyData).forEach(dateStr => {
@@ -2174,7 +2149,14 @@ const avg = daysToCount > 0 ? total / daysToCount : 0;
         }[goal.type];
         
         const isAchieved = progress.current >= goal.target;
+const wasAchievedBefore = goal.wasAchieved || false;
 const achievedStyle = isAchieved ? 'background: var(--accent-color); color: #ffffff; border-radius: 6px; padding: 8px;' : '';
+
+// Trigger confetti if newly achieved
+if (isAchieved && !wasAchievedBefore) {
+  goal.wasAchieved = true;
+  setTimeout(() => createConfetti(), 100);
+}
 
 goalDiv.innerHTML = `
   <div style="flex: 1; ${achievedStyle}">
@@ -2189,10 +2171,6 @@ goalDiv.innerHTML = `
   </div>
   <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
 `;
-        
-        container.appendChild(goalDiv);
-      });
-    }
     
     function calculateGoalProgress(goal) {
       const today = getAustralianDate();
@@ -2625,6 +2603,48 @@ async function loadLeaderboardData() {
   } catch (error) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
     console.error('Leaderboard error details:', error);
+  }
+}
+// Confetti animation
+function createConfetti() {
+  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#a29bfe'];
+  const confettiCount = 50;
+  
+  for (let i = 0; i < confettiCount; i++) {
+    const confetti = document.createElement('div');
+    confetti.style.position = 'fixed';
+    confetti.style.width = '10px';
+    confetti.style.height = '10px';
+    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.left = Math.random() * 100 + '%';
+    confetti.style.top = '-10px';
+    confetti.style.opacity = '1';
+    confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+    confetti.style.zIndex = '10000';
+    confetti.style.pointerEvents = 'none';
+    confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+    
+    document.body.appendChild(confetti);
+    
+    const duration = 3000 + Math.random() * 2000;
+    const startTime = Date.now();
+    const xMovement = (Math.random() - 0.5) * 200;
+    
+    function animate() {
+      const elapsed = Date.now() - startTime;
+      const progress = elapsed / duration;
+      
+      if (progress < 1) {
+        confetti.style.top = (progress * 100 + 10) + 'vh';
+        confetti.style.transform = `translateX(${xMovement * Math.sin(progress * Math.PI * 2)}px) rotate(${progress * 720}deg)`;
+        confetti.style.opacity = 1 - progress;
+        requestAnimationFrame(animate);
+      } else {
+        confetti.remove();
+      }
+    }
+    
+    animate();
   }
 }
   // Make functions globally available
