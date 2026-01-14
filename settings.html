@@ -560,6 +560,7 @@ async function updateBackupRetention() {
   await customAlert('Backup retention updated to: ' + retention + ' backups', 'Settings Updated');
 }
 
+// filename: settings.html - replace createManualBackup entirely
 async function createManualBackup() {
   try {
     const backups = getBackups();
@@ -574,18 +575,18 @@ async function createManualBackup() {
     };
     
     backups.push(backup);
-    
-    // Apply retention policy
+
+    // Sort newest-first and apply retention correctly
+    backups.sort((a, b) => b.timestamp - a.timestamp);
     if (retention !== 'all') {
       const maxBackups = parseInt(retention);
       if (backups.length > maxBackups) {
-        backups.sort((a, b) => b.timestamp - a.timestamp);
         backups.splice(maxBackups);
       }
     }
     
     localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    localStorage.setItem(LAST_BACKUP_KEY, backup.timestamp.toString());
+    localStorage.setItem(LAST_BACKUP_KEY, String(backup.timestamp));
     
     // Update display immediately
     const date = new Date(backup.timestamp);
@@ -600,6 +601,8 @@ async function createManualBackup() {
     await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
   }
 }
+
+
 
 async function viewBackups() {
   const backups = getBackups();
@@ -645,6 +648,7 @@ function closeViewBackupsModal() {
   document.getElementById('viewBackupsModal').style.display = 'none';
 }
 
+// filename: settings.html - replace restoreBackup entirely
 async function restoreBackup(index) {
   const backups = getBackups();
   if (index < 0 || index >= backups.length) {
@@ -667,6 +671,8 @@ async function restoreBackup(index) {
     localStorage.setItem(GOALS_KEY, JSON.stringify(backup.goals || []));
     localStorage.setItem(BOOKS_KEY, JSON.stringify(backup.recentBooks || []));
     
+    // Keep last backup timestamp as-is; refresh UI
+    loadBackupSettings();
     closeViewBackupsModal();
     await customAlert('Backup restored successfully!\n\nReturn to the main page to see your restored data.', 'Restore Complete');
   } catch (error) {
@@ -674,6 +680,7 @@ async function restoreBackup(index) {
     await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
   }
 }
+
 
 function downloadBackup(index) {
   const backups = getBackups();
@@ -702,6 +709,7 @@ function downloadBackup(index) {
   URL.revokeObjectURL(url);
 }
 
+// filename: settings.html - replace deleteBackup entirely
 async function deleteBackup(index) {
   const confirmed = await customConfirm(
     'Delete this backup?\n\nThis action cannot be undone.',
@@ -715,7 +723,11 @@ async function deleteBackup(index) {
     backups.splice(index, 1);
     localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
     
-    // Refresh the view
+    // Update last backup time to latest remaining
+    const latest = backups.sort((a,b)=>b.timestamp-a.timestamp)[0];
+    localStorage.setItem(LAST_BACKUP_KEY, latest ? String(latest.timestamp) : '');
+    loadBackupSettings();
+    
     viewBackups();
     await customAlert('Backup deleted successfully.', 'Backup Deleted');
   } catch (error) {
@@ -723,6 +735,7 @@ async function deleteBackup(index) {
     await customAlert('Failed to delete backup: ' + error.message, 'Delete Error');
   }
 }
+
 
 // Load ttsu sync status
 function loadTtsuSyncStatus() {
@@ -974,42 +987,58 @@ document.getElementById('ttsuInput').addEventListener('change', async (event) =>
   event.target.value = '';
 });
 
+// filename: index.html - replace wipeAllData entirely
 async function wipeAllData() {
   const firstConfirm = await customConfirm(
-    'Are you sure you want to delete all reading data?\n\nThis will delete:\n• All reading entries\n• All goals\n• Recent books list\n• All backups\n\nThis will NOT delete:\n• Theme settings\n• Statistics visibility settings\n• ttsu sync settings\n\nThis action cannot be undone.',
-    'Delete All Reading Data'
+    'Are you sure? This will permanently delete all reading data, goals, recent books, backups, and visibility preferences.\n\nThis action cannot be undone.',
+    'Wipe All Data'
   );
-  
   if (!firstConfirm) return;
   
   const secondConfirm = await customConfirm(
-    'FINAL CONFIRMATION\n\nAll reading data will be permanently deleted.\n\nClick OK to proceed or Cancel to abort.',
+    'Really delete ALL data? Click OK to confirm.',
     'Final Confirmation'
   );
-  
   if (!secondConfirm) return;
   
   try {
-    // Only clear reading data, goals, books, and backups
+    const STORAGE_KEY = 'reading_heatmap_data';
+    const GOALS_KEY = 'reading_heatmap_goals';
+    const BOOKS_KEY = 'reading_heatmap_books';
+    const BACKUPS_KEY = 'reading_heatmap_backups';
+    const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
+    
+    // Clear app data
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
     localStorage.removeItem(BACKUPS_KEY);
     localStorage.removeItem(LAST_BACKUP_KEY);
+    localStorage.removeItem('show_longestStreak');
+    localStorage.removeItem('show_currentStreak');
+    localStorage.removeItem('show_average');
+    localStorage.removeItem('show_avgSpeed');
+    localStorage.removeItem('show_total');
+    localStorage.removeItem('selectedMetric');
     
-    // Do NOT remove: theme, stat visibility, ttsu sync, backup settings
+    // Reset in-memory state
+    window.data = [];
+    window.dailyData = {};
+    window.goals = [];
+    window.recentBooks = [];
+    aggregateData();
+    loadYear();
+    renderGoals();
     
-    await customAlert('All reading data has been deleted.\n\nYour settings have been preserved.\n\nReturning to main page...', 'Data Deleted');
+    await customAlert('All data has been wiped. Reloading…', 'Data Wiped');
     
-    // Redirect to main page after delay
-    setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 1500);
+    // Hard reload to ensure clean state
+    window.location.reload();
   } catch (error) {
-    console.error('Delete error:', error);
-    await customAlert('Failed to delete data: ' + error.message, 'Error');
+    await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }
 }
+
 
 window.onload = function() {
   loadTheme();

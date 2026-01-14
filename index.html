@@ -2521,33 +2521,139 @@ async function deleteGoal(id) {
       }
     }
     
-  async function loadLeaderboard() {
+// filename: index.html (Firebase module script) - replace loadLeaderboardData entirely
+async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
-  
-  if (!currentUser && !window.currentUser) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Sign in to view the leaderboard and compete with others!</div>';
-    return;
-  }
+  const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
   
   try {
-    // Check if saveCloudState exists (means Firebase is loaded)
-    if (!window.saveCloudState) {
-      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
+    const leaderboardRef = collection(db, 'leaderboard');
+    const snapshot = await getDocs(leaderboardRef);
+    
+    const leaderboardData = [];
+    snapshot.forEach((docSnap) => {
+      const d = docSnap.data();
+      if ((metric === 'minutes' && d.totalMinutes > 0) ||
+          (metric === 'characters' && d.totalCharacters > 0) ||
+          (metric === 'speed' && d.avgSpeed > 0)) {
+        leaderboardData.push(d);
+      }
+    });
+    
+    if (leaderboardData.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
       return;
     }
-
-    // Use the global loadLeaderboardData function from Firebase module
-    if (window.loadLeaderboardData) {
-      await window.loadLeaderboardData();
-    } else {
-      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Leaderboard not available. Please refresh the page.</div>';
+    
+    if (metric === 'minutes') {
+      leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+    } else if (metric === 'characters') {
+      leaderboardData.sort((a, b) => b.totalCharacters - a.totalCharacters);
+    } else if (metric === 'speed') {
+      leaderboardData.sort((a, b) => b.avgSpeed - a.avgSpeed);
+    }
+    
+    let userPosition = -1;
+    if (window.currentUser) {
+      userPosition = leaderboardData.findIndex(entry => entry.userId === window.currentUser.id);
+    }
+    
+    const showAll = container.dataset.showAll === 'true';
+    const displayCount = showAll ? leaderboardData.length : 10;
+    
+    container.innerHTML = '';
+    
+    leaderboardData.slice(0, displayCount).forEach((entry, index) => {
+      const rankDiv = document.createElement('div');
+      rankDiv.className = 'leaderboard-entry';
+      const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
+      if (isCurrentUser) {
+        rankDiv.style.background = 'var(--accent-color)';
+        rankDiv.style.color = '#ffffff';
+        rankDiv.style.fontWeight = '600';
+      }
+      
+      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
+      
+      let displayValue;
+      if (metric === 'minutes') {
+        displayValue = `${entry.totalMinutes.toLocaleString()} min`;
+      } else if (metric === 'characters') {
+        displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
+      } else if (metric === 'speed') {
+        displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
+      }
+      
+      rankDiv.innerHTML = `
+        <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
+        <div class="leaderboard-user">
+          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
+          <span>${entry.name}${isCurrentUser ? ' (You)' : ''}</span>
+        </div>
+        <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
+      `;
+      
+      container.appendChild(rankDiv);
+    });
+    
+    if (leaderboardData.length > 10) {
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'btn';
+      toggleBtn.style.width = '100%';
+      toggleBtn.style.marginTop = '12px';
+      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${leaderboardData.length - 10} more)`;
+      toggleBtn.onclick = () => {
+        container.dataset.showAll = showAll ? 'false' : 'true';
+        loadLeaderboardData();
+      };
+      container.appendChild(toggleBtn);
+    }
+    
+    if (!showAll && userPosition >= 10 && window.currentUser) {
+      const userEntry = leaderboardData[userPosition];
+      const separatorDiv = document.createElement('div');
+      separatorDiv.style.margin = '16px 0 8px 0';
+      separatorDiv.style.padding = '8px 0';
+      separatorDiv.style.borderTop = '2px dashed var(--border-color)';
+      separatorDiv.style.color = 'var(--text-secondary)';
+      separatorDiv.style.textAlign = 'center';
+      separatorDiv.style.fontSize = '12px';
+      separatorDiv.textContent = 'Your Position';
+      container.appendChild(separatorDiv);
+      
+      const userRankDiv = document.createElement('div');
+      userRankDiv.className = 'leaderboard-entry';
+      userRankDiv.style.background = 'var(--accent-color)';
+      userRankDiv.style.color = '#ffffff';
+      userRankDiv.style.fontWeight = '600';
+      
+      let displayValue;
+      if (metric === 'minutes') {
+        displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
+      } else if (metric === 'characters') {
+        displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
+      } else if (metric === 'speed') {
+        displayValue = `${userEntry.avgSpeed.toLocaleString()} char/hr`;
+      }
+      
+      userRankDiv.innerHTML = `
+        <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
+        <div class="leaderboard-user">
+          <img src="${userEntry.avatar}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
+          <span>${userEntry.name} (You)</span>
+        </div>
+        <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
+      `;
+      
+      container.appendChild(userRankDiv);
     }
     
   } catch (error) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Failed to load leaderboard data.</div>';
-    console.error('Leaderboard error:', error);
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
+    console.error('Leaderboard error details:', error);
   }
 }
+
 // Make all functions globally available
     window.aggregateData = aggregateData;
     window.loadYear = loadYear;
