@@ -327,21 +327,17 @@ function updateStatistics() {
   // Create filteredData with ALL dates in range, including empty days
   const filteredData = {};
 
-  // For "all time", just use the actual data without filling gaps
   if (timeRange === 'all') {
-    // Get the earliest and latest dates from actual data
     const allDataDates = Object.keys(dailyData).sort();
     if (allDataDates.length > 0) {
       const firstDate = new Date(allDataDates[0]);
       const lastDate = new Date(allDataDates[allDataDates.length - 1]);
-      
       for (let d = new Date(firstDate); d <= lastDate; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
         filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
       }
     }
   } else {
-    // For specific time ranges, fill all days
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
       filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
@@ -359,13 +355,40 @@ function updateStatistics() {
       readingDays++;
     }
   });
-  
-  const totalHours = totalMinutes / 60;
-  const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;
-  
+
+  // Average speed over the selected range, excluding time-only days
+  let rangeMinutesWithChars = 0;
+  let rangeCharactersWithChars = 0;
+  Object.values(filteredData).forEach(day => {
+    const hasChars = (day.characters || 0) > 0;
+    if (hasChars) {
+      rangeMinutesWithChars += day.minutes || 0;
+      rangeCharactersWithChars += day.characters || 0;
+    }
+  });
+  const rangeHoursWithChars = rangeMinutesWithChars / 60;
+  const avgSpeedRange = rangeHoursWithChars > 0
+    ? Math.round(rangeCharactersWithChars / rangeHoursWithChars)
+    : 0;
+
+  // Optional: global avg speed across all data, excluding time-only days
+  let globalMinutesWithChars = 0;
+  let globalCharactersWithChars = 0;
+  Object.values(dailyData).forEach(day => {
+    const hasChars = (day.characters || 0) > 0;
+    if (hasChars) {
+      globalMinutesWithChars += day.minutes || 0;
+      globalCharactersWithChars += day.characters || 0;
+    }
+  });
+  const globalHoursWithChars = globalMinutesWithChars / 60;
+  const globalAvgSpeed = globalHoursWithChars > 0
+    ? Math.round(globalCharactersWithChars / globalHoursWithChars)
+    : 0;
+
   document.getElementById('statTotalMinutes').textContent = totalMinutes.toLocaleString() + ' min';
   document.getElementById('statTotalChars').textContent = totalCharacters.toLocaleString();
-  document.getElementById('statAvgSpeed').textContent = avgSpeed.toLocaleString() + ' ch/hr';
+  document.getElementById('statAvgSpeed').textContent = avgSpeedRange.toLocaleString() + ' ch/hr';
   document.getElementById('statReadingDays').textContent = readingDays;
   
   renderSpeedChart(filteredData);
@@ -375,6 +398,7 @@ function updateStatistics() {
   renderTopBooks(filteredData);
   renderConsistencyChart(filteredData);
 }
+
 
 let chartInstances = {};
 
