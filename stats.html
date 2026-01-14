@@ -29,7 +29,99 @@
       padding: 40px 20px;
       min-height: 100vh;
     }
-    
+    body.theme-nord {
+  --bg-primary: #2e3440;
+  --bg-secondary: #3b4252;
+  --bg-tertiary: #434c5e;
+  --border-color: #4c566a;
+  --text-primary: #eceff4;
+  --text-secondary: #d8dee9;
+  --accent-color: #88c0d0;
+  --accent-hover: #8fbcbb;
+}
+
+body.theme-tokyo {
+  --bg-primary: #1a1b26;
+  --bg-secondary: #16161e;
+  --bg-tertiary: #24283b;
+  --border-color: #414868;
+  --text-primary: #a9b1d6;
+  --text-secondary: #565f89;
+  --accent-color: #7aa2f7;
+  --accent-hover: #7dcfff;
+}
+
+body.theme-dracula {
+  --bg-primary: #282a36;
+  --bg-secondary: #21222c;
+  --bg-tertiary: #343746;
+  --border-color: #44475a;
+  --text-primary: #f8f8f2;
+  --text-secondary: #6272a4;
+  --accent-color: #ff5555;
+  --accent-hover: #ff6e6e;
+}
+
+body.theme-everforest {
+  --bg-primary: #fdf6e3;
+  --bg-secondary: #f4f0d9;
+  --bg-tertiary: #efebd4;
+  --border-color: #e0dcc7;
+  --text-primary: #5c6a72;
+  --text-secondary: #939f91;
+  --accent-color: #8da101;
+  --accent-hover: #a7b901;
+}
+
+body.theme-onedark {
+  --bg-primary: #282c34;
+  --bg-secondary: #21252b;
+  --bg-tertiary: #2c313c;
+  --border-color: #3e4451;
+  --text-primary: #abb2bf;
+  --text-secondary: #5c6370;
+  --accent-color: #98c379;
+  --accent-hover: #b5cea8;
+}
+
+body.theme-nord-light {
+  --bg-primary: #eceff4;
+  --bg-secondary: #e5e9f0;
+  --bg-tertiary: #d8dee9;
+  --border-color: #c2c9d6;
+  --text-primary: #2e3440;
+  --text-secondary: #4c566a;
+  --accent-color: #5e81ac;
+  --accent-hover: #81a1c1;
+}
+
+body.theme-phoenix {
+  --bg-primary: #170f1e;
+  --bg-secondary: #1c1521;
+  --bg-tertiary: #2b2032;
+  --border-color: #3d2f47;
+  --text-primary: #f5c2e7;
+  --text-secondary: #988ba2;
+  --accent-color: #cba6f7;
+  --accent-hover: #d4b4f8;
+}
+
+body.theme-ereader {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e8e8e8;
+  --border-color: #d0d0d0;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --accent-color: #333333;
+  --accent-hover: #000000;
+}
+
+body.theme-everforest h1,
+body.theme-nord-light h1,
+body.theme-ereader h1 {
+  color: var(--text-primary);
+}
     .container {
       max-width: 1400px;
       margin: 0 auto;
@@ -178,6 +270,16 @@ async function loadFromStorage() {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       window.data = data = JSON.parse(stored);
+    }
+    
+    const storedGoals = localStorage.getItem(GOALS_KEY);
+    if (storedGoals) {
+      window.goals = goals = JSON.parse(storedGoals);
+    }
+    
+    const storedBooks = localStorage.getItem(BOOKS_KEY);
+    if (storedBooks) {
+      window.recentBooks = recentBooks = JSON.parse(storedBooks);
     }
   } catch (e) {
     console.error('Error loading data:', e);
