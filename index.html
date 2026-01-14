@@ -2269,40 +2269,41 @@ async function loadData(event) {
       document.getElementById('menuModal').className = 'modal';
     }
 
+// filename: index.html (non-module script) — replace wipeAllData
 async function wipeAllData() {
-  const firstConfirm = await customConfirm(
-    'Are you sure? This will permanently delete all reading data, goals, and recent books.\n\nThis action cannot be undone.',
+  const ok1 = await customConfirm(
+    'Are you sure? This will permanently delete all reading data, goals, recent books.\n\nThis action cannot be undone.',
     'Wipe All Data'
   );
-  
-  if (!firstConfirm) return;
-  
-  const secondConfirm = await customConfirm(
-    'Really delete ALL data? Click OK to confirm.',
-    'Final Confirmation'
-  );
-  
-  if (!secondConfirm) return;
-  
+  if (!ok1) return;
+
+  const ok2 = await customConfirm('Really delete ALL data? Click OK to confirm.', 'Final Confirmation');
+  if (!ok2) return;
+
   try {
-    // Clear all local storage
+    const BACKUPS_KEY = 'reading_heatmap_backups';
+    const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
+
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
     localStorage.removeItem(BACKUPS_KEY);
+    localStorage.removeItem(LAST_BACKUP_KEY);
     localStorage.removeItem('show_longestStreak');
     localStorage.removeItem('show_currentStreak');
     localStorage.removeItem('show_average');
     localStorage.removeItem('show_avgSpeed');
     localStorage.removeItem('show_total');
     localStorage.removeItem('selectedMetric');
-    
-    await customAlert('All data has been wiped. Return to the main page to start fresh.', 'Data Wiped');
-    
-    // Redirect to main page after a short delay
-    setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 1500);
+
+    // Reset in-memory safely
+    window.data = [];
+    window.dailyData = {};
+    window.goals = [];
+    window.recentBooks = [];
+
+    await customAlert('All data has been wiped. Reloading…', 'Data Wiped');
+    window.location.reload();
   } catch (error) {
     await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }
@@ -2521,161 +2522,38 @@ async function deleteGoal(id) {
       }
     }
 
-// filename: index.html (Firebase module script)
-async function loadLeaderboardData() {
+// filename: index.html (non-module script) — replace loadLeaderboard
+async function loadLeaderboard() {
   const container = document.getElementById('leaderboardList');
-  const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
 
-  // Guard: Firebase objects not ready
-  try {
-    if (!container) return;
-    if (typeof collection !== 'function' || typeof getDocs !== 'function' || !db) {
-      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
-      return;
-    }
-  } catch {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Initializing…</div>';
-    return;
-  }
+  // Show a loading state immediately
+  container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Loading leaderboard…</div>';
 
-  try {
-    const leaderboardRef = collection(db, 'leaderboard');
-    const snapshot = await getDocs(leaderboardRef);
+  // Try to run the module’s renderer. If not ready, retry a few times.
+  const maxAttempts = 10;
+  let attempt = 0;
 
-    const rows = [];
-    snapshot.forEach((docSnap) => {
-      const d = docSnap.data() || {};
-      rows.push({
-        userId: d.userId || '',
-        name: d.name || 'User',
-        avatar: d.avatar || '',
-        totalMinutes: Number(d.totalMinutes || 0),
-        totalCharacters: Number(d.totalCharacters || 0),
-        avgSpeed: Number(d.avgSpeed || 0),
-        lastUpdated: d.lastUpdated || ''
-      });
-    });
-
-    const filtered = rows.filter(r =>
-      metric === 'minutes' ? r.totalMinutes > 0 :
-      metric === 'characters' ? r.totalCharacters > 0 :
-      r.avgSpeed > 0
-    );
-
-    if (filtered.length === 0) {
-      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+  while (attempt < maxAttempts) {
+    try {
+      if (typeof window.loadLeaderboardData === 'function') {
+        await window.loadLeaderboardData();
+        return; // success
+      }
+    } catch (err) {
+      console.error('loadLeaderboardData error:', err);
+      container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 20px;">Failed to load leaderboard.</div>';
       return;
     }
 
-    // Sort by selected metric
-    if (metric === 'minutes') {
-      filtered.sort((a, b) => b.totalMinutes - a.totalMinutes);
-    } else if (metric === 'characters') {
-      filtered.sort((a, b) => b.totalCharacters - a.totalCharacters);
-    } else {
-      filtered.sort((a, b) => b.avgSpeed - a.avgSpeed);
-    }
-
-    const showAll = container.dataset.showAll === 'true';
-    const displayCount = showAll ? filtered.length : 10;
-
-    container.innerHTML = '';
-
-    filtered.slice(0, displayCount).forEach((entry, index) => {
-      const rankDiv = document.createElement('div');
-      rankDiv.className = 'leaderboard-entry';
-
-      const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
-      if (isCurrentUser) {
-        rankDiv.style.background = 'var(--accent-color)';
-        rankDiv.style.color = '#ffffff';
-        rankDiv.style.fontWeight = '600';
-      }
-
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-
-      let displayValue;
-      if (metric === 'minutes') {
-        displayValue = `${entry.totalMinutes.toLocaleString()} min`;
-      } else if (metric === 'characters') {
-        displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
-      } else {
-        displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
-      }
-
-      rankDiv.innerHTML = `
-        <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
-        <div class="leaderboard-user">
-          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
-          <span>${entry.name}${isCurrentUser ? ' (You)' : ''}</span>
-        </div>
-        <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
-      `;
-
-      container.appendChild(rankDiv);
-    });
-
-    if (filtered.length > 10) {
-      const toggleBtn = document.createElement('button');
-      toggleBtn.className = 'btn';
-      toggleBtn.style.width = '100%';
-      toggleBtn.style.marginTop = '12px';
-      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${filtered.length - 10} more)`;
-      toggleBtn.onclick = () => {
-        container.dataset.showAll = showAll ? 'false' : 'true';
-        loadLeaderboardData();
-      };
-      container.appendChild(toggleBtn);
-    }
-
-    // Show user's position if outside top 10
-    let userPosition = -1;
-    if (window.currentUser && window.currentUser.id) {
-      userPosition = filtered.findIndex(e => e.userId === window.currentUser.id);
-    }
-    if (!showAll && userPosition >= 10) {
-      const userEntry = filtered[userPosition];
-
-      const sep = document.createElement('div');
-      sep.style.margin = '16px 0 8px 0';
-      sep.style.padding = '8px 0';
-      sep.style.borderTop = '2px dashed var(--border-color)';
-      sep.style.color = 'var(--text-secondary)';
-      sep.style.textAlign = 'center';
-      sep.style.fontSize = '12px';
-      sep.textContent = 'Your Position';
-      container.appendChild(sep);
-
-      const userRankDiv = document.createElement('div');
-      userRankDiv.className = 'leaderboard-entry';
-      userRankDiv.style.background = 'var(--accent-color)';
-      userRankDiv.style.color = '#ffffff';
-      userRankDiv.style.fontWeight = '600';
-
-      let displayValue;
-      if (metric === 'minutes') {
-        displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
-      } else if (metric === 'characters') {
-        displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
-      } else {
-        displayValue = `${userEntry.avgSpeed.toLocaleString()} char/hr`;
-      }
-
-      userRankDiv.innerHTML = `
-        <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
-        <div class="leaderboard-user">
-          <img src="${userEntry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
-          <span>${userEntry.name} (You)</span>
-        </div>
-        <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
-      `;
-      container.appendChild(userRankDiv);
-    }
-  } catch (error) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
-    console.error('Leaderboard error details:', error);
+    // Wait 300ms and retry
+    await new Promise(r => setTimeout(r, 300));
+    attempt++;
   }
+
+  // Still not bound: Firebase module hasn’t finished initializing
+  container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is still initializing… Try again in a moment.</div>';
 }
+
 
 // Make all functions globally available
     window.aggregateData = aggregateData;
@@ -3165,11 +3043,13 @@ async function updateCloudLeaderboard() {
 // filename: index.html (Firebase module script) — replace loadLeaderboardData
 async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
-  const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
+  const metricEl = document.getElementById('leaderboardMetric');
+  const metric = metricEl ? metricEl.value : 'minutes';
 
-  // Guard: Firebase not ready
-  if (!db) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
+  // Guard: DOM or Firebase not ready
+  if (!container) return;
+  if (!db || typeof collection !== 'function' || typeof getDocs !== 'function') {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading…</div>';
     return;
   }
 
@@ -3179,9 +3059,9 @@ async function loadLeaderboardData() {
 
     const rows = [];
     snapshot.forEach((docSnap) => {
-      const d = docSnap.data();
+      const d = docSnap.data() || {};
       rows.push({
-        userId: d.userId,
+        userId: d.userId || '',
         name: d.name || 'User',
         avatar: d.avatar || '',
         totalMinutes: Number(d.totalMinutes || 0),
@@ -3191,13 +3071,14 @@ async function loadLeaderboardData() {
       });
     });
 
-    // Filter rows by selected metric having data
+    // Filter based on selected metric
     const filtered = rows.filter(r =>
       metric === 'minutes' ? r.totalMinutes > 0 :
       metric === 'characters' ? r.totalCharacters > 0 :
       r.avgSpeed > 0
     );
 
+    // If nothing yet, render a friendly message (still counts as render)
     if (filtered.length === 0) {
       container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
       return;
@@ -3212,10 +3093,9 @@ async function loadLeaderboardData() {
       filtered.sort((a, b) => b.avgSpeed - a.avgSpeed);
     }
 
-    // Render
+    // Render top N
     const showAll = container.dataset.showAll === 'true';
     const displayCount = showAll ? filtered.length : 10;
-
     container.innerHTML = '';
 
     filtered.slice(0, displayCount).forEach((entry, index) => {
@@ -3252,7 +3132,7 @@ async function loadLeaderboardData() {
       container.appendChild(rankDiv);
     });
 
-    // Show more/less
+    // Show more/less button
     if (filtered.length > 10) {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'btn';
@@ -3266,13 +3146,14 @@ async function loadLeaderboardData() {
       container.appendChild(toggleBtn);
     }
 
-    // If current user is outside top 10, show their position row
+    // Current user outside top 10
     let userPosition = -1;
     if (window.currentUser && window.currentUser.id) {
       userPosition = filtered.findIndex(e => e.userId === window.currentUser.id);
     }
     if (!showAll && userPosition >= 10) {
       const userEntry = filtered[userPosition];
+
       const sep = document.createElement('div');
       sep.style.margin = '16px 0 8px 0';
       sep.style.padding = '8px 0';
@@ -3308,12 +3189,15 @@ async function loadLeaderboardData() {
       `;
       container.appendChild(userRankDiv);
     }
-
   } catch (error) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
-    console.error('Leaderboard error details:', error);
+    console.error('Leaderboard render error:', error);
+    container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 20px;">Error loading leaderboard.</div>';
   }
 }
+
+// keep binding so non-module script can call it
+window.loadLeaderboardData = loadLeaderboardData;
+
 
   // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
