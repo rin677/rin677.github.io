@@ -2,12 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Reading Heatmap</title>
-<link rel="icon" type="image/png" href="/https://rin677.github.io/my-favicon/favicon.ico/favicon-96x96.png" sizes="96x96" />
-<link rel="icon" type="image/svg+xml" href="/https://rin677.github.io/my-favicon/favicon.ico/favicon.svg" />
-<link rel="shortcut icon" href="/https://rin677.github.io/my-favicon/favicon.ico/favicon.ico" />
-<link rel="apple-touch-icon" sizes="180x180" href="/https://rin677.github.io/my-favicon/favicon.ico/apple-touch-icon.png" />
-<link rel="manifest" href="/https://rin677.github.io/my-favicon/favicon.ico/site.webmanifest" />
+  <title>Reading Tracker</title>
+<link rel="icon" type="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' aria-labelledby='title desc' role='img'%3E%3Ctitle%3EStylized person with two panels in black and white%3C/title%3E%3Cdesc%3EA minimal, balanced monochrome icon of a person between two panels.%3C/desc%3E%3Crect x='0' y='0' width='100' height='100' fill='white'/%3E%3Ccircle cx='50' cy='26' r='10' fill='%23000000'/%3E%3Crect x='47' y='36' width='6' height='6' rx='3' fill='%23000000'/%3E%3Cpath d='M45 42 L55 42 L58 60 Q50 64 42 60 Z' fill='%23000000'/%3E%3Cpath d='M45 44 Q40 52 38 60' stroke='%23000000' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M55 44 Q60 52 62 60' stroke='%23000000' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Cpath d='M48 60 L46 75' stroke='%23000000' stroke-width='3.5' stroke-linecap='round'/%3E%3Cpath d='M52 60 L54 75' stroke='%23000000' stroke-width='3.5' stroke-linecap='round'/%3E%3Cline x1='30' y1='78' x2='70' y2='78' stroke='%23000000' stroke-width='1' opacity='0.4'/%3E%3Crect x='20' y='48' width='22' height='30' rx='3' fill='%23FFFFFF' stroke='%23000000' stroke-width='2'/%3E%3Crect x='58' y='48' width='22' height='30' rx='3' fill='%23FFFFFF' stroke='%23000000' stroke-width='2'/%3E%3Crect x='49' y='48' width='2' height='30' fill='%23000000'">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
 
@@ -1299,8 +1295,11 @@ Book title 2"></textarea>
       <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
       <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
     </div>
-    <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; margin-bottom: 16px;">
+    <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px; margin-bottom: 12px;">
   <button class="btn" onclick="openStatsSettings()" style="width: 100%;">⚙️ Customise more</button>
+</div>
+<div>
+  <a href="stats.html" class="btn" style="width: 100%; display: block; text-align: center; text-decoration: none;">📊 View Statistics</a>
 </div>
     <button class="btn" onclick="closeMenu()" style="width: 100%; margin-top: 12px;">Close</button>
   </div>
