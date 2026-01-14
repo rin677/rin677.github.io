@@ -2733,8 +2733,8 @@ async function importTtsuData(event) {
     totalCharacters += day.characters || 0;
   });
   
-  const avgSpeed = totalMinutes > 0 ? Math.round(totalCharacters / totalMinutes) : 0;
-  
+const totalHours = totalMinutes / 60;
+const avgSpeed = totalHours > 0 ? Math.round(totalCharacters / totalHours) : 0;  
   const leaderboardEntry = {
     userId: window.currentUser.id,
     name: window.currentUser.name,
