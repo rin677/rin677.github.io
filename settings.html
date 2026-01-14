@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Settings - 読書 track</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff'/%3E%3Cpath d='M25 20 L25 80 L50 75 L75 80 L75 20 L50 25 Z' fill='%23000000'/%3E%3Cline x1='50' y1='25' x2='50' y2='75' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='32' y1='35' x2='45' y2='35' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='32' y1='43' x2='45' y2='43' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='32' y1='51' x2='45' y2='51' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='32' y1='59' x2='45' y2='59' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='35' x2='68' y2='35' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='43' x2='68' y2='43' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='51' x2='68' y2='51' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='59' x2='68' y2='59' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --border-color: #30363d;
+      --text-primary: #c9d1d9;
+      --text-secondary: #8b949e;
+      --accent-color: #238636;
+      --accent-hover: #2ea043;
+      --danger-color: #da3633;
+      --danger-hover: #f85149;
+    }
+    
+    body.theme-nord {
+      --bg-primary: #2e3440;
+      --bg-secondary: #3b4252;
+      --bg-tertiary: #434c5e;
+      --border-color: #4c566a;
+      --text-primary: #eceff4;
+      --text-secondary: #d8dee9;
+      --accent-color: #88c0d0;
+      --accent-hover: #8fbcbb;
+      --danger-color: #bf616a;
+      --danger-hover: #d08770;
+    }
+
+    body.theme-tokyo {
+      --bg-primary: #1a1b26;
+      --bg-secondary: #16161e;
+      --bg-tertiary: #24283b;
+      --border-color: #414868;
+      --text-primary: #a9b1d6;
+      --text-secondary: #565f89;
+      --accent-color: #7aa2f7;
+      --accent-hover: #7dcfff;
+      --danger-color: #f7768e;
+      --danger-hover: #ff9e64;
+    }
+
+    body.theme-dracula {
+      --bg-primary: #282a36;
+      --bg-secondary: #21222c;
+      --bg-tertiary: #343746;
+      --border-color: #44475a;
+      --text-primary: #f8f8f2;
+      --text-secondary: #6272a4;
+      --accent-color: #ff5555;
+      --accent-hover: #ff6e6e;
+      --danger-color: #ff5555;
+      --danger-hover: #ff6e6e;
+    }
+
+    body.theme-everforest {
+      --bg-primary: #fdf6e3;
+      --bg-secondary: #f4f0d9;
+      --bg-tertiary: #efebd4;
+      --border-color: #e0dcc7;
+      --text-primary: #5c6a72;
+      --text-secondary: #939f91;
+      --accent-color: #8da101;
+      --accent-hover: #a7b901;
+      --danger-color: #f85552;
+      --danger-hover: #e66868;
+    }
+
+    body.theme-onedark {
+      --bg-primary: #282c34;
+      --bg-secondary: #21252b;
+      --bg-tertiary: #2c313c;
+      --border-color: #3e4451;
+      --text-primary: #abb2bf;
+      --text-secondary: #5c6370;
+      --accent-color: #98c379;
+      --accent-hover: #b5cea8;
+      --danger-color: #e06c75;
+      --danger-hover: #be5046;
+    }
+
+    body.theme-nord-light {
+      --bg-primary: #eceff4;
+      --bg-secondary: #e5e9f0;
+      --bg-tertiary: #d8dee9;
+      --border-color: #c2c9d6;
+      --text-primary: #2e3440;
+      --text-secondary: #4c566a;
+      --accent-color: #5e81ac;
+      --accent-hover: #81a1c1;
+      --danger-color: #bf616a;
+      --danger-hover: #d08770;
+    }
+
+    body.theme-phoenix {
+      --bg-primary: #170f1e;
+      --bg-secondary: #1c1521;
+      --bg-tertiary: #2b2032;
+      --border-color: #3d2f47;
+      --text-primary: #f5c2e7;
+      --text-secondary: #988ba2;
+      --accent-color: #cba6f7;
+      --accent-hover: #d4b4f8;
+      --danger-color: #f38ba8;
+      --danger-hover: #f5a7bc;
+    }
+
+    body.theme-ereader {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --bg-tertiary: #e8e8e8;
+      --border-color: #d0d0d0;
+      --text-primary: #000000;
+      --text-secondary: #666666;
+      --accent-color: #333333;
+      --accent-hover: #000000;
+      --danger-color: #555555;
+      --danger-hover: #333333;
+    }
+    
+    body {
+      font-family: "Klee One", cursive;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 40px 20px;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    
+    body.theme-everforest h1,
+    body.theme-nord-light h1,
+    body.theme-ereader h1 {
+      color: var(--text-primary);
+    }
+    
+    .btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .btn:hover {
+      background: var(--border-color);
+      border-color: var(--text-secondary);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+    
+    .settings-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    
+    .settings-section h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+    
+    .settings-section p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+    
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+    
+    .setting-label {
+      flex: 1;
+    }
+    
+    .setting-label h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .setting-label p {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+    
+    .form-input, select {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+    }
+    
+    .form-input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .confirm-btn {
+      background: var(--border-color);
+      border: 1px solid var(--text-secondary);
+      color: var(--text-primary);
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+    
+    .confirm-btn:hover {
+      background: var(--text-secondary);
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+      transform: translateY(-1px);
+    }
+    
+    .danger-btn {
+      background: var(--danger-color);
+      border: 1px solid var(--danger-color);
+      color: #ffffff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .danger-btn:hover {
+      background: var(--danger-hover);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚙️ Settings</h1>
+      <a href="index.html" class="btn">← Back to Heatmap</a>
+    </header>
+    
+    <!-- Statistics Visibility -->
+    <div class="settings-section">
+      <h2>📊 Statistics Display</h2>
+      <p>Choose which statistics to show on the main heatmap panel.</p>
+      
+      <div class="setting-item">
+        <label class="setting-label">
+          <input type="checkbox" id="showLongestStreak" onchange="toggleStat('longestStreak')" checked>
+          <span style="margin-left: 8px;">Longest streak</span>
+        </label>
+      </div>
+      
+      <div class="setting-item">
+        <label class="setting-label">
+          <input type="checkbox" id="showCurrentStreak" onchange="toggleStat('currentStreak')" checked>
+          <span style="margin-left: 8px;">Current streak</span>
+        </label>
+      </div>
+      
+      <div class="setting-item">
+        <label class="setting-label">
+          <input type="checkbox" id="showAverage" onchange="toggleStat('average')" checked>
+          <span style="margin-left: 8px;">Average</span>
+        </label>
+      </div>
+      
+      <div class="setting-item">
+        <label class="setting-label">
+          <input type="checkbox" id="showAvgSpeed" onchange="toggleStat('avgSpeed')" checked>
+          <span style="margin-left: 8px;">Average speed</span>
+        </label>
+      </div>
+      
+      <div class="setting-item">
+        <label class="setting-label">
+          <input type="checkbox" id="showTotal" onchange="toggleStat('total')" checked>
+          <span style="margin-left: 8px;">Total</span>
+        </label>
+      </div>
+    </div>
+    
+    <!-- Backup Settings -->
+    <div class="settings-section">
+      <h2>💾 Automatic Backups</h2>
+      <p>Automatically save backup copies of your reading data to protect against data loss.</p>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Backup Frequency</h3>
+          <p>How often to create automatic backups</p>
+        </div>
+        <select id="backupFrequency" onchange="updateBackupFrequency()">
+          <option value="none">Disabled</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </div>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Keep Last</h3>
+          <p>Number of backups to keep</p>
+        </div>
+        <select id="backupRetention" onchange="updateBackupRetention()">
+          <option value="3">3 backups</option>
+          <option value="5">5 backups</option>
+          <option value="10">10 backups</option>
+          <option value="20">20 backups</option>
+          <option value="all">All backups</option>
+        </select>
+      </div>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Last Backup</h3>
+          <p id="lastBackupTime">Never</p>
+        </div>
+        <div class="action-buttons">
+          <button class="confirm-btn" onclick="createManualBackup()">Backup Now</button>
+          <button class="btn" onclick="viewBackups()">View Backups</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ttsu Sync Settings -->
+    <div class="settings-section">
+      <h2>🔄 ttsu Google Drive Sync</h2>
+      <p>Automatically sync your reading data from the ttsu app via Google Drive.</p>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Sync Status</h3>
+          <p id="ttsuSyncStatusText">Not configured</p>
+        </div>
+        <div class="action-buttons">
+          <button class="confirm-btn" onclick="setupTtsuSync()">Setup Sync</button>
+          <button class="btn" onclick="manualSyncTtsu()">Sync Now</button>
+        </div>
+      </div>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Batch Load</h3>
+          <p>Load all ttsu data (overwrites existing data)</p>
+        </div>
+        <button class="btn" onclick="batchLoadAllTtsu()">📥 Batch Load All</button>
+      </div>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Disable Sync</h3>
+          <p>Stop automatic syncing from ttsu</p>
+        </div>
+        <button class="danger-btn" onclick="disableTtsuSync()">Disable</button>
+      </div>
+    </div>
+    
+    <!-- Data Management -->
+    <div class="settings-section">
+      <h2>📂 Data Management</h2>
+      <p>Import, export, and manage your reading data.</p>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Export Data</h3>
+          <p>Download your data as JSON or export to Toggl format</p>
+        </div>
+        <div class="action-buttons">
+          <button class="btn" onclick="downloadData()">💾 Download JSON</button>
+          <button class="btn" onclick="exportToToggl()">⏱️ Export to Toggl</button>
+        </div>
+      </div>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Import Data</h3>
+          <p>Load data from JSON file or ttsu export</p>
+        </div>
+        <div class="action-buttons">
+          <button class="btn" onclick="document.getElementById('fileInput').click()">📂 Load JSON</button>
+          <button class="btn" onclick="document.getElementById('ttsuInput').click()">📚 Import ttsu</button>
+        </div>
+      </div>
+      
+      <div class="setting-item">
+        <div class="setting-label">
+          <h3>Wipe All Data</h3>
+          <p style="color: var(--danger-color);">⚠️ Permanently delete all reading data</p>
+        </div>
+        <button class="danger-btn" onclick="wipeAllData()">🗑️ Wipe All Data</button>
+      </div>
+    </div>
+  </div>
+  
+  <input type="file" id="fileInput" style="display: none;" accept=".json">
+  <input type="file" id="ttsuInput" style="display: none;" accept=".json">
+  
+  <script>
+    // Load theme
+    const THEME_KEY = 'reading_heatmap_theme';
+    const theme = localStorage.getItem(THEME_KEY) || 'default';
+    document.body.className = theme === 'default' ? '' : `theme-${theme}`;
+    
+    // Load stat visibility settings
+    function loadStatVisibility() {
+      const stats = ['longestStreak', 'currentStreak', 'average', 'avgSpeed', 'total'];
+      stats.forEach(stat => {
+        const saved = localStorage.getItem(`show_${stat}`);
+        if (saved !== null) {
+          const checkbox = document.getElementById(`show${stat.charAt(0).toUpperCase() + stat.slice(1)}`);
+          if (checkbox) {
+            checkbox.checked = saved === 'true';
+          }
+        }
+      });
+    }
+    
+    function toggleStat(statName) {
+      const checkbox = document.getElementById(`show${statName.charAt(0).toUpperCase() + statName.slice(1)}`);
+      localStorage.setItem(`show_${statName}`, checkbox.checked);
+    }
+    
+    // Load backup settings
+    const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
+    const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
+    const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
+    
+    function loadBackupSettings() {
+      const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
+      const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
+      const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
+      
+      document.getElementById('backupFrequency').value = frequency;
+      document.getElementById('backupRetention').value = retention;
+      
+      if (lastBackup) {
+        const date = new Date(parseInt(lastBackup));
+        document.getElementById('lastBackupTime').textContent = date.toLocaleString();
+      }
+    }
+    
+    function updateBackupFrequency() {
+      const frequency = document.getElementById('backupFrequency').value;
+      localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
+      alert('Backup frequency updated. Changes will take effect on the main page.');
+    }
+    
+    function updateBackupRetention() {
+      const retention = document.getElementById('backupRetention').value;
+      localStorage.setItem(BACKUP_RETENTION_KEY, retention);
+      alert('Backup retention updated.');
+    }
+    
+    function createManualBackup() {
+      alert('Please use the main heatmap page to create backups.');
+      window.location.href = 'index.html';
+    }
+    
+    function viewBackups() {
+      alert('Please use the main heatmap page to view backups.');
+      window.location.href = 'index.html';
+    }
+    
+    // Load ttsu sync status
+    function loadTtsuSyncStatus() {
+      const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+      const folderId = localStorage.getItem('ttsu_folder_id');
+      const lastSync = localStorage.getItem('ttsu_last_sync');
+      
+      const statusEl = document.getElementById('ttsuSyncStatusText');
+      
+      if (!enabled || !folderId) {
+        statusEl.textContent = 'Not configured';
+        statusEl.style.color = 'var(--text-secondary)';
+        return;
+      }
+      
+      if (!lastSync) {
+        statusEl.textContent = 'Configured (not synced yet)';
+        statusEl.style.color = 'var(--accent-color)';
+        return;
+      }
+      
+      const lastSyncDate = new Date(lastSync);
+      const now = new Date();
+      const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
+      
+      if (diffMinutes < 1) {
+        statusEl.textContent = 'Active (just synced)';
+      } else if (diffMinutes < 60) {
+        statusEl.textContent = `Active (synced ${diffMinutes} min ago)`;
+      } else {
+        statusEl.textContent = `Active (synced ${Math.floor(diffMinutes / 60)}h ago)`;
+      }
+      statusEl.style.color = 'var(--accent-color)';
+    }
+    
+    function setupTtsuSync() {
+      alert('Please use the main heatmap page to setup ttsu sync.');
+      window.location.href = 'index.html';
+    }
+    
+    function manualSyncTtsu() {
+      alert('Please use the main heatmap page to sync.');
+      window.location.href = 'index.html';
+    }
+    
+    function batchLoadAllTtsu() {
+      alert('Please use the main heatmap page for batch loading.');
+      window.location.href = 'index.html';
+    }
+    
+    function disableTtsuSync() {
+      if (confirm('Disable automatic ttsu sync from Google Drive?')) {
+        localStorage.removeItem('ttsu_sync_enabled');
+        localStorage.removeItem('ttsu_folder_id');
+        localStorage.removeItem('ttsu_access_token');
+        localStorage.removeItem('ttsu_token_expiry');
+        alert('ttsu sync disabled.');
+        loadTtsuSyncStatus();
+      }
+    }
+    
+    // Data management functions
+    function downloadData() {
+      alert('Please use the main heatmap page to download data.');
+      window.location.href = 'index.html';
+    }
+    
+    function exportToToggl() {
+      alert('Please use the main heatmap page to export to Toggl.');
+      window.location.href = 'index.html';
+    }
+    
+    document.getElementById('fileInput').addEventListener('change', () => {
+      alert('Please use the main heatmap page to load data.');
+      window.location.href = 'index.html';
+    });
+    
+    document.getElementById('ttsuInput').addEventListener('change', () => {
+      alert('Please use the main heatmap page to import ttsu data.');
+      window.location.href = 'index.html';
+    });
+    
+    function wipeAllData() {
+      alert('Please use the main heatmap page to wipe data.');
+      window.location.href = 'index.html';
+    }
+    
+    // Initialize
+    window.onload = function() {
+      loadStatVisibility();
+      loadBackupSettings();
+      loadTtsuSyncStatus();
+    };
+  </script>
+</body>
+</html>

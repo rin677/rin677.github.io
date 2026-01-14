@@ -1315,9 +1315,9 @@ Book title 2"></textarea>
     </div>
   </div>
 
-  <div class="modal" id="menuModal">
+<div class="modal" id="menuModal">
   <div class="modal-content" style="width: 560px; max-width: 95vw;">
-    <h2>Settings</h2>
+    <h2>Quick Settings</h2>
     
     <div style="margin-bottom: 20px;">
       <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-secondary);">Theme</h3>
@@ -1351,22 +1351,12 @@ Book title 2"></textarea>
         </div>
       </div>
     </div>
+    
     <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
-      <button class="btn" onclick="exportToToggl()" style="width: 100%; margin-bottom: 8px;">⏱️ Export to Toggl</button>
-      <button class="btn" onclick="downloadData()" style="width: 100%; margin-bottom: 8px;">💾 Download data</button>
-      <button class="btn" onclick="document.getElementById('fileInput').click()" style="width: 100%; margin-bottom: 8px;">📂 Load data</button>
-<!-- In your menuModal, add this button after "Customise more" -->
-<button class="btn" onclick="openTtsuSyncSettings()" style="width: 100%; margin-bottom: 8px;">
-  🔄 ttsu Sync Settings
-</button>      <button class="btn" onclick="wipeAllData()" style="width: 100%; margin-bottom: 8px; background: var(--danger-color); border-color: rgba(255, 0, 0, 0.3);">🗑️ Wipe all data!</button>
+      <a href="settings.html" class="btn" style="width: 100%; display: block; text-align: center; text-decoration: none; margin-bottom: 8px;">⚙️ More Settings</a>
+      <a href="stats.html" class="btn" style="width: 100%; display: block; text-align: center; text-decoration: none;">📊 View Statistics</a>
     </div>
-    <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 12px; margin-bottom: 12px;">
-  <button class="btn" onclick="openStatsSettings()" style="width: 100%; margin-bottom: 8px;">⚙️ Customise more</button>
-  <button class="btn" onclick="openBackupSettings()" style="width: 100%;">💾 Backup Settings</button>
-</div>
-<div>
-  <a href="stats.html" class="btn" style="width: 100%; display: block; text-align: center; text-decoration: none;">📊 View Statistics</a>
-</div>
+    
     <button class="btn" onclick="closeMenu()" style="width: 100%; margin-top: 12px;">Close</button>
   </div>
 </div>
