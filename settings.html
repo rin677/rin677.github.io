@@ -496,25 +496,25 @@
       }
     }
     
-    function updateBackupFrequency() {
+    async function updateBackupFrequency() {
       const frequency = document.getElementById('backupFrequency').value;
       localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
-      alert('Backup frequency updated. Changes will take effect on the main page.');
+      await customAlert('Backup frequency updated. Changes will take effect on the main page.', 'Settings Updated');
     }
     
-    function updateBackupRetention() {
+    async function updateBackupRetention() {
       const retention = document.getElementById('backupRetention').value;
       localStorage.setItem(BACKUP_RETENTION_KEY, retention);
-      alert('Backup retention updated.');
+      await customAlert('Backup retention updated.', 'Settings Updated');
     }
     
-    function createManualBackup() {
-      alert('Please use the main heatmap page to create backups.');
+    async function createManualBackup() {
+      await customAlert('Please use the main heatmap page to create backups.', 'Redirect Required');
       window.location.href = 'index.html';
     }
     
-    function viewBackups() {
-      alert('Please use the main heatmap page to view backups.');
+    async function viewBackups() {
+      await customAlert('Please use the main heatmap page to view backups.', 'Redirect Required');
       window.location.href = 'index.html';
     }
     
@@ -552,57 +552,62 @@
       statusEl.style.color = 'var(--accent-color)';
     }
     
-    function setupTtsuSync() {
-      alert('Please use the main heatmap page to setup ttsu sync.');
+    async function setupTtsuSync() {
+      await customAlert('Please use the main heatmap page to setup ttsu sync.', 'Redirect Required');
       window.location.href = 'index.html';
-    }
+   }
     
-    function manualSyncTtsu() {
-      alert('Please use the main heatmap page to sync.');
+    async function manualSyncTtsu() {
+      await customAlert('Please use the main heatmap page to sync.', 'Redirect Required');
       window.location.href = 'index.html';
-    }
+   }
     
-    function batchLoadAllTtsu() {
-      alert('Please use the main heatmap page for batch loading.');
+    async function batchLoadAllTtsu() {
+      await customAlert('Please use the main heatmap page for batch loading.', 'Redirect Required');
       window.location.href = 'index.html';
-    }
+   }
     
-    function disableTtsuSync() {
-      if (confirm('Disable automatic ttsu sync from Google Drive?')) {
-        localStorage.removeItem('ttsu_sync_enabled');
-        localStorage.removeItem('ttsu_folder_id');
-        localStorage.removeItem('ttsu_access_token');
-        localStorage.removeItem('ttsu_token_expiry');
-        alert('ttsu sync disabled.');
-        loadTtsuSyncStatus();
-      }
-    }
+    async function disableTtsuSync() {
+  const confirmed = await customConfirm(
+    'Disable automatic ttsu sync from Google Drive?',
+    'Disable Sync'
+  );
+  
+  if (!confirmed) return;
+  
+  localStorage.removeItem('ttsu_sync_enabled');
+  localStorage.removeItem('ttsu_folder_id');
+  localStorage.removeItem('ttsu_access_token');
+  localStorage.removeItem('ttsu_token_expiry');
+  await customAlert('ttsu sync disabled.', 'Sync Disabled');
+  loadTtsuSyncStatus();
+}
     
     // Data management functions
-    function downloadData() {
-      alert('Please use the main heatmap page to download data.');
-      window.location.href = 'index.html';
-    }
+    async function downloadData() {
+  await customAlert('Please use the main heatmap page to download data.', 'Redirect Required');
+  window.location.href = 'index.html';
+}
     
-    function exportToToggl() {
-      alert('Please use the main heatmap page to export to Toggl.');
-      window.location.href = 'index.html';
-    }
+    async function exportToToggl() {
+  await customAlert('Please use the main heatmap page to export to Toggl.', 'Redirect Required');
+  window.location.href = 'index.html';
+}
     
-    document.getElementById('fileInput').addEventListener('change', () => {
-      alert('Please use the main heatmap page to load data.');
-      window.location.href = 'index.html';
-    });
+   document.getElementById('fileInput').addEventListener('change', async () => {
+  await customAlert('Please use the main heatmap page to load data.', 'Redirect Required');
+  window.location.href = 'index.html';
+});
+
+document.getElementById('ttsuInput').addEventListener('change', async () => {
+  await customAlert('Please use the main heatmap page to import ttsu data.', 'Redirect Required');
+  window.location.href = 'index.html';
+});
     
-    document.getElementById('ttsuInput').addEventListener('change', () => {
-      alert('Please use the main heatmap page to import ttsu data.');
-      window.location.href = 'index.html';
-    });
-    
-    function wipeAllData() {
-      alert('Please use the main heatmap page to wipe data.');
-      window.location.href = 'index.html';
-    }
+    async function wipeAllData() {
+  await customAlert('Please use the main heatmap page to wipe data.', 'Redirect Required');
+  window.location.href = 'index.html';
+}
     
     // Initialize
     window.onload = function() {
@@ -610,6 +615,111 @@
       loadBackupSettings();
       loadTtsuSyncStatus();
     };
+
+    // Custom themed confirm dialog
+function customConfirm(message, title = 'Confirm') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirmModal');
+    const titleEl = document.getElementById('confirmTitle');
+    const messageEl = document.getElementById('confirmMessage');
+    const okBtn = document.getElementById('confirmOk');
+    const cancelBtn = document.getElementById('confirmCancel');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    modal.style.display = 'flex';
+    
+    const handleOk = () => {
+      cleanup();
+      resolve(true);
+    };
+    
+    const handleCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve(false);
+      }
+    };
+    
+    const cleanup = () => {
+      modal.style.display = 'none';
+      okBtn.removeEventListener('click', handleOk);
+      cancelBtn.removeEventListener('click', handleCancel);
+      document.removeEventListener('keydown', handleEscape);
+    };
+    
+    okBtn.addEventListener('click', handleOk);
+    cancelBtn.addEventListener('click', handleCancel);
+    document.addEventListener('keydown', handleEscape);
+  });
+}
+
+// Custom themed alert dialog
+function customAlert(message, title = 'Notice') {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('alertModal');
+    const titleEl = document.getElementById('alertTitle');
+    const messageEl = document.getElementById('alertMessage');
+    const okBtn = document.getElementById('alertOk');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    modal.style.display = 'flex';
+    
+    const handleOk = () => {
+      cleanup();
+      resolve();
+    };
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        cleanup();
+        resolve();
+      }
+    };
+    
+    const cleanup = () => {
+      modal.style.display = 'none';
+      okBtn.removeEventListener('click', handleOk);
+      document.removeEventListener('keydown', handleEscape);
+    };
+    
+    okBtn.addEventListener('click', handleOk);
+    document.addEventListener('keydown', handleEscape);
+    
+    // Auto-focus OK button
+    setTimeout(() => okBtn.focus(), 100);
+  });
+}
   </script>
+
+<!-- Custom Confirmation Modal -->
+<div class="modal" id="confirmModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
+  <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; width: 460px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);">
+    <h2 id="confirmTitle" style="margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Confirm</h2>
+    <p id="confirmMessage" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 16px 0;"></p>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+      <button class="btn" id="confirmCancel">Cancel</button>
+      <button class="confirm-btn" id="confirmOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Alert Modal -->
+<div class="modal" id="alertModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
+  <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; width: 460px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);">
+    <h2 id="alertTitle" style="margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Notice</h2>
+    <p id="alertMessage" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 16px 0; white-space: pre-line;"></p>
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+      <button class="confirm-btn" id="alertOk" style="width: 100%;">OK</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
