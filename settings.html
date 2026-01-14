@@ -453,10 +453,55 @@
   <input type="file" id="ttsuInput" style="display: none;" accept=".json">
   
   <script>
-    // Load theme
-    const THEME_KEY = 'reading_heatmap_theme';
-    const theme = localStorage.getItem(THEME_KEY) || 'default';
-    document.body.className = theme === 'default' ? '' : `theme-${theme}`;
+
+  // Load theme
+  const THEME_KEY = 'reading_heatmap_theme';
+  const STORAGE_KEY = 'reading_heatmap_data';
+  const GOALS_KEY = 'reading_heatmap_goals';
+  const BOOKS_KEY = 'reading_heatmap_books';
+  const USER_KEY = 'reading_heatmap_user';
+  const BACKUPS_KEY = 'reading_heatmap_backups';
+  
+  const theme = localStorage.getItem(THEME_KEY) || 'default';
+  document.body.className = theme === 'default' ? '' : `theme-${theme}`;
+  
+  // Helper to get current data
+  function getCurrentData() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  function getCurrentGoals() {
+    try {
+      const stored = localStorage.getItem(GOALS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  function getCurrentBooks() {
+    try {
+      const stored = localStorage.getItem(BOOKS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  function getBackups() {
+    try {
+      const stored = localStorage.getItem(BACKUPS_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error loading backups:', error);
+      return [];
+    }
+  }
     
     // Load stat visibility settings
     function loadStatVisibility() {
@@ -479,45 +524,96 @@
     
     // Load backup settings
     const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
-    const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
-    const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
+const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
+const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
+
+function loadBackupSettings() {
+  const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
+  const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
+  const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
+  
+  document.getElementById('backupFrequency').value = frequency;
+  document.getElementById('backupRetention').value = retention;
+  
+  if (lastBackup) {
+    const date = new Date(parseInt(lastBackup));
+    document.getElementById('lastBackupTime').textContent = date.toLocaleString();
+  }
+}
+
+async function updateBackupFrequency() {
+  const frequency = document.getElementById('backupFrequency').value;
+  localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
+  await customAlert('Backup frequency updated. Changes will take effect when you return to the main page.', 'Settings Updated');
+}
+
+async function updateBackupRetention() {
+  const retention = document.getElementById('backupRetention').value;
+  localStorage.setItem(BACKUP_RETENTION_KEY, retention);
+  await customAlert('Backup retention updated.', 'Settings Updated');
+}
+
+async function createManualBackup() {
+  try {
+    const backups = getBackups();
+    const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
     
-    function loadBackupSettings() {
-      const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
-      const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-      const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
-      
-      document.getElementById('backupFrequency').value = frequency;
-      document.getElementById('backupRetention').value = retention;
-      
-      if (lastBackup) {
-        const date = new Date(parseInt(lastBackup));
-        document.getElementById('lastBackupTime').textContent = date.toLocaleString();
+    const backup = {
+      timestamp: Date.now(),
+      data: getCurrentData(),
+      goals: getCurrentGoals(),
+      recentBooks: getCurrentBooks(),
+      type: 'manual'
+    };
+    
+    backups.push(backup);
+    
+    // Apply retention policy
+    if (retention !== 'all') {
+      const maxBackups = parseInt(retention);
+      if (backups.length > maxBackups) {
+        backups.sort((a, b) => b.timestamp - a.timestamp);
+        backups.splice(maxBackups);
       }
     }
     
-    async function updateBackupFrequency() {
-      const frequency = document.getElementById('backupFrequency').value;
-      localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
-      await customAlert('Backup frequency updated. Changes will take effect on the main page.', 'Settings Updated');
-    }
+    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
+    localStorage.setItem(LAST_BACKUP_KEY, Date.now().toString());
     
-    async function updateBackupRetention() {
-      const retention = document.getElementById('backupRetention').value;
-      localStorage.setItem(BACKUP_RETENTION_KEY, retention);
-      await customAlert('Backup retention updated.', 'Settings Updated');
-    }
+    // Update display
+    const date = new Date(backup.timestamp);
+    document.getElementById('lastBackupTime').textContent = date.toLocaleString();
     
-    async function createManualBackup() {
-      await customAlert('Please use the main heatmap page to create backups.', 'Redirect Required');
-      window.location.href = 'index.html';
-    }
-    
-    async function viewBackups() {
-      await customAlert('Please use the main heatmap page to view backups.', 'Redirect Required');
-      window.location.href = 'index.html';
-    }
-    
+    await customAlert('Backup created successfully!', 'Backup Created');
+  } catch (error) {
+    console.error('Manual backup error:', error);
+    await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
+  }
+}
+
+async function viewBackups() {
+  const backups = getBackups();
+  
+  if (backups.length === 0) {
+    await customAlert('No backups available. Create a backup first!', 'No Backups');
+    return;
+  }
+  
+  // Sort by timestamp, newest first
+  backups.sort((a, b) => b.timestamp - a.timestamp);
+  
+  let message = 'Available Backups:\n\n';
+  backups.forEach((backup, index) => {
+    const date = new Date(backup.timestamp);
+    const entriesCount = backup.data ? backup.data.length : 0;
+    const type = backup.type === 'manual' ? '👤' : '🤖';
+    message += `${index + 1}. ${type} ${date.toLocaleString()} (${entriesCount} entries)\n`;
+  });
+  
+  message += '\nTo restore or download backups, please use the main heatmap page.';
+  
+  await customAlert(message, 'Backups');
+}
     // Load ttsu sync status
     function loadTtsuSyncStatus() {
       const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
@@ -583,30 +679,223 @@
   loadTtsuSyncStatus();
 }
     
-    // Data management functions
     async function downloadData() {
-  await customAlert('Please use the main heatmap page to download data.', 'Redirect Required');
-  window.location.href = 'index.html';
-}
+  try {
+    const exportData = {
+      data: getCurrentData(),
+      goals: getCurrentGoals(),
+      recentBooks: getCurrentBooks(),
+      exportDate: new Date().toISOString()
+    };
     
-    async function exportToToggl() {
-  await customAlert('Please use the main heatmap page to export to Toggl.', 'Redirect Required');
-  window.location.href = 'index.html';
-}
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reading-heatmap-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     
-   document.getElementById('fileInput').addEventListener('change', async () => {
-  await customAlert('Please use the main heatmap page to load data.', 'Redirect Required');
-  window.location.href = 'index.html';
+    await customAlert('Data exported successfully!', 'Export Complete');
+  } catch (error) {
+    await customAlert('Failed to export data: ' + error.message, 'Export Error');
+  }
+}
+
+async function exportToToggl() {
+  try {
+    const data = getCurrentData();
+    const togglData = data.map(entry => ({
+      description: entry.title || 'Reading',
+      start: `${entry.date}T00:00:00Z`,
+      duration: entry.minutes * 60,
+      tags: ['reading'],
+      created_with: 'Reading Heatmap'
+    }));
+    
+    const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'reading-toggl-export.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    await customAlert('Exported to Toggl format! Import this file to Toggl Track.', 'Export Successful');
+  } catch (error) {
+    await customAlert('Failed to export: ' + error.message, 'Export Error');
+  }
+}
+
+document.getElementById('fileInput').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      
+      let importedData = [];
+      let importedGoals = [];
+      let importedBooks = [];
+      
+      if (Array.isArray(imported)) {
+        importedData = imported;
+      } else if (imported.data) {
+        importedData = imported.data || [];
+        importedGoals = imported.goals || [];
+        importedBooks = imported.recentBooks || [];
+      } else {
+        await customAlert('Invalid data format.', 'Invalid File');
+        return;
+      }
+      
+      if (importedData.length === 0) {
+        await customAlert('No data found in file.', 'Empty File');
+        return;
+      }
+      
+      const replace = await customConfirm(
+        `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
+        'Import Data'
+      );
+      
+      const currentData = getCurrentData();
+      const currentGoals = getCurrentGoals();
+      const currentBooks = getCurrentBooks();
+      
+      if (replace) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData));
+        localStorage.setItem(GOALS_KEY, JSON.stringify(importedGoals));
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(importedBooks));
+      } else {
+        const mergedData = [...currentData, ...importedData];
+        const mergedGoals = [...currentGoals, ...importedGoals];
+        const mergedBooks = [...new Set([...currentBooks, ...importedBooks])];
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
+        localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
+      }
+      
+      await customAlert('Data imported successfully! Return to the main page to see your data.', 'Import Successful');
+    } catch (error) {
+      await customAlert('Error reading file: ' + error.message, 'Import Error');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = '';
 });
 
-document.getElementById('ttsuInput').addEventListener('change', async () => {
-  await customAlert('Please use the main heatmap page to import ttsu data.', 'Redirect Required');
-  window.location.href = 'index.html';
+document.getElementById('ttsuInput').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const ttsuData = JSON.parse(e.target.result);
+      
+      if (!Array.isArray(ttsuData)) {
+        await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
+        return;
+      }
+      
+      const transformedData = [];
+      const currentData = getCurrentData();
+      const currentBooks = getCurrentBooks();
+      const bookTitles = new Set();
+      
+      ttsuData.forEach(session => {
+        if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+          return;
+        }
+        
+        const date = session.dateKey;
+        const minutes = Math.round(session.readingTime / 60);
+        const characters = session.charactersRead || 0;
+        
+        if (minutes === 0 && characters === 0) return;
+        
+        const exists = currentData.some(entry => 
+          entry.date === date && 
+          entry.title === session.title &&
+          Math.abs(entry.minutes - minutes) < 2 &&
+          Math.abs(entry.characters - characters) < 100
+        );
+        
+        if (!exists) {
+          transformedData.push({
+            date: date,
+            minutes: minutes,
+            characters: characters,
+            title: session.title || 'Reading (from ttsu)'
+          });
+          bookTitles.add(session.title);
+        }
+      });
+      
+      if (transformedData.length === 0) {
+        await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.', 'No New Data');
+        return;
+      }
+      
+      const mergedData = [...currentData, ...transformedData];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
+      
+      // Update recent books
+      bookTitles.forEach(title => {
+        if (title && !currentBooks.includes(title)) {
+          currentBooks.unshift(title);
+        }
+      });
+      const updatedBooks = currentBooks.slice(0, 10);
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+      
+      const bookList = Array.from(bookTitles).join(', ');
+      await customAlert(
+        `✅ Successfully imported ${transformedData.length} reading session(s) from ttsu!\n\nBooks: ${bookList}\n\nReturn to the main page to see your updated heatmap.`,
+        'Import Successful'
+      );
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      await customAlert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.', 'Import Error');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = '';
 });
+
+async function wipeAllData() {
+  const firstConfirm = await customConfirm(
+    'Are you sure? This will permanently delete all reading data, goals, and recent books.\n\nThis action cannot be undone.',
+    'Wipe All Data'
+  );
+  
+  if (!firstConfirm) return;
+  
+  const secondConfirm = await customConfirm(
+    'Really delete ALL data? Click OK to confirm.',
+    'Final Confirmation'
+  );
+  
+  if (!secondConfirm) return;
+  
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(GOALS_KEY);
+    localStorage.removeItem(BOOKS_KEY);
     
-    async function wipeAllData() {
-  await customAlert('Please use the main heatmap page to wipe data.', 'Redirect Required');
-  window.location.href = 'index.html';
+    await customAlert('All data has been wiped. Return to the main page to start fresh.', 'Data Wiped');
+  } catch (error) {
+    await customAlert('Failed to wipe data: ' + error.message, 'Error');
+  }
 }
     
     // Initialize
