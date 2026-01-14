@@ -3105,53 +3105,47 @@ function customPrompt(message, title = 'Input') {
     }
   }
 
+// filename: index.html (Firebase module script) — replace updateCloudLeaderboard
 async function updateCloudLeaderboard() {
   if (!window.currentUser) return;
-  
-  // Calculate stats for the past 30 days only
+
+  // Compute past 30-day totals from window.dailyData
   const today = new Date();
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
+  const start = new Date(today);
+  start.setDate(start.getDate() - 30);
+
   let totalMinutes = 0;
   let totalCharacters = 0;
   let minutesWithChars = 0;
   let charactersWithChars = 0;
-  
-  // Only count days with both minutes AND characters, within past 30 days
+
   Object.entries(window.dailyData || {}).forEach(([dateStr, day]) => {
-    const entryDate = new Date(dateStr + 'T00:00:00');
-    
-    // Only include entries from the past 30 days
-    if (entryDate >= thirtyDaysAgo && entryDate <= today) {
-      const hasChars = (day.characters || 0) > 0;
-      const hasMins = (day.minutes || 0) > 0;
-      
-      // For total stats, count everything
-      totalMinutes += day.minutes || 0;
-      totalCharacters += day.characters || 0;
-      
-      // For speed calculation, only count days with BOTH
-      if (hasChars && hasMins) {
-        minutesWithChars += day.minutes || 0;
-        charactersWithChars += day.characters || 0;
+    const d = new Date(dateStr + 'T00:00:00');
+    if (d >= start && d <= today) {
+      const mins = day.minutes || 0;
+      const chars = day.characters || 0;
+      totalMinutes += mins;
+      totalCharacters += chars;
+      if (mins > 0 && chars > 0) {
+        minutesWithChars += mins;
+        charactersWithChars += chars;
       }
     }
   });
-  
+
   const hoursWithChars = minutesWithChars / 60;
   const avgSpeed = hoursWithChars > 0 ? Math.round(charactersWithChars / hoursWithChars) : 0;
-  
+
   const leaderboardEntry = {
     userId: window.currentUser.id,
-    name: window.currentUser.name,
-    avatar: window.currentUser.avatar,
-    totalMinutes: totalMinutes,
-    totalCharacters: totalCharacters,
-    avgSpeed: avgSpeed,
+    name: window.currentUser.name || 'User',
+    avatar: window.currentUser.avatar || '',
+    totalMinutes,
+    totalCharacters,
+    avgSpeed,
     lastUpdated: new Date().toISOString()
   };
-  
+
   try {
     const ref = doc(db, 'leaderboard', window.currentUser.id);
     await setDoc(ref, leaderboardEntry);
@@ -3160,74 +3154,84 @@ async function updateCloudLeaderboard() {
   }
 }
 
+// filename: index.html (Firebase module script) — replace loadLeaderboardData
 async function loadLeaderboardData() {
   const container = document.getElementById('leaderboardList');
   const metric = document.getElementById('leaderboardMetric')?.value || 'minutes';
-  
+
+  // Guard: Firebase not ready
+  if (!db) {
+    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading... Please try again in a moment.</div>';
+    return;
+  }
+
   try {
     const leaderboardRef = collection(db, 'leaderboard');
     const snapshot = await getDocs(leaderboardRef);
-    
-    const leaderboardData = [];
+
+    const rows = [];
     snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      // Only include users with data
-      if ((metric === 'minutes' && data.totalMinutes > 0) ||
-          (metric === 'characters' && data.totalCharacters > 0) ||
-          (metric === 'speed' && data.avgSpeed > 0)) {
-        leaderboardData.push(data);
-      }
+      const d = docSnap.data();
+      rows.push({
+        userId: d.userId,
+        name: d.name || 'User',
+        avatar: d.avatar || '',
+        totalMinutes: Number(d.totalMinutes || 0),
+        totalCharacters: Number(d.totalCharacters || 0),
+        avgSpeed: Number(d.avgSpeed || 0),
+        lastUpdated: d.lastUpdated || ''
+      });
     });
-    
-    if (leaderboardData.length === 0) {
+
+    // Filter rows by selected metric having data
+    const filtered = rows.filter(r =>
+      metric === 'minutes' ? r.totalMinutes > 0 :
+      metric === 'characters' ? r.totalCharacters > 0 :
+      r.avgSpeed > 0
+    );
+
+    if (filtered.length === 0) {
       container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
       return;
     }
-    
-    // Sort by selected metric
+
+    // Sort
     if (metric === 'minutes') {
-      leaderboardData.sort((a, b) => b.totalMinutes - a.totalMinutes);
+      filtered.sort((a, b) => b.totalMinutes - a.totalMinutes);
     } else if (metric === 'characters') {
-      leaderboardData.sort((a, b) => b.totalCharacters - a.totalCharacters);
-    } else if (metric === 'speed') {
-      leaderboardData.sort((a, b) => b.avgSpeed - a.avgSpeed);
+      filtered.sort((a, b) => b.totalCharacters - a.totalCharacters);
+    } else {
+      filtered.sort((a, b) => b.avgSpeed - a.avgSpeed);
     }
-    
-    // Find current user's position
-    let userPosition = -1;
-    if (window.currentUser) {
-      userPosition = leaderboardData.findIndex(entry => entry.userId === window.currentUser.id);
-    }
-    
-    // Check if we should show "Show More" button
+
+    // Render
     const showAll = container.dataset.showAll === 'true';
-    const displayCount = showAll ? leaderboardData.length : 10;
-    
+    const displayCount = showAll ? filtered.length : 10;
+
     container.innerHTML = '';
-    
-    leaderboardData.slice(0, displayCount).forEach((entry, index) => {
+
+    filtered.slice(0, displayCount).forEach((entry, index) => {
       const rankDiv = document.createElement('div');
       rankDiv.className = 'leaderboard-entry';
-      
-      // Highlight current user
+
       const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
       if (isCurrentUser) {
         rankDiv.style.background = 'var(--accent-color)';
         rankDiv.style.color = '#ffffff';
         rankDiv.style.fontWeight = '600';
       }
-      
+
       const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-      
+
       let displayValue;
       if (metric === 'minutes') {
         displayValue = `${entry.totalMinutes.toLocaleString()} min`;
       } else if (metric === 'characters') {
         displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
-      } else if (metric === 'speed') {
-        displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`; 
-    }
-      
+      } else {
+        displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
+      }
+
       rankDiv.innerHTML = `
         <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
         <div class="leaderboard-user">
@@ -3236,64 +3240,67 @@ async function loadLeaderboardData() {
         </div>
         <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
       `;
-      
+
       container.appendChild(rankDiv);
     });
-    
-    // Add "Show More" / "Show Less" button if there are more than 10 entries
-    if (leaderboardData.length > 10) {
+
+    // Show more/less
+    if (filtered.length > 10) {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'btn';
       toggleBtn.style.width = '100%';
       toggleBtn.style.marginTop = '12px';
-      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${leaderboardData.length - 10} more)`;
+      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${filtered.length - 10} more)`;
       toggleBtn.onclick = () => {
         container.dataset.showAll = showAll ? 'false' : 'true';
         loadLeaderboardData();
       };
       container.appendChild(toggleBtn);
     }
-    
-    // Show user's position if they're not in top 10 but exists in leaderboard
-    if (!showAll && userPosition >= 10 && window.currentUser) {
-      const userEntry = leaderboardData[userPosition];
-      const separatorDiv = document.createElement('div');
-      separatorDiv.style.margin = '16px 0 8px 0';
-      separatorDiv.style.padding = '8px 0';
-      separatorDiv.style.borderTop = '2px dashed var(--border-color)';
-      separatorDiv.style.color = 'var(--text-secondary)';
-      separatorDiv.style.textAlign = 'center';
-      separatorDiv.style.fontSize = '12px';
-      separatorDiv.textContent = 'Your Position';
-      container.appendChild(separatorDiv);
-      
+
+    // If current user is outside top 10, show their position row
+    let userPosition = -1;
+    if (window.currentUser && window.currentUser.id) {
+      userPosition = filtered.findIndex(e => e.userId === window.currentUser.id);
+    }
+    if (!showAll && userPosition >= 10) {
+      const userEntry = filtered[userPosition];
+      const sep = document.createElement('div');
+      sep.style.margin = '16px 0 8px 0';
+      sep.style.padding = '8px 0';
+      sep.style.borderTop = '2px dashed var(--border-color)';
+      sep.style.color = 'var(--text-secondary)';
+      sep.style.textAlign = 'center';
+      sep.style.fontSize = '12px';
+      sep.textContent = 'Your Position';
+      container.appendChild(sep);
+
       const userRankDiv = document.createElement('div');
       userRankDiv.className = 'leaderboard-entry';
       userRankDiv.style.background = 'var(--accent-color)';
       userRankDiv.style.color = '#ffffff';
       userRankDiv.style.fontWeight = '600';
-      
+
       let displayValue;
       if (metric === 'minutes') {
         displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
       } else if (metric === 'characters') {
         displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
-      } else if (metric === 'speed') {
-        displayValue = `${userEntry.avgSpeed.toLocaleString()} ch/m`;
+      } else {
+        displayValue = `${userEntry.avgSpeed.toLocaleString()} char/hr`;
       }
-      
+
       userRankDiv.innerHTML = `
         <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
         <div class="leaderboard-user">
-          <img src="${userEntry.avatar}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
+          <img src="${userEntry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
           <span>${userEntry.name} (You)</span>
         </div>
         <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
       `;
-      
       container.appendChild(userRankDiv);
     }
-    
+
   } catch (error) {
     container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Error: ' + error.message + '</div>';
     console.error('Leaderboard error details:', error);
