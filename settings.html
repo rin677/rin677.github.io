@@ -6,6 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff'/%3E%3Cpath d='M25 20 L25 80 L50 75 L75 80 L75 20 L50 25 Z' fill='%23000000'/%3E%3Cline x1='50' y1='25' x2='50' y2='75' stroke='%23ffffff' stroke-width='2'/%3E%3Cline x1='32' y1='35' x2='45' y2='35' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='32' y1='43' x2='45' y2='43' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='32' y1='51' x2='45' y2='51' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='32' y1='59' x2='45' y2='59' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='35' x2='68' y2='35' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='43' x2='68' y2='43' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='51' x2='68' y2='51' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3Cline x1='55' y1='59' x2='68' y2='59' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
@@ -390,8 +391,8 @@
       <p id="ttsuSyncStatusText">Not configured</p>
     </div>
     <div class="action-buttons">
-      <button class="confirm-btn" onclick="goToMainForTtsuSetup()">Setup Sync</button>
-      <button class="btn" onclick="goToMainForTtsuSync()">Sync Now</button>
+      <button class="confirm-btn" onclick="setupTtsuSync()">Setup Sync</button>
+      <button class="btn" onclick="manualSyncTtsu()">Sync Now</button>
     </div>
   </div>
   
@@ -400,7 +401,7 @@
       <h3>Batch Load</h3>
       <p>Load all ttsu data (overwrites existing data)</p>
     </div>
-    <button class="btn" onclick="goToMainForBatchLoad()">📥 Batch Load All</button>
+    <button class="btn" onclick="batchLoadAllTtsu()"">📥 Batch Load All</button>
   </div>
   
   <div class="setting-item">
@@ -747,51 +748,6 @@ function loadTtsuSyncStatus() {
   statusEl.style.color = 'var(--accent-color)';
 }
 
-async function goToMainForTtsuSetup() {
-  const confirmed = await customConfirm(
-    'ttsu sync setup requires the Google Drive API.\n\nYou will be redirected to the main page to complete setup.',
-    'Setup ttsu Sync'
-  );
-  
-  if (confirmed) {
-    // Store a flag to auto-open ttsu sync modal on main page
-    sessionStorage.setItem('openTtsuSync', 'setup');
-    window.location.href = 'index.html';
-  }
-}
-
-async function goToMainForTtsuSync() {
-  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
-  const folderId = localStorage.getItem('ttsu_folder_id');
-  
-  if (!enabled || !folderId) {
-    await customAlert('ttsu sync is not configured.\n\nPlease setup sync first.', 'Not Configured');
-    return;
-  }
-  
-  const confirmed = await customConfirm(
-    'ttsu sync requires the Google Drive API.\n\nYou will be redirected to the main page to sync.',
-    'Sync Now'
-  );
-  
-  if (confirmed) {
-    sessionStorage.setItem('openTtsuSync', 'sync');
-    window.location.href = 'index.html';
-  }
-}
-
-async function goToMainForBatchLoad() {
-  const confirmed = await customConfirm(
-    '⚠️ Batch loading will OVERWRITE all your existing data.\n\nYou will be redirected to the main page to complete this action.',
-    'Batch Load'
-  );
-  
-  if (confirmed) {
-    sessionStorage.setItem('openTtsuSync', 'batchLoad');
-    window.location.href = 'index.html';
-  }
-}
-
 async function disableTtsuSync() {
   const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
   
@@ -1037,6 +993,8 @@ async function wipeAllData() {
  window.onload = function() {
   loadTheme();
   loadStatVisibility();
+  loadBackupSettings();
+  loadTtsuSyncStatus();
     
   window.data = data = [];
   window.dailyData = dailyData = {};
@@ -1167,6 +1125,29 @@ function customAlert(message, title = 'Notice') {
     setTimeout(() => okBtn.focus(), 100);
   });
 }
+
+// ============================================
+// ttsu Google Drive Auto-Sync Integration
+// ============================================
+
+const GDRIVE_CONFIG = {
+  clientId: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
+  apiKey: 'AIzaSyDOHQjTJYPXMQ-6p45ReF6dBRvmxUZ0P_k',
+  scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly'
+};
+
+let googleAccessToken = null;
+let tokenClient = null;
+
+const TTSU_SYNC_ENABLED_KEY = 'ttsu_sync_enabled';
+const TTSU_LAST_SYNC_KEY = 'ttsu_last_sync';
+const TTSU_FOLDER_ID_KEY = 'ttsu_folder_id';
+const TTSU_TOKEN_KEY = 'ttsu_access_token';
+const TTSU_TOKEN_EXPIRY_KEY = 'ttsu_token_expiry';
+
+let ttsuSyncInterval = null;
+
+// [Copy ALL the ttsu functions from index.html: initGIS, driveApiCall, driveDownloadFile, setupTtsuSync, findTtsuFolder, syncFromTtsuGDrive, batchLoadAllTtsu, startAutoSync, stopAutoSync, manualSyncTtsu, disableTtsuSync, checkTtsuSyncStatus, ensureDriveToken, and the initialization setTimeout]
   </script>
 
 <!-- View Backups Modal -->
