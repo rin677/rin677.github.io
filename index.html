@@ -3367,16 +3367,28 @@ function checkTtsuSyncStatus() {
 // Helper: try to ensure we have a Google Drive access token
 // allowPrompt=false prevents any consent UI from appearing
 async function ensureDriveToken(options = { allowPrompt: false }) {
-  // If we already have a token, nothing to do
-  if (googleAccessToken) return true;
-
-  // GIS not ready
-  if (!tokenClient) {
-    initGIS();
-    if (!tokenClient) return false;
+  // If we already have a token, attempt a quick validity refresh silently
+  if (googleAccessToken) {
+    try {
+      // Try a silent reissue; GIS will reuse session cookies if consent existed
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (resp) => {
+          if (resp && !resp.error && resp.access_token) {
+            googleAccessToken = resp.access_token;
+            resolve();
+          } else {
+            reject(resp?.error || new Error('silent_refresh_failed'));
+          }
+        };
+        tokenClient.requestAccessToken({ prompt: '' });
+      });
+      return true;
+    } catch (e) {
+      // fall through to normal silent attempt below
+    }
   }
 
-  // Try silent first
+  // No token or refresh failed → silent attempt
   try {
     await new Promise((resolve, reject) => {
       tokenClient.callback = (resp) => {
@@ -3387,16 +3399,13 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
           reject(resp?.error || new Error('silent_token_failed'));
         }
       };
-      tokenClient.requestAccessToken({ prompt: '' }); // silent attempt
+      tokenClient.requestAccessToken({ prompt: '' });
     });
     return true;
   } catch (silentErr) {
-    // If not allowed to prompt, do not escalate to consent
-    if (!options.allowPrompt) {
-      return false;
-    }
+    if (!options.allowPrompt) return false;
 
-    // Fallback: explicit consent (only used during setup)
+    // One-time interactive consent during setup
     try {
       await new Promise((resolve, reject) => {
         tokenClient.callback = (resp) => {
@@ -3415,6 +3424,7 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
     }
   }
 }
+
 
 // Initialize on load: auto-start if previously configured (no consent prompts)
 setTimeout(async () => {
