@@ -240,11 +240,11 @@ body.theme-ereader h1 {
       </div>
       
       <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Reading Consistency</h3>
-        <canvas id="consistencyChart"></canvas>
-      </div>
-      
-    </div>
+  <h3 style="font-size: 18px; margin-bottom: 20px;">Reading Consistency</h3>
+  <div style="max-width: 300px; margin: 0 auto;">
+    <canvas id="consistencyChart"></canvas>
+  </div>
+</div>
   </div>
 
   <script>
@@ -324,12 +324,13 @@ function updateStatistics() {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
   
-  const filteredData = {};
-  Object.keys(dailyData).forEach(date => {
-    const dateObj = new Date(date + 'T00:00:00');
-    if (dateObj >= startDate && dateObj <= endDate) {
-      filteredData[date] = dailyData[date];
-    }
+  // Create filteredData with ALL dates in range, including empty days
+const filteredData = {};
+for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+  const dateStr = d.toISOString().split('T')[0];
+  // Use existing data if available, otherwise create empty entry
+  filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
+}
   });
   
   let totalMinutes = 0;
