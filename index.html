@@ -1895,12 +1895,14 @@ while (currentDate <= endDate) {
         }
       }
       currentStreak = streak;
-      // Calculate average reading speed
+      // Calculate average reading speed (only count days with character data)
 let totalMinutes = 0;
 let totalCharacters = 0;
 Object.values(dailyData).forEach(day => {
-  totalMinutes += day.minutes || 0;
-  totalCharacters += day.characters || 0;
+  if (day.characters > 0) {  // Only count if characters were logged
+    totalMinutes += day.minutes || 0;
+    totalCharacters += day.characters;
+  }
 });
 
 const totalHours = totalMinutes / 60;
@@ -3146,9 +3148,22 @@ async function syncFromTtsuGDrive() {
       }
     }
     
-    if (totalImported > 0) {
-      // Update recent books
-      bookTitles.forEach(title => {
+if (totalImported > 0) {
+  // Ask user before importing
+  const bookList = Array.from(bookTitles).join(', ');
+  const confirmed = confirm(
+    `Found ${totalImported} new reading session(s) from ttsu.\n\n` +
+    `Books: ${bookList}\n\n` +
+    `Import these sessions?`
+  );
+  
+  if (!confirmed) {
+    console.log('User cancelled ttsu import');
+    return 0;
+  }
+  
+  // Update recent books
+  bookTitles.forEach(title => {
         if (title && !window.recentBooks.includes(title)) {
           window.recentBooks.unshift(title);
         }
