@@ -331,7 +331,6 @@ for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
   // Use existing data if available, otherwise create empty entry
   filteredData[dateStr] = dailyData[dateStr] || { minutes: 0, characters: 0, titles: [] };
 }
-  });
   
   let totalMinutes = 0;
   let totalCharacters = 0;
