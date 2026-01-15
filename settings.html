@@ -624,7 +624,10 @@
         
         const entriesCount = backup.data ? backup.data.length : 0;
         const goalsCount = backup.goals ? backup.goals.length : 0;
-        const booksCount = backup.recentBooks ? backup.recentBooks.length : 0;
+        const booksCount = backup.data
+  ? new Set(backup.data.map(e => e.title).filter(Boolean)).size
+  : (backup.recentBooks ? backup.recentBooks.length : 0);
+
         const type = backup.type === 'manual' ? '👤 Manual' : '🤖 Automatic';
         
         backupDiv.innerHTML = `
