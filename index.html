@@ -1536,6 +1536,63 @@ function closeTtsuSyncModal() {
         }
       });
     }
+
+    function initializeBackups() {
+  const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
+  const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
+  const BACKUPS_KEY = 'reading_heatmap_backups';
+  
+  const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
+  if (frequency === 'none') return;
+  
+  const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
+  const now = Date.now();
+  
+  let shouldBackup = false;
+  
+  if (!lastBackup) {
+    shouldBackup = true;
+  } else {
+    const lastTime = parseInt(lastBackup);
+    const hoursSince = (now - lastTime) / (1000 * 60 * 60);
+    
+    if (frequency === 'daily' && hoursSince >= 24) shouldBackup = true;
+    if (frequency === 'weekly' && hoursSince >= 168) shouldBackup = true;
+    if (frequency === 'monthly' && hoursSince >= 720) shouldBackup = true;
+  }
+  
+  if (shouldBackup) {
+    try {
+      const backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
+      const retention = localStorage.getItem('reading_heatmap_backup_retention') || '5';
+      
+      const backup = {
+        timestamp: now,
+        data: window.data || [],
+        goals: window.goals || [],
+        recentBooks: window.recentBooks || [],
+        type: 'automatic'
+      };
+      
+      backups.push(backup);
+      backups.sort((a, b) => b.timestamp - a.timestamp);
+      
+      if (retention !== 'all') {
+        const maxBackups = parseInt(retention);
+        if (backups.length > maxBackups) {
+          backups.splice(maxBackups);
+        }
+      }
+      
+      localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
+      localStorage.setItem(LAST_BACKUP_KEY, String(now));
+      
+      console.log('Automatic backup created');
+    } catch (error) {
+      console.error('Auto backup failed:', error);
+    }
+  }
+}
   
 window.onload = function() {
   loadTheme();
@@ -2561,8 +2618,7 @@ if (metric === 'minutes') {
     window.deleteEntry = deleteEntry;
     window.saveGoal = saveGoal;
     window.deleteGoal = deleteGoal;
-    window.wipeAllData = wipeAllData;
-    
+    window.getYearAvgSpeedCharPerHour = getYearAvgSpeedCharPerHour;
     // Sync all variables with window
     window.data = data;
     window.dailyData = dailyData;
