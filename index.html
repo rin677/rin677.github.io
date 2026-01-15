@@ -2172,7 +2172,7 @@ function getYearAvgSpeedCharPerHour(year) {
       });
     }
 
-    async function deleteEntry(dateStr, index) {
+async function deleteEntry(dateStr, index) {
   const dateEntries = window.data.filter(item => item.date === dateStr);
   if (dateEntries[index]) {
     const entryToDelete = dateEntries[index];
@@ -2184,15 +2184,17 @@ function getYearAvgSpeedCharPerHour(year) {
     // Sync with local variable
     data = window.data;
     
-    await saveToStorage();
-    aggregateData();
-    renderEntryList(dateStr);
-    loadYear();
+    // Save to localStorage immediately
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.data));
     
     // Trigger cloud save if available
     if (window.saveCloudState && typeof window.saveCloudState === 'function') {
       await window.saveCloudState();
     }
+    
+    aggregateData();
+    renderEntryList(dateStr);
+    loadYear();
   }
 }
 
