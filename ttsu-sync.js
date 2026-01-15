@@ -277,12 +277,15 @@ async function syncFromTtsuGDrive() {
         return 0;
       }
       
-      // Update recent books
-      bookTitles.forEach(title => {
-        if (title && !window.recentBooks.includes(title)) {
-          window.recentBooks.unshift(title);
-        }
-      });
+// Update recent books
+if (!window.recentBooks) {
+  window.recentBooks = [];
+}
+bookTitles.forEach(title => {
+  if (title && !window.recentBooks.includes(title)) {
+    window.recentBooks.unshift(title);
+  }
+});
       window.recentBooks = window.recentBooks.slice(0, 10);
       
       if (typeof recentBooks !== 'undefined') {
@@ -529,13 +532,16 @@ async function batchLoadAllTtsu() {
       return;
     }
     
-    // Update recent books
-    bookTitles.forEach(title => {
-      if (title && !window.recentBooks.includes(title)) {
-        window.recentBooks.unshift(title);
-      }
-    });
-    window.recentBooks = window.recentBooks.slice(0, 10);
+  // Update recent books
+if (!window.recentBooks) {
+  window.recentBooks = [];
+}
+bookTitles.forEach(title => {
+  if (title && !window.recentBooks.includes(title)) {
+    window.recentBooks.unshift(title);
+  }
+});
+window.recentBooks = window.recentBooks.slice(0, 10);
     
     if (typeof recentBooks !== 'undefined') {
       recentBooks = window.recentBooks;
