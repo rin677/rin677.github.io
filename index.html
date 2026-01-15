@@ -8,6 +8,7 @@
   <meta name="google-site-verification" content="far4mB8aQQrQ4OshhK5PYwtcgJ1XDn02389aFZjIAjk" />
   <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://accounts.google.com/gsi/client" async defer></script> 
+  <script src="ttsu-sync.js" defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
@@ -2887,22 +2888,7 @@ function customPrompt(message, title = 'Input') {
     document.addEventListener('keydown', handleEscape);
   });
 }
-// Placeholder ttsu functions - will be overridden by settings.html script
-window.setupTtsuSync = window.setupTtsuSync || function() {
-  console.log('ttsu sync not loaded yet');
-};
-window.manualSyncTtsu = window.manualSyncTtsu || function() {
-  console.log('ttsu sync not loaded yet');
-};
-window.batchLoadAllTtsu = window.batchLoadAllTtsu || function() {
-  console.log('ttsu sync not loaded yet');
-};
-window.disableTtsuSync = window.disableTtsuSync || function() {
-  console.log('ttsu sync not loaded yet');
-};
-window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
-  return 'Not configured';
-};
+
  </script>
 
 <script type="module">

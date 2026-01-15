@@ -1,5 +1,4 @@
 // ttsu-sync.js - Google Drive sync for ttsu reading data
-// Add this as a separate file and include it in both index.html and settings.html
 
 const TTSU_FOLDER_ID_KEY = 'ttsu_folder_id';
 const TTSU_SYNC_ENABLED_KEY = 'ttsu_sync_enabled';
@@ -11,7 +10,6 @@ let googleAccessToken = null;
 let tokenClient = null;
 let autoSyncInterval = null;
 
-// Initialize Google Identity Services
 function initGIS() {
   if (tokenClient) return true;
   if (!window.google || !window.google.accounts) return false;
@@ -38,7 +36,6 @@ function initGIS() {
   }
 }
 
-// Check if we have a valid token
 function hasValidToken() {
   const token = localStorage.getItem(TTSU_ACCESS_TOKEN_KEY);
   const expiry = localStorage.getItem(TTSU_TOKEN_EXPIRY_KEY);
@@ -56,7 +53,6 @@ function hasValidToken() {
   return true;
 }
 
-// Ensure we have a valid Drive token
 async function ensureDriveToken({ allowPrompt = false } = {}) {
   if (hasValidToken()) return true;
   
@@ -84,7 +80,6 @@ async function ensureDriveToken({ allowPrompt = false } = {}) {
   });
 }
 
-// Drive API call wrapper
 async function driveApiCall(endpoint, token) {
   const response = await fetch(`https://www.googleapis.com/drive/v3/${endpoint}`, {
     headers: {
@@ -99,7 +94,6 @@ async function driveApiCall(endpoint, token) {
   return response.json();
 }
 
-// Download file content
 async function driveDownloadFile(fileId, token) {
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
     headers: {
@@ -114,7 +108,6 @@ async function driveDownloadFile(fileId, token) {
   return response.text();
 }
 
-// Find ttsu folder
 async function findTtsuFolder() {
   const query = encodeURIComponent("name='ttsu' and mimeType='application/vnd.google-apps.folder' and trashed=false");
   const data = await driveApiCall(`files?q=${query}&spaces=drive&fields=files(id,name)`, googleAccessToken);
@@ -126,7 +119,6 @@ async function findTtsuFolder() {
   return data.files[0].id;
 }
 
-// Sync from ttsu Google Drive
 async function syncFromTtsuGDrive() {
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
   if (!folderId) throw new Error('No folder ID configured');
@@ -206,7 +198,6 @@ async function syncFromTtsuGDrive() {
   return newSessionsCount;
 }
 
-// Start auto-sync
 function startAutoSync() {
   if (autoSyncInterval) {
     clearInterval(autoSyncInterval);
@@ -216,19 +207,18 @@ function startAutoSync() {
     const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
     if (!enabled) return;
     
-    const hasToken = await ensureDriveToken({ allowPrompt: false });
-    if (!hasToken) return;
-    
     try {
+      const hasToken = await ensureDriveToken({ allowPrompt: false });
+      if (!hasToken) return;
+      
       await syncFromTtsuGDrive();
       console.log('Auto-sync completed');
     } catch (error) {
       console.error('Auto-sync failed:', error);
     }
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 5 * 60 * 1000);
 }
 
-// Check sync status
 function checkTtsuSyncStatus() {
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -255,7 +245,6 @@ function checkTtsuSyncStatus() {
   }
 }
 
-// Export functions to window
 window.initGIS = initGIS;
 window.ensureDriveToken = ensureDriveToken;
 window.driveApiCall = driveApiCall;
