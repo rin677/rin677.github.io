@@ -2014,14 +2014,8 @@ function updateStats() {
     if (hasChars) {
       globalMinutesWithChars += day.minutes || 0;
       globalCharactersWithChars += day.characters || 0;
-    }
+    } 
   });
-  
-
-  const globalHoursWithChars = globalMinutesWithChars / 60;
-  const avgSpeed = yearHoursWithChars > 0
-    ? Math.round(yearCharactersWithChars / yearHoursWithChars)
-    : 0;
 
 // Year-scoped avg speed for currentYear
 let yearMinutesWithChars = 0;
@@ -2043,7 +2037,6 @@ const yearAvgSpeed = yearHoursWithChars > 0
   ? Math.round(yearCharactersWithChars / yearHoursWithChars)
   : 0;
 
-// Display the year average speed in the UI (preferred)
 document.getElementById('avgSpeed').textContent = yearAvgSpeed.toLocaleString() + ' char/hr';
 
   // Calculate average only from first logged day
@@ -3313,13 +3306,6 @@ async function loadLeaderboardData() {
   window.updateStats = updateStats;
   window.renderHeatmap = renderHeatmap;
   window.promptSignIn = firebaseSignIn;
-
-window.setupTtsuSync = setupTtsuSync;
-window.syncFromTtsuGDrive = syncFromTtsuGDrive;
-window.manualSyncTtsu = manualSyncTtsu;
-window.batchLoadAllTtsu = batchLoadAllTtsu;
-window.disableTtsuSync = disableTtsuSync;
-window.checkTtsuSyncStatus = checkTtsuSyncStatus;
 
 </script>
 <!-- Spacer to push footer far below main UI -->
