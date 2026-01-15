@@ -3286,16 +3286,13 @@ async function loadLeaderboardData() {
   }
 }
 
-// keep binding so non-module script can call it
-window.loadLeaderboardData = loadLeaderboardData;
-
-
   // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
   window.saveCloudState = saveCloudState;
   window.loadLeaderboardData = loadLeaderboardData;
-  // Override promptSignIn to use Firebase
+  window.updateStats = updateStats;
+  window.renderHeatmap = renderHeatmap;
   window.promptSignIn = firebaseSignIn;
 
 window.setupTtsuSync = setupTtsuSync;
