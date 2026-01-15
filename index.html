@@ -2003,16 +2003,28 @@ function updateStats() {
   }
   
   streak = 0;
-  for (let d = new Date(today); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
-    const dateStr = d.toISOString().split('T')[0];
-    const dayData = dailyData[dateStr];
-    if (dayData && dayData[metric] > 0) {
-      streak++;
-    } else {
-      break;
-    }
+let cursor = today;
+
+while (true) {
+  const yearNum = parseInt(cursor.slice(0, 4), 10);
+  if (yearNum !== year) break;
+
+  const dayData = dailyData[cursor];
+  if (dayData && dayData[metric] > 0) {
+    streak++;
+  } else {
+    break;
   }
-  currentStreak = streak;
+
+  const dObj = new Date(cursor + 'T00:00:00');
+  dObj.setDate(dObj.getDate() - 1);
+  const y = dObj.getFullYear();
+  const m = String(dObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dObj.getDate()).padStart(2, '0');
+  cursor = `${y}-${m}-${dd}`;
+}
+
+currentStreak = streak;
 
   let globalMinutesWithChars = 0;
   let globalCharactersWithChars = 0;
