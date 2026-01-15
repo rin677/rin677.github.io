@@ -2910,68 +2910,109 @@ window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
 
   let isInitialLoad = true;
   
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      window.currentUser = {
-        id: user.uid,
-        name: user.displayName || 'User',
-        email: user.email || '',
-        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
-      };
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    window.currentUser = {
+      id: user.uid,
+      name: user.displayName || 'User',
+      email: user.email || '',
+      avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+    };
+    
+    // Sync with local variable
+    if (typeof currentUser !== 'undefined') {
+      currentUser = window.currentUser;
+    }
+    
+    localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
+    
+    // Update UI
+    if (window.renderUserProfile) window.renderUserProfile();
+    
+    // Check if we just wiped data or restored a backup
+    const justWiped = sessionStorage.getItem('just_wiped_data') === 'true';
+    const justRestored = sessionStorage.getItem('just_restored_backup') === 'true';
+    
+    if (justWiped) {
+      // Clear the signal
+      sessionStorage.removeItem('just_wiped_data');
       
-      // Sync with local variable
-      if (typeof currentUser !== 'undefined') {
-        currentUser = window.currentUser;
-      }
-      
-      localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
-      
-      // Update UI
-      if (window.renderUserProfile) window.renderUserProfile();
-      
-      // Only load cloud state on initial load or if data is empty
-      if (isInitialLoad || !window.data || window.data.length === 0) {
-        try {
-          await loadCloudState(user.uid);
-        } catch (error) {
-          console.error('Failed to load cloud state:', error);
-        }
-        isInitialLoad = false;
-      }
-      
-      // Sync all data with local variables
-      if (typeof data !== 'undefined') data = window.data;
-      if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
-      if (typeof goals !== 'undefined') goals = window.goals;
-      if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
-      
-      if (window.aggregateData) window.aggregateData();
-      if (window.loadYear) window.loadYear();
-      if (window.renderGoals) window.renderGoals();
-    } else {
-      // User signed out - clear everything
-      isInitialLoad = true;
-      window.currentUser = null;
+      // Initialize with empty data
       window.data = [];
-      window.dailyData = {};
       window.goals = [];
       window.recentBooks = [];
       
-      // Sync with local variables
-      if (typeof currentUser !== 'undefined') currentUser = null;
-      if (typeof data !== 'undefined') data = [];
-      if (typeof dailyData !== 'undefined') dailyData = {};
-      if (typeof goals !== 'undefined') goals = [];
-      if (typeof recentBooks !== 'undefined') recentBooks = [];
+      // Save empty state to cloud to truly wipe
+      await saveCloudState();
       
-      localStorage.removeItem('reading_heatmap_user');
+      isInitialLoad = false;
+    } else if (justRestored) {
+      // Clear the signal
+      sessionStorage.removeItem('just_restored_backup');
       
-      if (window.initializeAuthButton) window.initializeAuthButton();
-      if (window.aggregateData) window.aggregateData();
-      if (window.loadYear) window.loadYear();
-      if (window.renderGoals) window.renderGoals();
+      // Load data from localStorage (the restored backup)
+      try {
+        const storedData = localStorage.getItem('reading_heatmap_data');
+        const storedGoals = localStorage.getItem('reading_heatmap_goals');
+        const storedBooks = localStorage.getItem('reading_heatmap_books');
+        
+        window.data = storedData ? JSON.parse(storedData) : [];
+        window.goals = storedGoals ? JSON.parse(storedGoals) : [];
+        window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
+      } catch (e) {
+        console.error('Error loading restored backup:', e);
+        window.data = [];
+        window.goals = [];
+        window.recentBooks = [];
+      }
+      
+      // Save restored state to cloud
+      await saveCloudState();
+      
+      isInitialLoad = false;
+    } else if (isInitialLoad || !window.data || window.data.length === 0) {
+      // Normal flow - load from cloud
+      try {
+        await loadCloudState(user.uid);
+      } catch (error) {
+        console.error('Failed to load cloud state:', error);
+      }
+      isInitialLoad = false;
     }
-  });
+    
+    // Sync all data with local variables
+    if (typeof data !== 'undefined') data = window.data;
+    if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
+    if (typeof goals !== 'undefined') goals = window.goals;
+    if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+    
+    if (window.aggregateData) window.aggregateData();
+    if (window.loadYear) window.loadYear();
+    if (window.renderGoals) window.renderGoals();
+  } else {
+    // User signed out - clear everything
+    isInitialLoad = true;
+    window.currentUser = null;
+    window.data = [];
+    window.dailyData = {};
+    window.goals = [];
+    window.recentBooks = [];
+    
+    // Sync with local variables
+    if (typeof currentUser !== 'undefined') currentUser = null;
+    if (typeof data !== 'undefined') data = [];
+    if (typeof dailyData !== 'undefined') dailyData = {};
+    if (typeof goals !== 'undefined') goals = [];
+    if (typeof recentBooks !== 'undefined') recentBooks = [];
+    
+    localStorage.removeItem('reading_heatmap_user');
+    
+    if (window.initializeAuthButton) window.initializeAuthButton();
+    if (window.aggregateData) window.aggregateData();
+    if (window.loadYear) window.loadYear();
+    if (window.renderGoals) window.renderGoals();
+  }
+});
 
   async function firebaseSignIn() {
     try {

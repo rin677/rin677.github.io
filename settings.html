@@ -641,7 +641,6 @@ function closeViewBackupsModal() {
   document.getElementById('viewBackupsModal').style.display = 'none';
 }
 
-// filename: settings.html - replace restoreBackup entirely
 async function restoreBackup(index) {
   const backups = getBackups();
   if (index < 0 || index >= backups.length) {
@@ -664,16 +663,19 @@ async function restoreBackup(index) {
     localStorage.setItem(GOALS_KEY, JSON.stringify(backup.goals || []));
     localStorage.setItem(BOOKS_KEY, JSON.stringify(backup.recentBooks || []));
     
-    // Keep last backup timestamp as-is; refresh UI
-    loadBackupSettings();
+    // Signal to main page that we restored data
+    sessionStorage.setItem('just_restored_backup', 'true');
+    
     closeViewBackupsModal();
-    await customAlert('Backup restored successfully!\n\nReturn to the main page to see your restored data.', 'Restore Complete');
+    await customAlert('Backup restored successfully!\n\nRedirecting to main page...', 'Restore Complete');
+    
+    // Redirect to homepage
+    window.location.href = 'index.html';
   } catch (error) {
     console.error('Restore error:', error);
     await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
   }
 }
-
 
 function downloadBackup(index) {
   const backups = getBackups();
@@ -994,7 +996,7 @@ async function wipeAllData() {
   if (!secondConfirm) return;
 
   try {
-    // Clear all app data
+    // Clear all app data from localStorage
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOALS_KEY);
     localStorage.removeItem(BOOKS_KEY);
@@ -1009,6 +1011,9 @@ async function wipeAllData() {
     localStorage.removeItem('show_total');
     localStorage.removeItem('selectedMetric');
     localStorage.removeItem(USER_KEY);
+    
+    // Signal to main page that we wiped data
+    sessionStorage.setItem('just_wiped_data', 'true');
     
     await customAlert('All data has been wiped. Redirecting to main page...', 'Data Wiped');
     
