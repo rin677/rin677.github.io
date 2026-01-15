@@ -3018,15 +3018,17 @@ onAuthStateChanged(auth, async (user) => {
             isInitialLoad = false;
           }
         }
-      } else if (isInitialLoad || !window.data || window.data.length === 0) {
-        // No local data - load from cloud
-        try {
-          await loadCloudState(user.uid);
-        } catch (error) {
-          console.error('Failed to load cloud state:', error);
-        }
-        isInitialLoad = false;
-      }
+     } else {
+  // Load from cloud ONLY on initial page load
+  if (isInitialLoad) {
+    try {
+      await loadCloudState(user.uid);
+    } catch (error) {
+      console.error('Failed to load cloud state:', error);
+    }
+    isInitialLoad = false;
+  }
+}
     }
     
     if (typeof data !== 'undefined') data = window.data;
