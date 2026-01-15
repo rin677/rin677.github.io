@@ -1737,14 +1737,16 @@ async function exportToToggl() {
   closeMenu();
 }
 
-    function getAustralianDate() {
-      const now = new Date();
-      const australiaTime = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-      return australiaTime.toISOString().split('T')[0];
-    }
+    function getLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
    async function loadFromStorage() {
-  // Only load from cloud storage when user is signed in
   if (!window.currentUser && !currentUser) {
     window.data = data = [];
     window.dailyData = dailyData = {};
@@ -1882,7 +1884,8 @@ while (currentDate <= endDate) {
         dayDiv.className = 'day';
         
         const dateStr = currentDate.toISOString().split('T')[0];
-        const today = getAustralianDate();
+        const today = getLocalDate();
+
         
         if (dateStr === today) {
           dayDiv.classList.add('today');
@@ -2134,7 +2137,7 @@ function getYearAvgSpeedCharPerHour(year) {
     }
 
     function openModalForToday() {
-      const today = getAustralianDate();
+      const today = getLocalDate();
       openModal(today);
     }
 
@@ -2502,7 +2505,7 @@ container.appendChild(goalDiv);
     }
     
     function calculateGoalProgress(goal) {
-      const today = getAustralianDate();
+      const today = getLocalDate();
       const metric = goal.type.includes('minutes') ? 'minutes' : goal.type.includes('characters') ? 'characters' : 'streak';
       
       if (goal.type.startsWith('daily')) {
