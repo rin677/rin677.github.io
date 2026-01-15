@@ -659,6 +659,7 @@ async function restoreBackup(index) {
   if (!confirmed) return;
   
   try {
+    // Save backup data to localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.data || []));
     localStorage.setItem(GOALS_KEY, JSON.stringify(backup.goals || []));
     localStorage.setItem(BOOKS_KEY, JSON.stringify(backup.recentBooks || []));
@@ -669,11 +670,57 @@ async function restoreBackup(index) {
     closeViewBackupsModal();
     await customAlert('Backup restored successfully!\n\nRedirecting to main page...', 'Restore Complete');
     
-    // Redirect to homepage
-    window.location.href = 'index.html';
+    // Small delay to ensure session storage is set
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 500);
   } catch (error) {
     console.error('Restore error:', error);
     await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
+  }
+}
+
+async function wipeAllData() {
+  const firstConfirm = await customConfirm(
+    'Are you sure? This will permanently delete all reading data, goals, recent books, backups, and visibility preferences.\n\nThis action cannot be undone.',
+    'Wipe All Data'
+  );
+  if (!firstConfirm) return;
+
+  const secondConfirm = await customConfirm(
+    'Really delete ALL data? Click OK to confirm.',
+    'Final Confirmation'
+  );
+  if (!secondConfirm) return;
+
+  try {
+    // Clear all app data from localStorage
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(GOALS_KEY);
+    localStorage.removeItem(BOOKS_KEY);
+    localStorage.removeItem(BACKUPS_KEY);
+    localStorage.removeItem(LAST_BACKUP_KEY);
+    localStorage.removeItem(BACKUP_FREQUENCY_KEY);
+    localStorage.removeItem(BACKUP_RETENTION_KEY);
+    localStorage.removeItem('show_longestStreak');
+    localStorage.removeItem('show_currentStreak');
+    localStorage.removeItem('show_average');
+    localStorage.removeItem('show_avgSpeed');
+    localStorage.removeItem('show_total');
+    localStorage.removeItem('selectedMetric');
+    localStorage.removeItem(USER_KEY);
+    
+    // Signal to main page that we wiped data
+    sessionStorage.setItem('just_wiped_data', 'true');
+    
+    await customAlert('All data has been wiped. Redirecting to main page...', 'Data Wiped');
+    
+    // Small delay to ensure session storage is set
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 500);
+  } catch (error) {
+    await customAlert('Failed to wipe data: ' + error.message, 'Error');
   }
 }
 

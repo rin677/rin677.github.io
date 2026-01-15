@@ -2933,22 +2933,42 @@ onAuthStateChanged(auth, async (user) => {
     const justWiped = sessionStorage.getItem('just_wiped_data') === 'true';
     const justRestored = sessionStorage.getItem('just_restored_backup') === 'true';
     
+    console.log('Auth state change - justWiped:', justWiped, 'justRestored:', justRestored);
+    
     if (justWiped) {
       // Clear the signal
       sessionStorage.removeItem('just_wiped_data');
+      
+      console.log('Wiping all data...');
       
       // Initialize with empty data
       window.data = [];
       window.goals = [];
       window.recentBooks = [];
+      window.dailyData = {};
+      
+      // Sync with local variables
+      if (typeof data !== 'undefined') data = [];
+      if (typeof goals !== 'undefined') goals = [];
+      if (typeof recentBooks !== 'undefined') recentBooks = [];
+      if (typeof dailyData !== 'undefined') dailyData = {};
       
       // Save empty state to cloud to truly wipe
       await saveCloudState();
       
+      // Update UI
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
+      
       isInitialLoad = false;
+      
+      console.log('Wipe complete, data cleared');
     } else if (justRestored) {
       // Clear the signal
       sessionStorage.removeItem('just_restored_backup');
+      
+      console.log('Restoring from backup...');
       
       // Load data from localStorage (the restored backup)
       try {
@@ -2959,6 +2979,8 @@ onAuthStateChanged(auth, async (user) => {
         window.data = storedData ? JSON.parse(storedData) : [];
         window.goals = storedGoals ? JSON.parse(storedGoals) : [];
         window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
+        
+        console.log('Loaded from backup:', window.data.length, 'entries');
       } catch (e) {
         console.error('Error loading restored backup:', e);
         window.data = [];
@@ -2966,12 +2988,25 @@ onAuthStateChanged(auth, async (user) => {
         window.recentBooks = [];
       }
       
+      // Sync with local variables
+      if (typeof data !== 'undefined') data = window.data;
+      if (typeof goals !== 'undefined') goals = window.goals;
+      if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+      
       // Save restored state to cloud
       await saveCloudState();
       
+      // Update UI
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
+      
       isInitialLoad = false;
+      
+      console.log('Restore complete');
     } else if (isInitialLoad || !window.data || window.data.length === 0) {
       // Normal flow - load from cloud
+      console.log('Normal load from cloud');
       try {
         await loadCloudState(user.uid);
       } catch (error) {
@@ -2980,15 +3015,12 @@ onAuthStateChanged(auth, async (user) => {
       isInitialLoad = false;
     }
     
-    // Sync all data with local variables
+    // Final sync of all data with local variables
     if (typeof data !== 'undefined') data = window.data;
     if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
     if (typeof goals !== 'undefined') goals = window.goals;
     if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
     
-    if (window.aggregateData) window.aggregateData();
-    if (window.loadYear) window.loadYear();
-    if (window.renderGoals) window.renderGoals();
   } else {
     // User signed out - clear everything
     isInitialLoad = true;
