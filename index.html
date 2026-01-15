@@ -2880,7 +2880,22 @@ function customPrompt(message, title = 'Input') {
     document.addEventListener('keydown', handleEscape);
   });
 }
-
+// Placeholder ttsu functions - will be overridden by settings.html script
+window.setupTtsuSync = window.setupTtsuSync || function() {
+  console.log('ttsu sync not loaded yet');
+};
+window.manualSyncTtsu = window.manualSyncTtsu || function() {
+  console.log('ttsu sync not loaded yet');
+};
+window.batchLoadAllTtsu = window.batchLoadAllTtsu || function() {
+  console.log('ttsu sync not loaded yet');
+};
+window.disableTtsuSync = window.disableTtsuSync || function() {
+  console.log('ttsu sync not loaded yet');
+};
+window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
+  return 'Not configured';
+};
  </script>
 <!-- Firebase integration: Auth (Google) + Firestore -->
 <script type="module">
