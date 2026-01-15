@@ -211,41 +211,44 @@ body.theme-ereader h1 {
       </div>
     </div>
 
-    <!-- Charts Grid -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px;">
-      
-      <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Reading Speed Over Time</h3>
-        <canvas id="speedChart"></canvas>
-      </div>
-      
-      <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Daily Reading Time</h3>
-        <canvas id="dailyTimeChart"></canvas>
-      </div>
-      
-      <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Characters Read per Day</h3>
-        <canvas id="dailyCharsChart"></canvas>
-      </div>
-      
-      <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Reading by Day of Week</h3>
-        <canvas id="dayOfWeekChart"></canvas>
-      </div>
-      
-      <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-        <h3 style="font-size: 18px; margin-bottom: 20px;">Top Books by Time Spent</h3>
-        <div id="topBooksList" style="max-height: 300px; overflow-y: auto;"></div>
-      </div>
-      
-      <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
-  <h3 style="font-size: 18px; margin-bottom: 20px;">Reading Consistency</h3>
-  <div style="max-width: 300px; margin: 0 auto;">
-    <canvas id="consistencyChart"></canvas>
+<!-- Charts Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px;">
+  <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
+    <h3 style="font-size: 18px; margin-bottom: 20px;">Reading Speed Over Time</h3>
+    <canvas id="speedChart"></canvas>
+  </div>
+  
+  <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
+    <h3 style="font-size: 18px; margin-bottom: 20px;">Daily Reading Time</h3>
+    <canvas id="dailyTimeChart"></canvas>
+  </div>
+  
+  <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
+    <h3 style="font-size: 18px; margin-bottom: 20px;">Characters Read per Day</h3>
+    <canvas id="dailyCharsChart"></canvas>
+  </div>
+
+  <!-- Moved up one row -->
+  <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
+    <h3 style="font-size: 18px; margin-bottom: 20px;">Top Books by Time Spent</h3>
+    <div id="topBooksList" style="max-height: 300px; overflow-y: auto;"></div>
+  </div>
+
+  <!-- Moved up one row -->
+  <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
+    <h3 style="font-size: 18px; margin-bottom: 20px;">Reading Consistency</h3>
+    <div style="max-width: 300px; margin: 0 auto;">
+      <canvas id="consistencyChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Shifted down to make room -->
+  <div style="background: var(--bg-secondary); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color);">
+    <h3 style="font-size: 18px; margin-bottom: 20px;">Reading by Day of Week</h3>
+    <canvas id="dayOfWeekChart"></canvas>
   </div>
 </div>
-  </div>
+
 
   <script>
 const STORAGE_KEY = 'reading_heatmap_data';
