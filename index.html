@@ -2905,8 +2905,8 @@ function customPrompt(message, title = 'Input') {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // Listen for auth state changes to persist login across reloads
-  // Listen for auth state changes to persist login across reloads
+  let isInitialLoad = true;
+  
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       window.currentUser = {
@@ -2926,8 +2926,15 @@ function customPrompt(message, title = 'Input') {
       // Update UI
       if (window.renderUserProfile) window.renderUserProfile();
       
-      // Load user's data from cloud
-      await loadCloudState(user.uid);
+      // Only load cloud state on initial load or if data is empty
+      if (isInitialLoad || !window.data || window.data.length === 0) {
+        try {
+          await loadCloudState(user.uid);
+        } catch (error) {
+          console.error('Failed to load cloud state:', error);
+        }
+        isInitialLoad = false;
+      }
       
       // Sync all data with local variables
       if (typeof data !== 'undefined') data = window.data;
@@ -2940,6 +2947,7 @@ function customPrompt(message, title = 'Input') {
       if (window.renderGoals) window.renderGoals();
     } else {
       // User signed out - clear everything
+      isInitialLoad = true;
       window.currentUser = null;
       window.data = [];
       window.dailyData = {};
@@ -3043,7 +3051,8 @@ function customPrompt(message, title = 'Input') {
       }
     } catch (error) {
       console.error('Error loading cloud state:', error);
-      await customAlert('Failed to load your data from cloud. Please try again.', 'Load Error');
+      // Don't show error alert on initial load - just log it
+      // The data will be empty arrays which is fine for new users
     }
   }
 
