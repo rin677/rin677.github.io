@@ -2999,6 +2999,19 @@ function customPrompt(message, title = 'Input') {
         if (typeof data !== 'undefined') data = window.data;
         if (typeof goals !== 'undefined') goals = window.goals;
         if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+        
+        // CRITICAL: Aggregate data to populate dailyData
+        if (window.aggregateData) {
+          window.aggregateData();
+        }
+        
+        // CRITICAL: Update the display
+        if (window.updateStats) {
+          window.updateStats();
+        }
+        if (window.renderHeatmap) {
+          window.renderHeatmap();
+        }
       } else {
         // First time user - initialize empty
         window.data = [];
@@ -3009,6 +3022,17 @@ function customPrompt(message, title = 'Input') {
         if (typeof data !== 'undefined') data = [];
         if (typeof goals !== 'undefined') goals = [];
         if (typeof recentBooks !== 'undefined') recentBooks = [];
+        
+        // CRITICAL: Still need to aggregate (even if empty) and update display
+        if (window.aggregateData) {
+          window.aggregateData();
+        }
+        if (window.updateStats) {
+          window.updateStats();
+        }
+        if (window.renderHeatmap) {
+          window.renderHeatmap();
+        }
         
         await setDoc(ref, { 
           data: [], 
