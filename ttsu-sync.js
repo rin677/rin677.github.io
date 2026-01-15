@@ -16,7 +16,7 @@ function initGIS() {
   
   try {
     tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: '374798694344-30ikmvggrspkd1shnci57pv4dq9n0r8s.apps.googleusercontent.com',
+      client_id: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
       scope: 'https://www.googleapis.com/auth/drive.readonly',
       callback: (tokenResponse) => {
         if (tokenResponse.access_token) {
