@@ -1965,8 +1965,8 @@ function updateStats() {
   });
 
   const globalHoursWithChars = globalMinutesWithChars / 60;
-  const globalAvgSpeed = globalHoursWithChars > 0
-    ? Math.round(globalCharactersWithChars / globalHoursWithChars)
+  const avgSpeed = yearHoursWithChars > 0
+    ? Math.round(yearCharactersWithChars / yearHoursWithChars)
     : 0;
 
   // Year-scoped avg speed for currentYear
@@ -2293,46 +2293,6 @@ async function loadData(event) {
     function closeMenu() {
       document.getElementById('menuModal').className = 'modal';
     }
-
-// filename: index.html (non-module script) — replace wipeAllData
-async function wipeAllData() {
-  const ok1 = await customConfirm(
-    'Are you sure? This will permanently delete all reading data, goals, recent books.\n\nThis action cannot be undone.',
-    'Wipe All Data'
-  );
-  if (!ok1) return;
-
-  const ok2 = await customConfirm('Really delete ALL data? Click OK to confirm.', 'Final Confirmation');
-  if (!ok2) return;
-
-  try {
-    const BACKUPS_KEY = 'reading_heatmap_backups';
-    const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
-
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(GOALS_KEY);
-    localStorage.removeItem(BOOKS_KEY);
-    localStorage.removeItem(BACKUPS_KEY);
-    localStorage.removeItem(LAST_BACKUP_KEY);
-    localStorage.removeItem('show_longestStreak');
-    localStorage.removeItem('show_currentStreak');
-    localStorage.removeItem('show_average');
-    localStorage.removeItem('show_avgSpeed');
-    localStorage.removeItem('show_total');
-    localStorage.removeItem('selectedMetric');
-
-    // Reset in-memory safely
-    window.data = [];
-    window.dailyData = {};
-    window.goals = [];
-    window.recentBooks = [];
-
-    await customAlert('All data has been wiped. Reloading…', 'Data Wiped');
-    window.location.reload();
-  } catch (error) {
-    await customAlert('Failed to wipe data: ' + error.message, 'Error');
-  }
-}
 
     document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === 'Esc') {
