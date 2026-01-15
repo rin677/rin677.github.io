@@ -1756,21 +1756,23 @@ async function exportToToggl() {
     return;
   }
   
-  // Data is loaded from Firebase in firebaseSignIn
-  // This function just refreshes the UI
   aggregateData();
   loadYear();
   renderGoals();
 }
 
-    async function saveToStorage() {
-  // Don't save to localStorage anymore - only cloud
-  // The Firebase hooks will handle cloud saves
-  
+async function saveToStorage() {
   try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.data || []));
+    localStorage.setItem(GOALS_KEY, JSON.stringify(window.goals || []));
+    localStorage.setItem(BOOKS_KEY, JSON.stringify(window.recentBooks || []));
+
     localStorage.setItem('reading_heatmap_sync_signal', Date.now().toString());
-  } catch (e) {}
+  } catch (e) {
+    console.error('Error saving to localStorage:', e);
+  }
 }
+
 
     function aggregateData() {
   window.dailyData = dailyData = {};
@@ -2176,31 +2178,32 @@ function getYearAvgSpeedCharPerHour(year) {
 
 async function deleteEntry(dateStr, index) {
   const dateEntries = window.data.filter(item => item.date === dateStr);
-  if (dateEntries[index]) {
-    const entryToDelete = dateEntries[index];
-    window.data = window.data.filter(item => !(item.date === dateStr && 
-      item.minutes === entryToDelete.minutes && 
-      item.characters === entryToDelete.characters && 
-      item.title === entryToDelete.title));
-    
-    // Sync with local variable
-    data = window.data;
-    
-    // Save to localStorage immediately
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.data));
-    
-    // Trigger cloud save if available
-    if (window.saveCloudState && typeof window.saveCloudState === 'function') {
-      await window.saveCloudState();
-    }
-    
-    aggregateData();
-    renderEntryList(dateStr);
-    loadYear();
+  if (!dateEntries[index]) return;
+
+  const entryToDelete = dateEntries[index];
+
+  window.data = window.data.filter(item => !(
+    item.date === dateStr &&
+    item.minutes === entryToDelete.minutes &&
+    item.characters === entryToDelete.characters &&
+    item.title === entryToDelete.title
+  ));
+  
+  data = window.data;
+  
+  await saveToStorage();
+  
+  if (window.saveCloudState && typeof window.saveCloudState === 'function') {
+    await window.saveCloudState();
   }
+  
+  aggregateData();
+  renderEntryList(dateStr);
+  loadYear();
 }
 
-    async function saveEntry() {
+
+async function saveEntry() {
   const dateStr = document.getElementById('modalDate').value;
   const minutes = parseInt(document.getElementById('modalMinutes').value) || 0;
   const characters = parseInt(document.getElementById('modalCharacters').value) || 0;
@@ -2216,7 +2219,6 @@ async function deleteEntry(dateStr, index) {
     }
   });
   
-  // Update both local and window variables
   window.recentBooks = recentBooks;
   
   data = data.filter(item => item.date !== dateStr);
@@ -2230,7 +2232,6 @@ async function deleteEntry(dateStr, index) {
     data.push({ date: dateStr, minutes, characters, title: null });
   }
   
-  // Sync with window
   window.data = data;
   
   await saveToStorage();
@@ -2239,7 +2240,6 @@ async function deleteEntry(dateStr, index) {
   renderGoals();
   closeModal();
   
-  // Trigger cloud save if available
   if (window.saveCloudState && typeof window.saveCloudState === 'function') {
     await window.saveCloudState();
   }
@@ -2316,22 +2316,18 @@ async function loadData(event) {
         window.recentBooks = [...new Set([...currentBooks, ...importedBooks])];
       }
       
-      // Sync with local variables
       data = window.data;
       goals = window.goals;
       recentBooks = window.recentBooks;
       
-      // Save to localStorage
       localStorage.setItem(STORAGE_KEY, JSON.stringify(window.data));
       localStorage.setItem(GOALS_KEY, JSON.stringify(window.goals));
       localStorage.setItem(BOOKS_KEY, JSON.stringify(window.recentBooks));
       
-      // Update the UI immediately
       aggregateData();
       loadYear();
       renderGoals();
       
-      // Save to Firebase if signed in
       if (window.saveCloudState && typeof window.saveCloudState === 'function') {
         await window.saveCloudState();
       }
@@ -2360,7 +2356,6 @@ async function loadData(event) {
 
     document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === 'Esc') {
-    // Don't close modals if custom confirm/alert is open
     if (document.getElementById('confirmModal').classList.contains('show') ||
         document.getElementById('alertModal').classList.contains('show')) {
       return;
@@ -2386,7 +2381,7 @@ async function loadData(event) {
     });
     document.getElementById('menuModal').addEventListener('click', (e) => {
       if (e.target.id === 'menuModal') closeMenu();
-    }); // Close when clicking outside modal-content (ttsu settings)
+    });
 document.getElementById('ttsuSyncModal').addEventListener('click', (e) => {
   if (e.target.id === 'ttsuSyncModal') {
     closeTtsuSyncModal();
@@ -2453,7 +2448,6 @@ async function saveGoal() {
   
   document.getElementById('goalTarget').value = '';
   
-  // Trigger cloud save if available
   if (window.saveCloudState && typeof window.saveCloudState === 'function') {
     await window.saveCloudState();
   }
@@ -2484,7 +2478,6 @@ async function saveGoal() {
 const wasAchievedBefore = goal.wasAchieved || false;
 const achievedStyle = isAchieved ? 'background: var(--accent-color); color: #ffffff; border-radius: 6px; padding: 8px;' : '';
 
-// Trigger confetti if newly achieved
 if (isAchieved && !wasAchievedBefore) {
   goal.wasAchieved = true;
   setTimeout(() => createConfetti(), 100);
@@ -2552,7 +2545,6 @@ async function deleteGoal(id) {
   await saveToStorage();
   renderGoals();
   
-  // Trigger cloud save if available
   if (window.saveCloudState && typeof window.saveCloudState === 'function') {
     await window.saveCloudState();
   }
