@@ -2924,77 +2924,116 @@ window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
 
   let isInitialLoad = true;
   
-  onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      window.currentUser = {
-        id: user.uid,
-        name: user.displayName || 'User',
-        email: user.email || '',
-        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
-      };
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    window.currentUser = {
+      id: user.uid,
+      name: user.displayName || 'User',
+      email: user.email || '',
+      avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+    };
+    
+    if (typeof currentUser !== 'undefined') {
+      currentUser = window.currentUser;
+    }
+    
+    localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
+    
+    if (window.renderUserProfile) window.renderUserProfile();
+    
+    // Check for wipe/restore signals
+    const justWiped = sessionStorage.getItem('just_wiped_data') === 'true';
+    const justRestored = sessionStorage.getItem('just_restored_backup') === 'true';
+    
+    if (justWiped) {
+      sessionStorage.removeItem('just_wiped_data');
       
-      if (typeof currentUser !== 'undefined') {
-        currentUser = window.currentUser;
-      }
+      window.data = [];
+      window.goals = [];
+      window.recentBooks = [];
+      window.dailyData = {};
       
-      localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
+      if (typeof data !== 'undefined') data = [];
+      if (typeof goals !== 'undefined') goals = [];
+      if (typeof recentBooks !== 'undefined') recentBooks = [];
+      if (typeof dailyData !== 'undefined') dailyData = {};
       
-      if (window.renderUserProfile) window.renderUserProfile();
+      await saveCloudState();
       
-      // Check for wipe/restore signals
-      const justWiped = sessionStorage.getItem('just_wiped_data') === 'true';
-      const justRestored = sessionStorage.getItem('just_restored_backup') === 'true';
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
       
-      if (justWiped) {
-        sessionStorage.removeItem('just_wiped_data');
+      isInitialLoad = false;
+    } else if (justRestored) {
+      sessionStorage.removeItem('just_restored_backup');
+      
+      try {
+        const storedData = localStorage.getItem('reading_heatmap_data');
+        const storedGoals = localStorage.getItem('reading_heatmap_goals');
+        const storedBooks = localStorage.getItem('reading_heatmap_books');
         
+        window.data = storedData ? JSON.parse(storedData) : [];
+        window.goals = storedGoals ? JSON.parse(storedGoals) : [];
+        window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
+      } catch (e) {
+        console.error('Error loading restored backup:', e);
         window.data = [];
         window.goals = [];
         window.recentBooks = [];
-        window.dailyData = {};
-        
-        if (typeof data !== 'undefined') data = [];
-        if (typeof goals !== 'undefined') goals = [];
-        if (typeof recentBooks !== 'undefined') recentBooks = [];
-        if (typeof dailyData !== 'undefined') dailyData = {};
-        
-        await saveCloudState();
-        
-        if (window.aggregateData) window.aggregateData();
-        if (window.loadYear) window.loadYear();
-        if (window.renderGoals) window.renderGoals();
-        
-        isInitialLoad = false;
-      } else if (justRestored) {
-        sessionStorage.removeItem('just_restored_backup');
-        
+      }
+      
+      if (typeof data !== 'undefined') data = window.data;
+      if (typeof goals !== 'undefined') goals = window.goals;
+      if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+      
+      await saveCloudState();
+      
+      if (window.aggregateData) window.aggregateData();
+      if (window.loadYear) window.loadYear();
+      if (window.renderGoals) window.renderGoals();
+      
+      isInitialLoad = false;
+    } else {
+      // ALWAYS check localStorage first before loading from cloud
+      const localData = localStorage.getItem('reading_heatmap_data');
+      const localGoals = localStorage.getItem('reading_heatmap_goals');
+      const localBooks = localStorage.getItem('reading_heatmap_books');
+      
+      if (localData) {
+        // We have local data - use it
         try {
-          const storedData = localStorage.getItem('reading_heatmap_data');
-          const storedGoals = localStorage.getItem('reading_heatmap_goals');
-          const storedBooks = localStorage.getItem('reading_heatmap_books');
+          window.data = JSON.parse(localData);
+          window.goals = localGoals ? JSON.parse(localGoals) : [];
+          window.recentBooks = localBooks ? JSON.parse(localBooks) : [];
           
-          window.data = storedData ? JSON.parse(storedData) : [];
-          window.goals = storedGoals ? JSON.parse(storedGoals) : [];
-          window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
+          if (typeof data !== 'undefined') data = window.data;
+          if (typeof goals !== 'undefined') goals = window.goals;
+          if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+          
+          if (window.aggregateData) window.aggregateData();
+          if (window.loadYear) window.loadYear();
+          if (window.renderGoals) window.renderGoals();
+          
+          // Save to cloud in background
+          if (isInitialLoad) {
+            await saveCloudState();
+            isInitialLoad = false;
+          }
         } catch (e) {
-          console.error('Error loading restored backup:', e);
-          window.data = [];
-          window.goals = [];
-          window.recentBooks = [];
+          console.error('Error loading from localStorage:', e);
+          // Fall back to cloud
+          if (isInitialLoad) {
+            try {
+              await loadCloudState(user.uid);
+            } catch (error) {
+              console.error('Failed to load cloud state:', error);
+            }
+            isInitialLoad = false;
+          }
         }
-        
-        if (typeof data !== 'undefined') data = window.data;
-        if (typeof goals !== 'undefined') goals = window.goals;
-        if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
-        
-        await saveCloudState();
-        
-        if (window.aggregateData) window.aggregateData();
-        if (window.loadYear) window.loadYear();
-        if (window.renderGoals) window.renderGoals();
-        
-        isInitialLoad = false;
       } else if (isInitialLoad || !window.data || window.data.length === 0) {
+        // No local data - load from cloud
         try {
           await loadCloudState(user.uid);
         } catch (error) {
@@ -3002,34 +3041,35 @@ window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
         }
         isInitialLoad = false;
       }
-      
-      if (typeof data !== 'undefined') data = window.data;
-      if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
-      if (typeof goals !== 'undefined') goals = window.goals;
-      if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
-      
-    } else {
-      isInitialLoad = true;
-      window.currentUser = null;
-      window.data = [];
-      window.dailyData = {};
-      window.goals = [];
-      window.recentBooks = [];
-      
-      if (typeof currentUser !== 'undefined') currentUser = null;
-      if (typeof data !== 'undefined') data = [];
-      if (typeof dailyData !== 'undefined') dailyData = {};
-      if (typeof goals !== 'undefined') goals = [];
-      if (typeof recentBooks !== 'undefined') recentBooks = [];
-      
-      localStorage.removeItem('reading_heatmap_user');
-      
-      if (window.initializeAuthButton) window.initializeAuthButton();
-      if (window.aggregateData) window.aggregateData();
-      if (window.loadYear) window.loadYear();
-      if (window.renderGoals) window.renderGoals();
     }
-  });
+    
+    if (typeof data !== 'undefined') data = window.data;
+    if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
+    if (typeof goals !== 'undefined') goals = window.goals;
+    if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+    
+  } else {
+    isInitialLoad = true;
+    window.currentUser = null;
+    window.data = [];
+    window.dailyData = {};
+    window.goals = [];
+    window.recentBooks = [];
+    
+    if (typeof currentUser !== 'undefined') currentUser = null;
+    if (typeof data !== 'undefined') data = [];
+    if (typeof dailyData !== 'undefined') dailyData = {};
+    if (typeof goals !== 'undefined') goals = [];
+    if (typeof recentBooks !== 'undefined') recentBooks = [];
+    
+    localStorage.removeItem('reading_heatmap_user');
+    
+    if (window.initializeAuthButton) window.initializeAuthButton();
+    if (window.aggregateData) window.aggregateData();
+    if (window.loadYear) window.loadYear();
+    if (window.renderGoals) window.renderGoals();
+  }
+});
 
   async function firebaseSignIn() {
     try {
