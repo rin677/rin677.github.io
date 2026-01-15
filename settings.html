@@ -852,14 +852,15 @@
   reader.onload = async function(e) {
     try {
       const imported = JSON.parse(e.target.result);
-      
+
       let importedData = [];
       let importedGoals = [];
       let importedBooks = [];
-      
+
+      // Accept either array or { data, goals, recentBooks }
       if (Array.isArray(imported)) {
         importedData = imported;
-      } else if (imported.data) {
+      } else if (imported && imported.data) {
         importedData = imported.data || [];
         importedGoals = imported.goals || [];
         importedBooks = imported.recentBooks || [];
@@ -867,40 +868,46 @@
         await customAlert('Invalid data format.', 'Invalid File');
         return;
       }
-      
+
       if (importedData.length === 0) {
         await customAlert('No data found in file.', 'Empty File');
         return;
       }
-      
-      const replace = await customConfirm(
-        `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
-        'Import Data'
-      );
-      
+
+      // Build a set of dates present in imported data
+      const importedDates = new Set(importedData.map(entry => entry.date));
+
+      // Get current data
       const currentData = getCurrentData();
+
+      // 1) Overwrite-by-date for reading entries:
+      //    - Remove all current entries whose date exists in importedDates
+      //    - Append all imported entries (for those dates)
+      const filteredCurrentData = currentData.filter(entry => !importedDates.has(entry.date));
+      const mergedData = [...filteredCurrentData, ...importedData];
+
+      // 2) Goals: overwrite only goals that target dates present in importedDates
       const currentGoals = getCurrentGoals();
+      const filteredGoals = currentGoals.filter(goal => !importedDates.has(goal.date));
+      const mergedGoals = [...filteredGoals, ...importedGoals];
+
+      // 3) Recent books: additive, dedupe, keep most recent first, cap at 10
       const currentBooks = getCurrentBooks();
-      
-      if (replace) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData));
-        localStorage.setItem(GOALS_KEY, JSON.stringify(importedGoals));
-        localStorage.setItem(BOOKS_KEY, JSON.stringify(importedBooks));
-      } else {
-        const mergedData = [...currentData, ...importedData];
-        const mergedGoals = [...currentGoals, ...importedGoals];
-        const mergedBooks = [...new Set([...currentBooks, ...importedBooks])];
-        
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
-        localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
-        localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
-      }
-      
-      // Signal to main page that data was imported
+      const mergedBooksSet = new Set([...importedBooks, ...currentBooks]);
+      const mergedBooks = Array.from(mergedBooksSet).slice(0, 10);
+
+      // Persist
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
+      localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
+
+      // Signal and redirect
       sessionStorage.setItem('just_imported_data', 'true');
-      
-      await customAlert(`Data imported successfully!\n\n${importedData.length} entries imported.\n\nRedirecting to main page...`, 'Import Successful');
-      
+      await customAlert(
+        `Data imported successfully!\n\n${importedData.length} entries applied across ${importedDates.size} date(s).\n\nExisting entries for those dates were overwritten.`,
+        'Import Successful'
+      );
+
       setTimeout(() => {
         window.location.href = 'index.html';
       }, 500);
@@ -909,7 +916,7 @@
       await customAlert('Error reading file: ' + error.message, 'Import Error');
     }
   };
-  
+
   reader.readAsText(file);
   event.target.value = '';
 });
