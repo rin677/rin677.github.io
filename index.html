@@ -2890,7 +2890,7 @@ window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
   return 'Not configured';
 };
  </script>
-<!-- Firebase integration: Auth (Google) + Firestore -->
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
   import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
@@ -2910,148 +2910,118 @@ window.checkTtsuSyncStatus = window.checkTtsuSyncStatus || function() {
 
   let isInitialLoad = true;
   
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    window.currentUser = {
-      id: user.uid,
-      name: user.displayName || 'User',
-      email: user.email || '',
-      avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
-    };
-    
-    // Sync with local variable
-    if (typeof currentUser !== 'undefined') {
-      currentUser = window.currentUser;
-    }
-    
-    localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
-    
-    // Update UI
-    if (window.renderUserProfile) window.renderUserProfile();
-    
-    // Check if we just wiped data or restored a backup
-    const justWiped = sessionStorage.getItem('just_wiped_data') === 'true';
-    const justRestored = sessionStorage.getItem('just_restored_backup') === 'true';
-    
-    console.log('Auth state change - justWiped:', justWiped, 'justRestored:', justRestored);
-    
-    if (justWiped) {
-      // Clear the signal
-      sessionStorage.removeItem('just_wiped_data');
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      window.currentUser = {
+        id: user.uid,
+        name: user.displayName || 'User',
+        email: user.email || '',
+        avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=random&size=128`
+      };
       
-      console.log('Wiping all data...');
+      if (typeof currentUser !== 'undefined') {
+        currentUser = window.currentUser;
+      }
       
-      // Initialize with empty data
-      window.data = [];
-      window.goals = [];
-      window.recentBooks = [];
-      window.dailyData = {};
+      localStorage.setItem('reading_heatmap_user', JSON.stringify(window.currentUser));
       
-      // Sync with local variables
-      if (typeof data !== 'undefined') data = [];
-      if (typeof goals !== 'undefined') goals = [];
-      if (typeof recentBooks !== 'undefined') recentBooks = [];
-      if (typeof dailyData !== 'undefined') dailyData = {};
+      if (window.renderUserProfile) window.renderUserProfile();
       
-      // Save empty state to cloud to truly wipe
-      await saveCloudState();
+      // Check for wipe/restore signals
+      const justWiped = sessionStorage.getItem('just_wiped_data') === 'true';
+      const justRestored = sessionStorage.getItem('just_restored_backup') === 'true';
       
-      // Update UI
-      if (window.aggregateData) window.aggregateData();
-      if (window.loadYear) window.loadYear();
-      if (window.renderGoals) window.renderGoals();
-      
-      isInitialLoad = false;
-      
-      console.log('Wipe complete, data cleared');
-    } else if (justRestored) {
-      // Clear the signal
-      sessionStorage.removeItem('just_restored_backup');
-      
-      console.log('Restoring from backup...');
-      
-      // Load data from localStorage (the restored backup)
-      try {
-        const storedData = localStorage.getItem('reading_heatmap_data');
-        const storedGoals = localStorage.getItem('reading_heatmap_goals');
-        const storedBooks = localStorage.getItem('reading_heatmap_books');
+      if (justWiped) {
+        sessionStorage.removeItem('just_wiped_data');
         
-        window.data = storedData ? JSON.parse(storedData) : [];
-        window.goals = storedGoals ? JSON.parse(storedGoals) : [];
-        window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
-        
-        console.log('Loaded from backup:', window.data.length, 'entries');
-      } catch (e) {
-        console.error('Error loading restored backup:', e);
         window.data = [];
         window.goals = [];
         window.recentBooks = [];
+        window.dailyData = {};
+        
+        if (typeof data !== 'undefined') data = [];
+        if (typeof goals !== 'undefined') goals = [];
+        if (typeof recentBooks !== 'undefined') recentBooks = [];
+        if (typeof dailyData !== 'undefined') dailyData = {};
+        
+        await saveCloudState();
+        
+        if (window.aggregateData) window.aggregateData();
+        if (window.loadYear) window.loadYear();
+        if (window.renderGoals) window.renderGoals();
+        
+        isInitialLoad = false;
+      } else if (justRestored) {
+        sessionStorage.removeItem('just_restored_backup');
+        
+        try {
+          const storedData = localStorage.getItem('reading_heatmap_data');
+          const storedGoals = localStorage.getItem('reading_heatmap_goals');
+          const storedBooks = localStorage.getItem('reading_heatmap_books');
+          
+          window.data = storedData ? JSON.parse(storedData) : [];
+          window.goals = storedGoals ? JSON.parse(storedGoals) : [];
+          window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
+        } catch (e) {
+          console.error('Error loading restored backup:', e);
+          window.data = [];
+          window.goals = [];
+          window.recentBooks = [];
+        }
+        
+        if (typeof data !== 'undefined') data = window.data;
+        if (typeof goals !== 'undefined') goals = window.goals;
+        if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+        
+        await saveCloudState();
+        
+        if (window.aggregateData) window.aggregateData();
+        if (window.loadYear) window.loadYear();
+        if (window.renderGoals) window.renderGoals();
+        
+        isInitialLoad = false;
+      } else if (isInitialLoad || !window.data || window.data.length === 0) {
+        try {
+          await loadCloudState(user.uid);
+        } catch (error) {
+          console.error('Failed to load cloud state:', error);
+        }
+        isInitialLoad = false;
       }
       
-      // Sync with local variables
       if (typeof data !== 'undefined') data = window.data;
+      if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
       if (typeof goals !== 'undefined') goals = window.goals;
       if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
       
-      // Save restored state to cloud
-      await saveCloudState();
+    } else {
+      isInitialLoad = true;
+      window.currentUser = null;
+      window.data = [];
+      window.dailyData = {};
+      window.goals = [];
+      window.recentBooks = [];
       
-      // Update UI
+      if (typeof currentUser !== 'undefined') currentUser = null;
+      if (typeof data !== 'undefined') data = [];
+      if (typeof dailyData !== 'undefined') dailyData = {};
+      if (typeof goals !== 'undefined') goals = [];
+      if (typeof recentBooks !== 'undefined') recentBooks = [];
+      
+      localStorage.removeItem('reading_heatmap_user');
+      
+      if (window.initializeAuthButton) window.initializeAuthButton();
       if (window.aggregateData) window.aggregateData();
       if (window.loadYear) window.loadYear();
       if (window.renderGoals) window.renderGoals();
-      
-      isInitialLoad = false;
-      
-      console.log('Restore complete');
-    } else if (isInitialLoad || !window.data || window.data.length === 0) {
-      // Normal flow - load from cloud
-      console.log('Normal load from cloud');
-      try {
-        await loadCloudState(user.uid);
-      } catch (error) {
-        console.error('Failed to load cloud state:', error);
-      }
-      isInitialLoad = false;
     }
-    
-    // Final sync of all data with local variables
-    if (typeof data !== 'undefined') data = window.data;
-    if (typeof dailyData !== 'undefined') dailyData = window.dailyData;
-    if (typeof goals !== 'undefined') goals = window.goals;
-    if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
-    
-  } else {
-    // User signed out - clear everything
-    isInitialLoad = true;
-    window.currentUser = null;
-    window.data = [];
-    window.dailyData = {};
-    window.goals = [];
-    window.recentBooks = [];
-    
-    // Sync with local variables
-    if (typeof currentUser !== 'undefined') currentUser = null;
-    if (typeof data !== 'undefined') data = [];
-    if (typeof dailyData !== 'undefined') dailyData = {};
-    if (typeof goals !== 'undefined') goals = [];
-    if (typeof recentBooks !== 'undefined') recentBooks = [];
-    
-    localStorage.removeItem('reading_heatmap_user');
-    
-    if (window.initializeAuthButton) window.initializeAuthButton();
-    if (window.aggregateData) window.aggregateData();
-    if (window.loadYear) window.loadYear();
-    if (window.renderGoals) window.renderGoals();
-  }
-});
+  });
 
   async function firebaseSignIn() {
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
-      // Auth state change listener will handle the rest
     } catch (error) {
       console.error('Sign-in error:', error);
       await customAlert('Sign-in failed: ' + error.message, 'Sign-In Error');
@@ -3061,7 +3031,6 @@ onAuthStateChanged(auth, async (user) => {
   async function firebaseSignOut() {
     try {
       await signOut(auth);
-      // Auth state change listener will handle the rest
       await customAlert('Successfully signed out', 'Signed Out');
     } catch (error) {
       console.error('Sign-out error:', error);
@@ -3079,17 +3048,14 @@ onAuthStateChanged(auth, async (user) => {
         window.goals = Array.isArray(cloud.goals) ? cloud.goals : [];
         window.recentBooks = Array.isArray(cloud.recentBooks) ? cloud.recentBooks : [];
         
-        // Sync with local variables
         if (typeof data !== 'undefined') data = window.data;
         if (typeof goals !== 'undefined') goals = window.goals;
         if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
         
-        // CRITICAL: Aggregate data to populate dailyData
         if (window.aggregateData) {
           window.aggregateData();
         }
         
-        // CRITICAL: Update the display
         if (window.updateStats) {
           window.updateStats();
         }
@@ -3097,17 +3063,14 @@ onAuthStateChanged(auth, async (user) => {
           window.renderHeatmap();
         }
       } else {
-        // First time user - initialize empty
         window.data = [];
         window.goals = [];
         window.recentBooks = [];
         
-        // Sync with local variables
         if (typeof data !== 'undefined') data = [];
         if (typeof goals !== 'undefined') goals = [];
         if (typeof recentBooks !== 'undefined') recentBooks = [];
         
-        // CRITICAL: Still need to aggregate (even if empty) and update display
         if (window.aggregateData) {
           window.aggregateData();
         }
@@ -3127,8 +3090,6 @@ onAuthStateChanged(auth, async (user) => {
       }
     } catch (error) {
       console.error('Error loading cloud state:', error);
-      // Don't show error alert on initial load - just log it
-      // The data will be empty arrays which is fine for new users
     }
   }
 
@@ -3143,235 +3104,218 @@ onAuthStateChanged(auth, async (user) => {
         lastUpdated: new Date().toISOString()
       }, { merge: true });
       
-      // Also update leaderboard
       await updateCloudLeaderboard();
     } catch (error) {
       console.error('Error saving to cloud:', error);
     }
   }
 
-// filename: index.html (Firebase module script) — replace updateCloudLeaderboard
-async function updateCloudLeaderboard() {
-  if (!window.currentUser) return;
+  async function updateCloudLeaderboard() {
+    if (!window.currentUser) return;
 
-  // Year to align with heatmap display (uses currentYear global)
-  const year = window.currentYear || new Date().getFullYear();
+    const year = window.currentYear || new Date().getFullYear();
 
-  // Calculate totals and year avg speed using window.dailyData (already aggregated)
-  let totalMinutes = 0;
-  let totalCharacters = 0;
+    let totalMinutes = 0;
+    let totalCharacters = 0;
 
-  Object.entries(window.dailyData || {}).forEach(([dateStr, day]) => {
-    const d = new Date(dateStr + 'T00:00:00');
-    if (d.getFullYear() === year) {
-      totalMinutes += day.minutes || 0;
-      totalCharacters += day.characters || 0;
-    }
-  });
-
-  // Use the exact same year-scoped char/hr as heatmap
-  // Call the helper from non-module via window
-  let avgSpeed = 0;
-  try {
-    if (typeof window.getYearAvgSpeedCharPerHour === 'function') {
-      avgSpeed = window.getYearAvgSpeedCharPerHour(year);
-    } else {
-      // Fallback: compute inline if the helper isn't bound yet
-      let minutesWithChars = 0;
-      let charactersWithChars = 0;
-      const startDate = new Date(year, 0, 1);
-      const endDate = new Date(year, 11, 31);
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        const day = (window.dailyData || {})[dateStr];
-        if (!day) continue;
-        if ((day.characters || 0) > 0) {
-          minutesWithChars += day.minutes || 0;
-          charactersWithChars += day.characters || 0;
-        }
+    Object.entries(window.dailyData || {}).forEach(([dateStr, day]) => {
+      const d = new Date(dateStr + 'T00:00:00');
+      if (d.getFullYear() === year) {
+        totalMinutes += day.minutes || 0;
+        totalCharacters += day.characters || 0;
       }
-      const hoursWithChars = minutesWithChars / 60;
-      avgSpeed = hoursWithChars > 0 ? Math.round(charactersWithChars / hoursWithChars) : 0;
-    }
-  } catch (e) {
-    avgSpeed = 0;
-  }
-
-  const leaderboardEntry = {
-    userId: window.currentUser.id,
-    name: window.currentUser.name || 'User',
-    avatar: window.currentUser.avatar || '',
-    totalMinutes,
-    totalCharacters,
-    avgSpeed, // char/hr, year-scoped
-    lastUpdated: new Date().toISOString()
-  };
-
-  try {
-    const ref = doc(db, 'leaderboard', window.currentUser.id);
-    await setDoc(ref, leaderboardEntry);
-  } catch (error) {
-    console.error('Failed to update leaderboard:', error);
-  }
-}
-
-
-// filename: index.html (Firebase module script) — replace loadLeaderboardData
-async function loadLeaderboardData() {
-  const container = document.getElementById('leaderboardList');
-  const metricEl = document.getElementById('leaderboardMetric');
-  const metric = metricEl ? metricEl.value : 'minutes';
-
-  // Guard: DOM or Firebase not ready
-  if (!container) return;
-  if (!db || typeof collection !== 'function' || typeof getDocs !== 'function') {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading…</div>';
-    return;
-  }
-
-  try {
-    const leaderboardRef = collection(db, 'leaderboard');
-    const snapshot = await getDocs(leaderboardRef);
-
-    const rows = [];
-    snapshot.forEach((docSnap) => {
-      const d = docSnap.data() || {};
-      rows.push({
-        userId: d.userId || '',
-        name: d.name || 'User',
-        avatar: d.avatar || '',
-        totalMinutes: Number(d.totalMinutes || 0),
-        totalCharacters: Number(d.totalCharacters || 0),
-        avgSpeed: Number(d.avgSpeed || 0),
-        lastUpdated: d.lastUpdated || ''
-      });
     });
 
-    // Filter based on selected metric
-    const filtered = rows.filter(r =>
-      metric === 'minutes' ? r.totalMinutes > 0 :
-      metric === 'characters' ? r.totalCharacters > 0 :
-      r.avgSpeed > 0
-    );
+    let avgSpeed = 0;
+    try {
+      if (typeof window.getYearAvgSpeedCharPerHour === 'function') {
+        avgSpeed = window.getYearAvgSpeedCharPerHour(year);
+      } else {
+        let minutesWithChars = 0;
+        let charactersWithChars = 0;
+        const startDate = new Date(year, 0, 1);
+        const endDate = new Date(year, 11, 31);
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          const day = (window.dailyData || {})[dateStr];
+          if (!day) continue;
+          if ((day.characters || 0) > 0) {
+            minutesWithChars += day.minutes || 0;
+            charactersWithChars += day.characters || 0;
+          }
+        }
+        const hoursWithChars = minutesWithChars / 60;
+        avgSpeed = hoursWithChars > 0 ? Math.round(charactersWithChars / hoursWithChars) : 0;
+      }
+    } catch (e) {
+      avgSpeed = 0;
+    }
 
-    // If nothing yet, render a friendly message (still counts as render)
-    if (filtered.length === 0) {
-      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+    const leaderboardEntry = {
+      userId: window.currentUser.id,
+      name: window.currentUser.name || 'User',
+      avatar: window.currentUser.avatar || '',
+      totalMinutes,
+      totalCharacters,
+      avgSpeed,
+      lastUpdated: new Date().toISOString()
+    };
+
+    try {
+      const ref = doc(db, 'leaderboard', window.currentUser.id);
+      await setDoc(ref, leaderboardEntry);
+    } catch (error) {
+      console.error('Failed to update leaderboard:', error);
+    }
+  }
+
+  async function loadLeaderboardData() {
+    const container = document.getElementById('leaderboardList');
+    const metricEl = document.getElementById('leaderboardMetric');
+    const metric = metricEl ? metricEl.value : 'minutes';
+
+    if (!container) return;
+    if (!db || typeof collection !== 'function' || typeof getDocs !== 'function') {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">Firebase is loading…</div>';
       return;
     }
 
-    // Sort
-    if (metric === 'minutes') {
-      filtered.sort((a, b) => b.totalMinutes - a.totalMinutes);
-    } else if (metric === 'characters') {
-      filtered.sort((a, b) => b.totalCharacters - a.totalCharacters);
-    } else {
-      filtered.sort((a, b) => b.avgSpeed - a.avgSpeed);
-    }
+    try {
+      const leaderboardRef = collection(db, 'leaderboard');
+      const snapshot = await getDocs(leaderboardRef);
 
-    // Render top N
-    const showAll = container.dataset.showAll === 'true';
-    const displayCount = showAll ? filtered.length : 10;
-    container.innerHTML = '';
+      const rows = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        rows.push({
+          userId: d.userId || '',
+          name: d.name || 'User',
+          avatar: d.avatar || '',
+          totalMinutes: Number(d.totalMinutes || 0),
+          totalCharacters: Number(d.totalCharacters || 0),
+          avgSpeed: Number(d.avgSpeed || 0),
+          lastUpdated: d.lastUpdated || ''
+        });
+      });
 
-    filtered.slice(0, displayCount).forEach((entry, index) => {
-      const rankDiv = document.createElement('div');
-      rankDiv.className = 'leaderboard-entry';
+      const filtered = rows.filter(r =>
+        metric === 'minutes' ? r.totalMinutes > 0 :
+        metric === 'characters' ? r.totalCharacters > 0 :
+        r.avgSpeed > 0
+      );
 
-      const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
-      if (isCurrentUser) {
-        rankDiv.style.background = 'var(--accent-color)';
-        rankDiv.style.color = '#ffffff';
-        rankDiv.style.fontWeight = '600';
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No leaderboard data yet. Be the first to log!</div>';
+        return;
       }
 
-      const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
-
-      let displayValue;
       if (metric === 'minutes') {
-        displayValue = `${entry.totalMinutes.toLocaleString()} min`;
+        filtered.sort((a, b) => b.totalMinutes - a.totalMinutes);
       } else if (metric === 'characters') {
-        displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
+        filtered.sort((a, b) => b.totalCharacters - a.totalCharacters);
       } else {
-        displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
+        filtered.sort((a, b) => b.avgSpeed - a.avgSpeed);
       }
 
-      rankDiv.innerHTML = `
-        <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
-        <div class="leaderboard-user">
-          <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
-          <span>${entry.name}${isCurrentUser ? ' (You)' : ''}</span>
-        </div>
-        <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
-      `;
+      const showAll = container.dataset.showAll === 'true';
+      const displayCount = showAll ? filtered.length : 10;
+      container.innerHTML = '';
 
-      container.appendChild(rankDiv);
-    });
+      filtered.slice(0, displayCount).forEach((entry, index) => {
+        const rankDiv = document.createElement('div');
+        rankDiv.className = 'leaderboard-entry';
 
-    // Show more/less button
-    if (filtered.length > 10) {
-      const toggleBtn = document.createElement('button');
-      toggleBtn.className = 'btn';
-      toggleBtn.style.width = '100%';
-      toggleBtn.style.marginTop = '12px';
-      toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${filtered.length - 10} more)`;
-      toggleBtn.onclick = () => {
-        container.dataset.showAll = showAll ? 'false' : 'true';
-        loadLeaderboardData();
-      };
-      container.appendChild(toggleBtn);
-    }
+        const isCurrentUser = window.currentUser && entry.userId === window.currentUser.id;
+        if (isCurrentUser) {
+          rankDiv.style.background = 'var(--accent-color)';
+          rankDiv.style.color = '#ffffff';
+          rankDiv.style.fontWeight = '600';
+        }
 
-    // Current user outside top 10
-    let userPosition = -1;
-    if (window.currentUser && window.currentUser.id) {
-      userPosition = filtered.findIndex(e => e.userId === window.currentUser.id);
-    }
-    if (!showAll && userPosition >= 10) {
-      const userEntry = filtered[userPosition];
+        const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
 
-      const sep = document.createElement('div');
-      sep.style.margin = '16px 0 8px 0';
-      sep.style.padding = '8px 0';
-      sep.style.borderTop = '2px dashed var(--border-color)';
-      sep.style.color = 'var(--text-secondary)';
-      sep.style.textAlign = 'center';
-      sep.style.fontSize = '12px';
-      sep.textContent = 'Your Position';
-      container.appendChild(sep);
+        let displayValue;
+        if (metric === 'minutes') {
+          displayValue = `${entry.totalMinutes.toLocaleString()} min`;
+        } else if (metric === 'characters') {
+          displayValue = `${entry.totalCharacters.toLocaleString()} chars`;
+        } else {
+          displayValue = `${entry.avgSpeed.toLocaleString()} char/hr`;
+        }
 
-      const userRankDiv = document.createElement('div');
-      userRankDiv.className = 'leaderboard-entry';
-      userRankDiv.style.background = 'var(--accent-color)';
-      userRankDiv.style.color = '#ffffff';
-      userRankDiv.style.fontWeight = '600';
+        rankDiv.innerHTML = `
+          <div class="leaderboard-rank" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${medal}</div>
+          <div class="leaderboard-user">
+            <img src="${entry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${entry.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'" style="width: 32px; height: 32px; border-radius: 50%;">
+            <span>${entry.name}${isCurrentUser ? ' (You)' : ''}</span>
+          </div>
+          <div class="leaderboard-value" style="${isCurrentUser ? 'color: #ffffff;' : ''}">${displayValue}</div>
+        `;
 
-      let displayValue;
-      if (metric === 'minutes') {
-        displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
-      } else if (metric === 'characters') {
-        displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
-      } else {
-        displayValue = `${userEntry.avgSpeed.toLocaleString()} char/hr`;
+        container.appendChild(rankDiv);
+      });
+
+      if (filtered.length > 10) {
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn';
+        toggleBtn.style.width = '100%';
+        toggleBtn.style.marginTop = '12px';
+        toggleBtn.textContent = showAll ? 'Show Less' : `Show More (${filtered.length - 10} more)`;
+        toggleBtn.onclick = () => {
+          container.dataset.showAll = showAll ? 'false' : 'true';
+          loadLeaderboardData();
+        };
+        container.appendChild(toggleBtn);
       }
 
-      userRankDiv.innerHTML = `
-        <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
-        <div class="leaderboard-user">
-          <img src="${userEntry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
-          <span>${userEntry.name} (You)</span>
-        </div>
-        <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
-      `;
-      container.appendChild(userRankDiv);
+      let userPosition = -1;
+      if (window.currentUser && window.currentUser.id) {
+        userPosition = filtered.findIndex(e => e.userId === window.currentUser.id);
+      }
+      if (!showAll && userPosition >= 10) {
+        const userEntry = filtered[userPosition];
+
+        const sep = document.createElement('div');
+        sep.style.margin = '16px 0 8px 0';
+        sep.style.padding = '8px 0';
+        sep.style.borderTop = '2px dashed var(--border-color)';
+        sep.style.color = 'var(--text-secondary)';
+        sep.style.textAlign = 'center';
+        sep.style.fontSize = '12px';
+        sep.textContent = 'Your Position';
+        container.appendChild(sep);
+
+        const userRankDiv = document.createElement('div');
+        userRankDiv.className = 'leaderboard-entry';
+        userRankDiv.style.background = 'var(--accent-color)';
+        userRankDiv.style.color = '#ffffff';
+        userRankDiv.style.fontWeight = '600';
+
+        let displayValue;
+        if (metric === 'minutes') {
+          displayValue = `${userEntry.totalMinutes.toLocaleString()} min`;
+        } else if (metric === 'characters') {
+          displayValue = `${userEntry.totalCharacters.toLocaleString()} chars`;
+        } else {
+          displayValue = `${userEntry.avgSpeed.toLocaleString()} char/hr`;
+        }
+
+        userRankDiv.innerHTML = `
+          <div class="leaderboard-rank" style="color: #ffffff;">#${userPosition + 1}</div>
+          <div class="leaderboard-user">
+            <img src="${userEntry.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2212%22 fill=%22%23888%22/%3E%3C/svg%3E'}" class="user-avatar" alt="${userEntry.name}" style="width: 32px; height: 32px; border-radius: 50%;">
+            <span>${userEntry.name} (You)</span>
+          </div>
+          <div class="leaderboard-value" style="color: #ffffff;">${displayValue}</div>
+        `;
+        container.appendChild(userRankDiv);
+      }
+    } catch (error) {
+      console.error('Leaderboard render error:', error);
+      container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 20px;">Error loading leaderboard.</div>';
     }
-  } catch (error) {
-    console.error('Leaderboard render error:', error);
-    container.innerHTML = '<div style="color: var(--danger-color); text-align: center; padding: 20px;">Error loading leaderboard.</div>';
   }
-}
 
-  // Make functions globally available
   window.firebaseSignIn = firebaseSignIn;
   window.firebaseSignOut = firebaseSignOut;
   window.saveCloudState = saveCloudState;
@@ -3379,8 +3323,8 @@ async function loadLeaderboardData() {
   window.updateStats = updateStats;
   window.renderHeatmap = renderHeatmap;
   window.promptSignIn = firebaseSignIn;
-
 </script>
+
 <!-- Spacer to push footer far below main UI -->
 <div style="height: 18vh;"></div>
 
