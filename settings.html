@@ -843,147 +843,162 @@
     }
   }
 
-  document.getElementById('fileInput').addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+ document.getElementById('fileInput').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      try {
-        const imported = JSON.parse(e.target.result);
-        
-        let importedData = [];
-        let importedGoals = [];
-        let importedBooks = [];
-        
-        if (Array.isArray(imported)) {
-          importedData = imported;
-        } else if (imported.data) {
-          importedData = imported.data || [];
-          importedGoals = imported.goals || [];
-          importedBooks = imported.recentBooks || [];
-        } else {
-          await customAlert('Invalid data format.', 'Invalid File');
-          return;
-        }
-        
-        if (importedData.length === 0) {
-          await customAlert('No data found in file.', 'Empty File');
-          return;
-        }
-        
-        const replace = await customConfirm(
-          `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
-          'Import Data'
-        );
-        
-        const currentData = getCurrentData();
-        const currentGoals = getCurrentGoals();
-        const currentBooks = getCurrentBooks();
-        
-        if (replace) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData));
-          localStorage.setItem(GOALS_KEY, JSON.stringify(importedGoals));
-          localStorage.setItem(BOOKS_KEY, JSON.stringify(importedBooks));
-        } else {
-          const mergedData = [...currentData, ...importedData];
-          const mergedGoals = [...currentGoals, ...importedGoals];
-          const mergedBooks = [...new Set([...currentBooks, ...importedBooks])];
-          
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
-          localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
-          localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
-        }
-        
-        await customAlert('Data imported successfully! Return to the main page to see your data.', 'Import Successful');
-      } catch (error) {
-        await customAlert('Error reading file: ' + error.message, 'Import Error');
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      
+      let importedData = [];
+      let importedGoals = [];
+      let importedBooks = [];
+      
+      if (Array.isArray(imported)) {
+        importedData = imported;
+      } else if (imported.data) {
+        importedData = imported.data || [];
+        importedGoals = imported.goals || [];
+        importedBooks = imported.recentBooks || [];
+      } else {
+        await customAlert('Invalid data format.', 'Invalid File');
+        return;
       }
-    };
-    
-    reader.readAsText(file);
-    event.target.value = '';
-  });
-
-  document.getElementById('ttsuInput').addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-      try {
-        const ttsuData = JSON.parse(e.target.result);
+      
+      if (importedData.length === 0) {
+        await customAlert('No data found in file.', 'Empty File');
+        return;
+      }
+      
+      const replace = await customConfirm(
+        `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
+        'Import Data'
+      );
+      
+      const currentData = getCurrentData();
+      const currentGoals = getCurrentGoals();
+      const currentBooks = getCurrentBooks();
+      
+      if (replace) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData));
+        localStorage.setItem(GOALS_KEY, JSON.stringify(importedGoals));
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(importedBooks));
+      } else {
+        const mergedData = [...currentData, ...importedData];
+        const mergedGoals = [...currentGoals, ...importedGoals];
+        const mergedBooks = [...new Set([...currentBooks, ...importedBooks])];
         
-        if (!Array.isArray(ttsuData)) {
-          await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
-          return;
-        }
-        
-        const transformedData = [];
-        const currentData = getCurrentData();
-        const currentBooks = getCurrentBooks();
-        const bookTitles = new Set();
-        
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          const exists = currentData.some(entry => 
-            entry.date === date && 
-            entry.title === session.title &&
-            Math.abs(entry.minutes - minutes) < 2 &&
-            Math.abs(entry.characters - characters) < 100
-          );
-          
-          if (!exists) {
-            transformedData.push({
-              date: date,
-              minutes: minutes,
-              characters: characters,
-              title: session.title || 'Reading (from ttsu)'
-            });
-            bookTitles.add(session.title);
-          }
-        });
-        
-        if (transformedData.length === 0) {
-          await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.', 'No New Data');
-          return;
-        }
-        
-        const mergedData = [...currentData, ...transformedData];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
+        localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
+      }
+      
+      // Signal to main page that data was imported
+      sessionStorage.setItem('just_imported_data', 'true');
+      
+      await customAlert(`Data imported successfully!\n\n${importedData.length} entries imported.\n\nRedirecting to main page...`, 'Import Successful');
+      
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 500);
+    } catch (error) {
+      console.error('Import error:', error);
+      await customAlert('Error reading file: ' + error.message, 'Import Error');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = '';
+});
+
+document.getElementById('ttsuInput').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const ttsuData = JSON.parse(e.target.result);
+      
+      if (!Array.isArray(ttsuData)) {
+        await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
+        return;
+      }
+      
+      const transformedData = [];
+      const currentData = getCurrentData();
+      const currentBooks = getCurrentBooks();
+      const bookTitles = new Set();
+      
+      ttsuData.forEach(session => {
+        if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+          return;
+        }
         
-        bookTitles.forEach(title => {
-          if (title && !currentBooks.includes(title)) {
-            currentBooks.unshift(title);
-          }
-        });
-        const updatedBooks = currentBooks.slice(0, 10);
-        localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+        const date = session.dateKey;
+        const minutes = Math.round(session.readingTime / 60);
+        const characters = session.charactersRead || 0;
         
-        const bookList = Array.from(bookTitles).join(', ');
-        await customAlert(
-          `✅ Successfully imported ${transformedData.length} reading session(s) from ttsu!\n\nBooks: ${bookList}\n\nReturn to the main page to see your updated heatmap.`,
-          'Import Successful'
+        if (minutes === 0 && characters === 0) return;
+        
+        const exists = currentData.some(entry => 
+          entry.date === date && 
+          entry.title === session.title &&
+          Math.abs(entry.minutes - minutes) < 2 &&
+          Math.abs(entry.characters - characters) < 100
         );
         
-      } catch (error) {
-        console.error('Import error:', error);
-        await customAlert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.', 'Import Error');
+        if (!exists) {
+          transformedData.push({
+            date: date,
+            minutes: minutes,
+            characters: characters,
+            title: session.title || 'Reading (from ttsu)'
+          });
+          bookTitles.add(session.title);
+        }
+      });
+      
+      if (transformedData.length === 0) {
+        await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.', 'No New Data');
+        return;
       }
-    };
-    
-    reader.readAsText(file);
-    event.target.value = '';
-  });
+      
+      const mergedData = [...currentData, ...transformedData];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
+      
+      bookTitles.forEach(title => {
+        if (title && !currentBooks.includes(title)) {
+          currentBooks.unshift(title);
+        }
+      });
+      const updatedBooks = currentBooks.slice(0, 10);
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
+      
+      // Signal import
+      sessionStorage.setItem('just_imported_data', 'true');
+      
+      const bookList = Array.from(bookTitles).join(', ');
+      await customAlert(
+        `✅ Successfully imported ${transformedData.length} reading session(s) from ttsu!\n\nBooks: ${bookList}\n\nRedirecting to main page...`,
+        'Import Successful'
+      );
+      
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 500);
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      await customAlert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.', 'Import Error');
+    }
+  };
+  
+  reader.readAsText(file);
+  event.target.value = '';
+});
 
   async function wipeAllData() {
     const firstConfirm = await customConfirm(

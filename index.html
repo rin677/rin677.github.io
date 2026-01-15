@@ -2287,21 +2287,28 @@ async function loadData(event) {
         return;
       }
       
-      if (importedData.length > 0) {
-        const replace = await customConfirm(
-          'Replace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.',
-          'Import Data'
-        );
+      if (importedData.length === 0) {
+        await customAlert('No data found in file.', 'Empty File');
+        return;
+      }
+      
+      const replace = await customConfirm(
+        `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
+        'Import Data'
+      );
+      
+      if (replace) {
+        window.data = importedData;
+        window.goals = importedGoals;
+        window.recentBooks = importedBooks;
+      } else {
+        const currentData = window.data || [];
+        const currentGoals = window.goals || [];
+        const currentBooks = window.recentBooks || [];
         
-        if (replace) {
-          window.data = importedData;
-          window.goals = importedGoals;
-          window.recentBooks = importedBooks;
-        } else {
-          window.data = [...window.data, ...importedData];
-          window.goals = [...window.goals, ...importedGoals];
-          window.recentBooks = [...new Set([...window.recentBooks, ...importedBooks])];
-        }
+        window.data = [...currentData, ...importedData];
+        window.goals = [...currentGoals, ...importedGoals];
+        window.recentBooks = [...new Set([...currentBooks, ...importedBooks])];
       }
       
       // Sync with local variables
@@ -2309,18 +2316,25 @@ async function loadData(event) {
       goals = window.goals;
       recentBooks = window.recentBooks;
       
-      await saveToStorage();
+      // Save to localStorage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(window.data));
+      localStorage.setItem(GOALS_KEY, JSON.stringify(window.goals));
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(window.recentBooks));
+      
+      // Update the UI immediately
       aggregateData();
       loadYear();
       renderGoals();
       
+      // Save to Firebase if signed in
       if (window.saveCloudState && typeof window.saveCloudState === 'function') {
         await window.saveCloudState();
       }
       
       closeMenu();
-      await customAlert('Data loaded successfully!', 'Import Successful');
+      await customAlert(`Data loaded successfully!\n\n${window.data.length} entries imported.`, 'Import Successful');
     } catch (error) {
+      console.error('Import error:', error);
       await customAlert('Error reading file: ' + error.message, 'Import Error');
     }
   };
