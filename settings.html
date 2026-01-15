@@ -1254,10 +1254,16 @@ document.getElementById('ttsuInput').addEventListener('change', async (event) =>
   }
 
   window.onload = function() {
-    loadStatVisibility();
-    loadBackupSettings();
-    loadTtsuSyncStatus();
-  };
+  loadStatVisibility();
+  loadBackupSettings();
+  loadTtsuSyncStatus();
+  
+  // Check if auto-sync should start
+  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+  if (enabled && window.startAutoSync) {
+    window.startAutoSync();
+  }
+};
 
   // Custom themed confirm dialog
   function customConfirm(message, title = 'Confirm') {
