@@ -453,8 +453,7 @@
   <input type="file" id="fileInput" style="display: none;" accept=".json">
   <input type="file" id="ttsuInput" style="display: none;" accept=".json">
   
-  <script>
-
+<script>
   // Load theme
   const THEME_KEY = 'reading_heatmap_theme';
   const STORAGE_KEY = 'reading_heatmap_data';
@@ -466,8 +465,13 @@
   const theme = localStorage.getItem(THEME_KEY) || 'default';
   document.body.className = theme === 'default' ? '' : `theme-${theme}`;
   
-  // Helper to get current data
+  // Helper to get current data from localStorage OR from window (if available from Firebase)
   function getCurrentData() {
+    // Try to get from window first (Firebase data)
+    if (window.opener && window.opener.data && Array.isArray(window.opener.data) && window.opener.data.length > 0) {
+      return window.opener.data;
+    }
+    // Fallback to localStorage
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       return stored ? JSON.parse(stored) : [];
@@ -477,6 +481,9 @@
   }
   
   function getCurrentGoals() {
+    if (window.opener && window.opener.goals && Array.isArray(window.opener.goals)) {
+      return window.opener.goals;
+    }
     try {
       const stored = localStorage.getItem(GOALS_KEY);
       return stored ? JSON.parse(stored) : [];
@@ -486,6 +493,9 @@
   }
   
   function getCurrentBooks() {
+    if (window.opener && window.opener.recentBooks && Array.isArray(window.opener.recentBooks)) {
+      return window.opener.recentBooks;
+    }
     try {
       const stored = localStorage.getItem(BOOKS_KEY);
       return stored ? JSON.parse(stored) : [];
@@ -504,941 +514,415 @@
     }
   }
     
-    // Load stat visibility settings
-    function loadStatVisibility() {
-      const stats = ['longestStreak', 'currentStreak', 'average', 'avgSpeed', 'total'];
-      stats.forEach(stat => {
-        const saved = localStorage.getItem(`show_${stat}`);
-        if (saved !== null) {
-          const checkbox = document.getElementById(`show${stat.charAt(0).toUpperCase() + stat.slice(1)}`);
-          if (checkbox) {
-            checkbox.checked = saved === 'true';
-          }
+  // Load stat visibility settings
+  function loadStatVisibility() {
+    const stats = ['longestStreak', 'currentStreak', 'average', 'avgSpeed', 'total'];
+    stats.forEach(stat => {
+      const saved = localStorage.getItem(`show_${stat}`);
+      if (saved !== null) {
+        const checkbox = document.getElementById(`show${stat.charAt(0).toUpperCase() + stat.slice(1)}`);
+        if (checkbox) {
+          checkbox.checked = saved === 'true';
         }
-      });
-    }
-    
-    function toggleStat(statName) {
-      const checkbox = document.getElementById(`show${statName.charAt(0).toUpperCase() + statName.slice(1)}`);
-      localStorage.setItem(`show_${statName}`, checkbox.checked);
-    }
-    
-// Load backup settings
-const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
-const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
-const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
-
-function loadBackupSettings() {
-  const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
-  const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-  const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
-  
-  const freqSelect = document.getElementById('backupFrequency');
-  const retSelect = document.getElementById('backupRetention');
-  
-  if (freqSelect) freqSelect.value = frequency;
-  if (retSelect) retSelect.value = retention;
-  
-  if (lastBackup) {
-    const date = new Date(parseInt(lastBackup));
-    const timeEl = document.getElementById('lastBackupTime');
-    if (timeEl) {
-      timeEl.textContent = date.toLocaleString();
-    }
-  }
-}
-
-async function updateBackupFrequency() {
-  const frequency = document.getElementById('backupFrequency').value;
-  localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
-  await customAlert('Backup frequency updated to: ' + frequency, 'Settings Updated');
-}
-
-async function updateBackupRetention() {
-  const retention = document.getElementById('backupRetention').value;
-  localStorage.setItem(BACKUP_RETENTION_KEY, retention);
-  await customAlert('Backup retention updated to: ' + retention + ' backups', 'Settings Updated');
-}
-
-// filename: settings.html — replace createManualBackup
-async function createManualBackup() {
-  try {
-    const backups = getBackups();
-    const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
-
-    const backup = {
-      timestamp: Date.now(),
-      data: getCurrentData(),
-      goals: getCurrentGoals(),
-      recentBooks: getCurrentBooks(),
-      type: 'manual'
-    };
-
-    backups.push(backup);
-    backups.sort((a, b) => b.timestamp - a.timestamp);
-    if (retention !== 'all') {
-      const maxBackups = parseInt(retention);
-      if (backups.length > maxBackups) {
-        backups.splice(maxBackups);
       }
-    }
-
-    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    localStorage.setItem(LAST_BACKUP_KEY, String(backup.timestamp));
-
-    const date = new Date(backup.timestamp);
-    const timeEl = document.getElementById('lastBackupTime');
-    if (timeEl) timeEl.textContent = date.toLocaleString();
-
-    await customAlert(`Backup created successfully!\n\n${backup.data.length} entries backed up`, 'Backup Created');
-  } catch (error) {
-    console.error('Manual backup error:', error);
-    await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
-  }
-}
-
-async function viewBackups() {
-  const backups = getBackups();
-  const container = document.getElementById('backupsList');
-  
-  if (backups.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No backups available. Create a backup first!</div>';
-  } else {
-    // Sort by timestamp, newest first
-    backups.sort((a, b) => b.timestamp - a.timestamp);
-    
-    container.innerHTML = '';
-    backups.forEach((backup, index) => {
-      const date = new Date(backup.timestamp);
-      const backupDiv = document.createElement('div');
-      backupDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border-color);';
-      
-      const entriesCount = backup.data ? backup.data.length : 0;
-      const goalsCount = backup.goals ? backup.goals.length : 0;
-      const booksCount = backup.recentBooks ? backup.recentBooks.length : 0;
-      const type = backup.type === 'manual' ? '👤 Manual' : '🤖 Automatic';
-      
-      backupDiv.innerHTML = `
-        <div style="flex: 1;">
-          <strong style="color: var(--text-primary);">${date.toLocaleString()}</strong><br>
-          <span style="font-size: 12px; color: var(--text-secondary);">${type} • ${entriesCount} entries • ${goalsCount} goals • ${booksCount} books</span>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn" onclick="restoreBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Restore</button>
-          <button class="btn" onclick="downloadBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Download</button>
-          <button class="danger-btn" onclick="deleteBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Delete</button>
-        </div>
-      `;
-      
-      container.appendChild(backupDiv);
     });
   }
   
-  document.getElementById('viewBackupsModal').style.display = 'flex';
-}
-
-function closeViewBackupsModal() {
-  document.getElementById('viewBackupsModal').style.display = 'none';
-}
-
-async function restoreBackup(index) {
-  const backups = getBackups();
-  if (index < 0 || index >= backups.length) {
-    await customAlert('Backup not found.', 'Error');
-    return;
+  function toggleStat(statName) {
+    const checkbox = document.getElementById(`show${statName.charAt(0).toUpperCase() + statName.slice(1)}`);
+    localStorage.setItem(`show_${statName}`, checkbox.checked);
   }
   
-  const backup = backups[index];
-  const date = new Date(backup.timestamp);
-  
-  const confirmed = await customConfirm(
-    `Restore backup from ${date.toLocaleString()}?\n\nThis will replace your current data with the backup data.\n\nCurrent data will be lost unless you create a backup first.`,
-    'Restore Backup'
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    // Save backup data to localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.data || []));
-    localStorage.setItem(GOALS_KEY, JSON.stringify(backup.goals || []));
-    localStorage.setItem(BOOKS_KEY, JSON.stringify(backup.recentBooks || []));
-    
-    // Signal to main page that we restored data
-    sessionStorage.setItem('just_restored_backup', 'true');
-    
-    closeViewBackupsModal();
-    await customAlert('Backup restored successfully!\n\nRedirecting to main page...', 'Restore Complete');
-    
-    // Small delay to ensure session storage is set
-    setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 500);
-  } catch (error) {
-    console.error('Restore error:', error);
-    await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
-  }
-}
-
-async function wipeAllData() {
-  const firstConfirm = await customConfirm(
-    'Are you sure? This will permanently delete all reading data, goals, recent books, backups, and visibility preferences.\n\nThis action cannot be undone.',
-    'Wipe All Data'
-  );
-  if (!firstConfirm) return;
-
-  const secondConfirm = await customConfirm(
-    'Really delete ALL data? Click OK to confirm.',
-    'Final Confirmation'
-  );
-  if (!secondConfirm) return;
-
-  try {
-    // Clear all app data from localStorage
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(GOALS_KEY);
-    localStorage.removeItem(BOOKS_KEY);
-    localStorage.removeItem(BACKUPS_KEY);
-    localStorage.removeItem(LAST_BACKUP_KEY);
-    localStorage.removeItem(BACKUP_FREQUENCY_KEY);
-    localStorage.removeItem(BACKUP_RETENTION_KEY);
-    localStorage.removeItem('show_longestStreak');
-    localStorage.removeItem('show_currentStreak');
-    localStorage.removeItem('show_average');
-    localStorage.removeItem('show_avgSpeed');
-    localStorage.removeItem('show_total');
-    localStorage.removeItem('selectedMetric');
-    localStorage.removeItem(USER_KEY);
-    
-    // Signal to main page that we wiped data
-    sessionStorage.setItem('just_wiped_data', 'true');
-    
-    await customAlert('All data has been wiped. Redirecting to main page...', 'Data Wiped');
-    
-    // Small delay to ensure session storage is set
-    setTimeout(() => {
-      window.location.href = 'index.html';
-    }, 500);
-  } catch (error) {
-    await customAlert('Failed to wipe data: ' + error.message, 'Error');
-  }
-}
-
-function downloadBackup(index) {
-  const backups = getBackups();
-  if (index < 0 || index >= backups.length) return;
-  
-  const backup = backups[index];
-  const date = new Date(backup.timestamp);
-  const dateStr = date.toISOString().split('T')[0];
-  
-  const exportData = {
-    data: backup.data || [],
-    goals: backup.goals || [],
-    recentBooks: backup.recentBooks || [],
-    backupDate: date.toISOString(),
-    type: backup.type || 'manual'
-  };
-  
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `reading-backup-${dateStr}-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-// filename: settings.html - replace deleteBackup entirely
-async function deleteBackup(index) {
-  const confirmed = await customConfirm(
-    'Delete this backup?\n\nThis action cannot be undone.',
-    'Delete Backup'
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    const backups = getBackups();
-    backups.splice(index, 1);
-    localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-    
-    // Update last backup time to latest remaining
-    const latest = backups.sort((a,b)=>b.timestamp-a.timestamp)[0];
-    localStorage.setItem(LAST_BACKUP_KEY, latest ? String(latest.timestamp) : '');
-    loadBackupSettings();
-    
-    viewBackups();
-    await customAlert('Backup deleted successfully.', 'Backup Deleted');
-  } catch (error) {
-    console.error('Delete backup error:', error);
-    await customAlert('Failed to delete backup: ' + error.message, 'Delete Error');
-  }
-}
-
-
-// Load ttsu sync status
-function loadTtsuSyncStatus() {
-  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
-  const folderId = localStorage.getItem('ttsu_folder_id');
-  const lastSync = localStorage.getItem('ttsu_last_sync');
-  
-  const statusEl = document.getElementById('ttsuSyncStatusText');
-  
-  if (!enabled || !folderId) {
-    statusEl.textContent = 'Not configured';
-    statusEl.style.color = 'var(--text-secondary)';
-    return;
-  }
-  
-  if (!lastSync) {
-    statusEl.textContent = 'Configured (not synced yet)';
-    statusEl.style.color = 'var(--accent-color)';
-    return;
-  }
-  
-  const lastSyncDate = new Date(lastSync);
-  const now = new Date();
-  const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
-  
-  if (diffMinutes < 1) {
-    statusEl.textContent = 'Active (just synced)';
-  } else if (diffMinutes < 60) {
-    statusEl.textContent = `Active (synced ${diffMinutes} min ago)`;
-  } else {
-    statusEl.textContent = `Active (synced ${Math.floor(diffMinutes / 60)}h ago)`;
-  }
-  statusEl.style.color = 'var(--accent-color)';
-}
-
-async function disableTtsuSync() {
-  const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
-  
-  if (!enabled) {
-    await customAlert('ttsu sync is already disabled.', 'Already Disabled');
-    return;
-  }
-  
-  const confirmed = await customConfirm(
-    'Disable automatic ttsu sync from Google Drive?\n\nYou can re-enable it anytime.',
-    'Disable Sync'
-  );
-  
-  if (!confirmed) return;
-  
-  localStorage.removeItem('ttsu_sync_enabled');
-  localStorage.removeItem('ttsu_folder_id');
-  localStorage.removeItem('ttsu_access_token');
-  localStorage.removeItem('ttsu_token_expiry');
-  await customAlert('ttsu sync has been disabled.', 'Sync Disabled');
-  loadTtsuSyncStatus();
-}
-    
-    async function downloadData() {
-  try {
-    const exportData = {
-      data: getCurrentData(),
-      goals: getCurrentGoals(),
-      recentBooks: getCurrentBooks(),
-      exportDate: new Date().toISOString()
-    };
-    
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `reading-heatmap-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    await customAlert('Data exported successfully!', 'Export Complete');
-  } catch (error) {
-    await customAlert('Failed to export data: ' + error.message, 'Export Error');
-  }
-}
-
-async function exportToToggl() {
-  try {
-    const data = getCurrentData();
-    const togglData = data.map(entry => ({
-      description: entry.title || 'Reading',
-      start: `${entry.date}T00:00:00Z`,
-      duration: entry.minutes * 60,
-      tags: ['reading'],
-      created_with: 'Reading Heatmap'
-    }));
-    
-    const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'reading-toggl-export.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    await customAlert('Exported to Toggl format! Import this file to Toggl Track.', 'Export Successful');
-  } catch (error) {
-    await customAlert('Failed to export: ' + error.message, 'Export Error');
-  }
-}
-
-document.getElementById('fileInput').addEventListener('change', async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    try {
-      const imported = JSON.parse(e.target.result);
-      
-      let importedData = [];
-      let importedGoals = [];
-      let importedBooks = [];
-      
-      if (Array.isArray(imported)) {
-        importedData = imported;
-      } else if (imported.data) {
-        importedData = imported.data || [];
-        importedGoals = imported.goals || [];
-        importedBooks = imported.recentBooks || [];
-      } else {
-        await customAlert('Invalid data format.', 'Invalid File');
-        return;
-      }
-      
-      if (importedData.length === 0) {
-        await customAlert('No data found in file.', 'Empty File');
-        return;
-      }
-      
-      const replace = await customConfirm(
-        `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
-        'Import Data'
-      );
-      
-      const currentData = getCurrentData();
-      const currentGoals = getCurrentGoals();
-      const currentBooks = getCurrentBooks();
-      
-      if (replace) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData));
-        localStorage.setItem(GOALS_KEY, JSON.stringify(importedGoals));
-        localStorage.setItem(BOOKS_KEY, JSON.stringify(importedBooks));
-      } else {
-        const mergedData = [...currentData, ...importedData];
-        const mergedGoals = [...currentGoals, ...importedGoals];
-        const mergedBooks = [...new Set([...currentBooks, ...importedBooks])];
-        
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
-        localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
-        localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
-      }
-      
-      await customAlert('Data imported successfully! Return to the main page to see your data.', 'Import Successful');
-    } catch (error) {
-      await customAlert('Error reading file: ' + error.message, 'Import Error');
-    }
-  };
-  
-  reader.readAsText(file);
-  event.target.value = '';
-});
-
-document.getElementById('ttsuInput').addEventListener('change', async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    try {
-      const ttsuData = JSON.parse(e.target.result);
-      
-      if (!Array.isArray(ttsuData)) {
-        await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
-        return;
-      }
-      
-      const transformedData = [];
-      const currentData = getCurrentData();
-      const currentBooks = getCurrentBooks();
-      const bookTitles = new Set();
-      
-      ttsuData.forEach(session => {
-        if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-          return;
-        }
-        
-        const date = session.dateKey;
-        const minutes = Math.round(session.readingTime / 60);
-        const characters = session.charactersRead || 0;
-        
-        if (minutes === 0 && characters === 0) return;
-        
-        const exists = currentData.some(entry => 
-          entry.date === date && 
-          entry.title === session.title &&
-          Math.abs(entry.minutes - minutes) < 2 &&
-          Math.abs(entry.characters - characters) < 100
-        );
-        
-        if (!exists) {
-          transformedData.push({
-            date: date,
-            minutes: minutes,
-            characters: characters,
-            title: session.title || 'Reading (from ttsu)'
-          });
-          bookTitles.add(session.title);
-        }
-      });
-      
-      if (transformedData.length === 0) {
-        await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.', 'No New Data');
-        return;
-      }
-      
-      const mergedData = [...currentData, ...transformedData];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
-      
-      // Update recent books
-      bookTitles.forEach(title => {
-        if (title && !currentBooks.includes(title)) {
-          currentBooks.unshift(title);
-        }
-      });
-      const updatedBooks = currentBooks.slice(0, 10);
-      localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
-      
-      const bookList = Array.from(bookTitles).join(', ');
-      await customAlert(
-        `✅ Successfully imported ${transformedData.length} reading session(s) from ttsu!\n\nBooks: ${bookList}\n\nReturn to the main page to see your updated heatmap.`,
-        'Import Successful'
-      );
-      
-    } catch (error) {
-      console.error('Import error:', error);
-      await customAlert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.', 'Import Error');
-    }
-  };
-  
-  reader.readAsText(file);
-  event.target.value = '';
-});
-
-async function wipeAllData() {
-  const firstConfirm = await customConfirm(
-    'Are you sure? This will permanently delete all reading data, goals, recent books, backups, and visibility preferences.\n\nThis action cannot be undone.',
-    'Wipe All Data'
-  );
-  if (!firstConfirm) return;
-
-  const secondConfirm = await customConfirm(
-    'Really delete ALL data? Click OK to confirm.',
-    'Final Confirmation'
-  );
-  if (!secondConfirm) return;
-
-  try {
-    // Clear all app data from localStorage
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(GOALS_KEY);
-    localStorage.removeItem(BOOKS_KEY);
-    localStorage.removeItem(BACKUPS_KEY);
-    localStorage.removeItem(LAST_BACKUP_KEY);
-    localStorage.removeItem(BACKUP_FREQUENCY_KEY);
-    localStorage.removeItem(BACKUP_RETENTION_KEY);
-    localStorage.removeItem('show_longestStreak');
-    localStorage.removeItem('show_currentStreak');
-    localStorage.removeItem('show_average');
-    localStorage.removeItem('show_avgSpeed');
-    localStorage.removeItem('show_total');
-    localStorage.removeItem('selectedMetric');
-    localStorage.removeItem(USER_KEY);
-    
-    // Signal to main page that we wiped data
-    sessionStorage.setItem('just_wiped_data', 'true');
-    
-    await customAlert('All data has been wiped. Redirecting to main page...', 'Data Wiped');
-    
-    // Redirect to main page
-    window.location.href = 'index.html';
-  } catch (error) {
-    await customAlert('Failed to wipe data: ' + error.message, 'Error');
-  }
-}
-
-function initializeBackups() {
+  // Load backup settings
   const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
+  const BACKUP_RETENTION_KEY = 'reading_heatmap_backup_retention';
   const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';
-  const BACKUPS_KEY = 'reading_heatmap_backups';
-  
-  const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
-  if (frequency === 'none') return;
-  
-  const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
-  const now = Date.now();
-  
-  let shouldBackup = false;
-  
-  if (!lastBackup) {
-    shouldBackup = true;
-  } else {
-    const lastTime = parseInt(lastBackup);
-    const hoursSince = (now - lastTime) / (1000 * 60 * 60);
+
+  function loadBackupSettings() {
+    const frequency = localStorage.getItem(BACKUP_FREQUENCY_KEY) || 'none';
+    const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
+    const lastBackup = localStorage.getItem(LAST_BACKUP_KEY);
     
-    if (frequency === 'daily' && hoursSince >= 24) shouldBackup = true;
-    if (frequency === 'weekly' && hoursSince >= 168) shouldBackup = true;
-    if (frequency === 'monthly' && hoursSince >= 720) shouldBackup = true;
+    const freqSelect = document.getElementById('backupFrequency');
+    const retSelect = document.getElementById('backupRetention');
+    
+    if (freqSelect) freqSelect.value = frequency;
+    if (retSelect) retSelect.value = retention;
+    
+    if (lastBackup) {
+      const date = new Date(parseInt(lastBackup));
+      const timeEl = document.getElementById('lastBackupTime');
+      if (timeEl) {
+        timeEl.textContent = date.toLocaleString();
+      }
+    }
   }
-  
-  if (shouldBackup) {
+
+  async function updateBackupFrequency() {
+    const frequency = document.getElementById('backupFrequency').value;
+    localStorage.setItem(BACKUP_FREQUENCY_KEY, frequency);
+    await customAlert('Backup frequency updated to: ' + frequency, 'Settings Updated');
+  }
+
+  async function updateBackupRetention() {
+    const retention = document.getElementById('backupRetention').value;
+    localStorage.setItem(BACKUP_RETENTION_KEY, retention);
+    await customAlert('Backup retention updated to: ' + retention + ' backups', 'Settings Updated');
+  }
+
+  async function createManualBackup() {
     try {
-      const backups = JSON.parse(localStorage.getItem(BACKUPS_KEY) || '[]');
-      const retention = localStorage.getItem('reading_heatmap_backup_retention') || '5';
-      
+      const backups = getBackups();
+      const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
+
       const backup = {
-        timestamp: now,
-        data: window.data || [],
-        goals: window.goals || [],
-        recentBooks: window.recentBooks || [],
-        type: 'automatic'
+        timestamp: Date.now(),
+        data: getCurrentData(),
+        goals: getCurrentGoals(),
+        recentBooks: getCurrentBooks(),
+        type: 'manual'
       };
-      
+
       backups.push(backup);
       backups.sort((a, b) => b.timestamp - a.timestamp);
-      
       if (retention !== 'all') {
         const maxBackups = parseInt(retention);
         if (backups.length > maxBackups) {
           backups.splice(maxBackups);
         }
       }
-      
+
       localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
-      localStorage.setItem(LAST_BACKUP_KEY, String(now));
-      
-      console.log('Automatic backup created');
+      localStorage.setItem(LAST_BACKUP_KEY, String(backup.timestamp));
+
+      const date = new Date(backup.timestamp);
+      const timeEl = document.getElementById('lastBackupTime');
+      if (timeEl) timeEl.textContent = date.toLocaleString();
+
+      await customAlert(`Backup created successfully!\n\n${backup.data.length} entries backed up`, 'Backup Created');
     } catch (error) {
-      console.error('Auto backup failed:', error);
+      console.error('Manual backup error:', error);
+      await customAlert('Failed to create backup: ' + error.message, 'Backup Error');
     }
   }
-}
 
-window.onload = function() {
-  loadTheme();
-  loadStatVisibility();
-  loadBackupSettings();
-  loadTtsuSyncStatus();
+  async function viewBackups() {
+    const backups = getBackups();
+    const container = document.getElementById('backupsList');
     
-  window.data = data = [];
-  window.dailyData = dailyData = {};
-  window.goals = goals = [];
-  window.recentBooks = recentBooks = [];
-  window.currentUser = currentUser = null;
-  
-  const storedUser = localStorage.getItem(USER_KEY);
-  if (storedUser) {
-    try {
-      window.currentUser = currentUser = JSON.parse(storedUser);
-    } catch (e) {
-      console.error('Error loading stored user:', e);
-    }
-  }
-  
-  initializeAuthButton();
-  renderHeatmap();
-  updateStats();
-  
-  // Initialize automatic backups
-  initializeBackups();
-  
-  // Check if redirected from settings page for ttsu sync
-  const ttsuAction = sessionStorage.getItem('openTtsuSync');
-  if (ttsuAction) {
-    sessionStorage.removeItem('openTtsuSync');
-    
-    setTimeout(() => {
-      openTtsuSyncSettings();
+    if (backups.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">No backups available. Create a backup first!</div>';
+    } else {
+      backups.sort((a, b) => b.timestamp - a.timestamp);
       
-      // Auto-trigger the appropriate action
-      setTimeout(async () => {
-        if (ttsuAction === 'setup') {
-          setupTtsuSync();
-        } else if (ttsuAction === 'sync') {
-          manualSyncTtsu();
-        } else if (ttsuAction === 'batchLoad') {
-          batchLoadAllTtsu();
-        }
-      }, 500);
-    }, 1000);
-  }
-  
-  if (window.location.protocol === 'file:') {
-    setTimeout(async () => {
-      await customAlert("Warning: Google Sign-In will NOT work if you open this file directly.\n\nPlease use a local server (e.g., Live Server in VS Code).", 'Warning');
-    }, 500);
-  }
-};
-    // Custom themed confirm dialog
-function customConfirm(message, title = 'Confirm') {
-  return new Promise((resolve) => {
-    const modal = document.getElementById('confirmModal');
-    const titleEl = document.getElementById('confirmTitle');
-    const messageEl = document.getElementById('confirmMessage');
-    const okBtn = document.getElementById('confirmOk');
-    const cancelBtn = document.getElementById('confirmCancel');
-    
-    titleEl.textContent = title;
-    messageEl.textContent = message;
-    modal.style.display = 'flex';
-    
-    const handleOk = () => {
-      cleanup();
-      resolve(true);
-    };
-    
-    const handleCancel = () => {
-      cleanup();
-      resolve(false);
-    };
-    
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        cleanup();
-        resolve(false);
-      }
-    };
-    
-    const cleanup = () => {
-      modal.style.display = 'none';
-      okBtn.removeEventListener('click', handleOk);
-      cancelBtn.removeEventListener('click', handleCancel);
-      document.removeEventListener('keydown', handleEscape);
-    };
-    
-    okBtn.addEventListener('click', handleOk);
-    cancelBtn.addEventListener('click', handleCancel);
-    document.addEventListener('keydown', handleEscape);
-  });
-}
-
-// Custom themed alert dialog
-function customAlert(message, title = 'Notice') {
-  return new Promise((resolve) => {
-    const modal = document.getElementById('alertModal');
-    const titleEl = document.getElementById('alertTitle');
-    const messageEl = document.getElementById('alertMessage');
-    const okBtn = document.getElementById('alertOk');
-    
-    titleEl.textContent = title;
-    messageEl.textContent = message;
-    modal.style.display = 'flex';
-    
-    const handleOk = () => {
-      cleanup();
-      resolve();
-    };
-    
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' || e.key === 'Enter') {
-        cleanup();
-        resolve();
-      }
-    };
-    
-    const cleanup = () => {
-      modal.style.display = 'none';
-      okBtn.removeEventListener('click', handleOk);
-      document.removeEventListener('keydown', handleEscape);
-    };
-    
-    okBtn.addEventListener('click', handleOk);
-    document.addEventListener('keydown', handleEscape);
-    
-    // Auto-focus OK button
-    setTimeout(() => okBtn.focus(), 100);
-  });
-}
-
-// ============================================
-// ttsu Google Drive Auto-Sync Integration
-// ============================================
-
-const GDRIVE_CONFIG = {
-  clientId: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
-  apiKey: 'AIzaSyDOHQjTJYPXMQ-6p45ReF6dBRvmxUZ0P_k',
-  scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly'
-};
-
-let googleAccessToken = null;
-let tokenClient = null;
-
-const TTSU_SYNC_ENABLED_KEY = 'ttsu_sync_enabled';
-const TTSU_LAST_SYNC_KEY = 'ttsu_last_sync';
-const TTSU_FOLDER_ID_KEY = 'ttsu_folder_id';
-const TTSU_TOKEN_KEY = 'ttsu_access_token';
-const TTSU_TOKEN_EXPIRY_KEY = 'ttsu_token_expiry';
-
-let ttsuSyncInterval = null;
-
-function initGIS() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    console.log('Google Identity Services not loaded yet');
-    return false;
-  }
-  
-  if (!tokenClient) {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GDRIVE_CONFIG.clientId,
-      scope: GDRIVE_CONFIG.scopes,
-      callback: () => {}, // Empty callback to prevent auto-execution
-    });
-    console.log('GIS initialized');
-  }
-  return true;
-}
-
-// Direct REST API calls (no gapi.client needed)
-async function driveApiCall(endpoint, accessToken) {
-  const response = await fetch(`https://www.googleapis.com/drive/v3/${endpoint}`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json'
+      container.innerHTML = '';
+      backups.forEach((backup, index) => {
+        const date = new Date(backup.timestamp);
+        const backupDiv = document.createElement('div');
+        backupDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-secondary); border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border-color);';
+        
+        const entriesCount = backup.data ? backup.data.length : 0;
+        const goalsCount = backup.goals ? backup.goals.length : 0;
+        const booksCount = backup.recentBooks ? backup.recentBooks.length : 0;
+        const type = backup.type === 'manual' ? '👤 Manual' : '🤖 Automatic';
+        
+        backupDiv.innerHTML = `
+          <div style="flex: 1;">
+            <strong style="color: var(--text-primary);">${date.toLocaleString()}</strong><br>
+            <span style="font-size: 12px; color: var(--text-secondary);">${type} • ${entriesCount} entries • ${goalsCount} goals • ${booksCount} books</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn" onclick="restoreBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Restore</button>
+            <button class="btn" onclick="downloadBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Download</button>
+            <button class="danger-btn" onclick="deleteBackup(${index})" style="padding: 6px 12px; font-size: 12px;">Delete</button>
+          </div>
+        `;
+        
+        container.appendChild(backupDiv);
+      });
     }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Drive API error: ${response.status} ${response.statusText}`);
+    
+    document.getElementById('viewBackupsModal').style.display = 'flex';
   }
-  
-  return await response.json();
-}
 
-async function driveDownloadFile(fileId, accessToken) {
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`
-    }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Download error: ${response.status}`);
+  function closeViewBackupsModal() {
+    document.getElementById('viewBackupsModal').style.display = 'none';
   }
-  
-  return await response.text();
-}
 
-async function setupTtsuSync() {
-  try {
-    let attempts = 0;
-    while (!initGIS() && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
-    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh the page.');
-
-    // Explicit consent only during setup
-    const ok = await ensureDriveToken({ allowPrompt: true });
-    if (!ok) throw new Error('Authorization failed. Please try again.');
-
-    const folderId = await findTtsuFolder();
-    if (!folderId) {
-      await customAlert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!', 'Folder Not Found');
+  async function restoreBackup(index) {
+    const backups = getBackups();
+    if (index < 0 || index >= backups.length) {
+      await customAlert('Backup not found.', 'Error');
       return;
     }
+    
+    const backup = backups[index];
+    const date = new Date(backup.timestamp);
+    
+    const confirmed = await customConfirm(
+      `Restore backup from ${date.toLocaleString()}?\n\nThis will replace your current data with the backup data.\n\nCurrent data will be lost unless you create a backup first.`,
+      'Restore Backup'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.data || []));
+      localStorage.setItem(GOALS_KEY, JSON.stringify(backup.goals || []));
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(backup.recentBooks || []));
+      
+      sessionStorage.setItem('just_restored_backup', 'true');
+      
+      closeViewBackupsModal();
+      await customAlert('Backup restored successfully!\n\nRedirecting to main page...', 'Restore Complete');
+      
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 500);
+    } catch (error) {
+      console.error('Restore error:', error);
+      await customAlert('Failed to restore backup: ' + error.message, 'Restore Error');
+    }
+  }
 
-    localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
-    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
+  function downloadBackup(index) {
+    const backups = getBackups();
+    if (index < 0 || index >= backups.length) return;
+    
+    const backup = backups[index];
+    const date = new Date(backup.timestamp);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    const exportData = {
+      data: backup.data || [],
+      goals: backup.goals || [],
+      recentBooks: backup.recentBooks || [],
+      backupDate: date.toISOString(),
+      type: backup.type || 'manual'
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reading-backup-${dateStr}-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
-    await syncFromTtsuGDrive();
-    startAutoSync();
+  async function deleteBackup(index) {
+    const confirmed = await customConfirm(
+      'Delete this backup?\n\nThis action cannot be undone.',
+      'Delete Backup'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      const backups = getBackups();
+      backups.splice(index, 1);
+      localStorage.setItem(BACKUPS_KEY, JSON.stringify(backups));
+      
+      const latest = backups.sort((a,b)=>b.timestamp-a.timestamp)[0];
+      localStorage.setItem(LAST_BACKUP_KEY, latest ? String(latest.timestamp) : '');
+      loadBackupSettings();
+      
+      viewBackups();
+      await customAlert('Backup deleted successfully.', 'Backup Deleted');
+    } catch (error) {
+      console.error('Delete backup error:', error);
+      await customAlert('Failed to delete backup: ' + error.message, 'Delete Error');
+    }
+  }
 
+  function loadTtsuSyncStatus() {
+    const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+    const folderId = localStorage.getItem('ttsu_folder_id');
+    const lastSync = localStorage.getItem('ttsu_last_sync');
+    
+    const statusEl = document.getElementById('ttsuSyncStatusText');
+    
+    if (!enabled || !folderId) {
+      statusEl.textContent = 'Not configured';
+      statusEl.style.color = 'var(--text-secondary)';
+      return;
+    }
+    
+    if (!lastSync) {
+      statusEl.textContent = 'Configured (not synced yet)';
+      statusEl.style.color = 'var(--accent-color)';
+      return;
+    }
+    
+    const lastSyncDate = new Date(lastSync);
+    const now = new Date();
+    const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
+    
+    if (diffMinutes < 1) {
+      statusEl.textContent = 'Active (just synced)';
+    } else if (diffMinutes < 60) {
+      statusEl.textContent = `Active (synced ${diffMinutes} min ago)`;
+    } else {
+      statusEl.textContent = `Active (synced ${Math.floor(diffMinutes / 60)}h ago)`;
+    }
+    statusEl.style.color = 'var(--accent-color)';
+  }
+
+  async function disableTtsuSync() {
+    const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+    
+    if (!enabled) {
+      await customAlert('ttsu sync is already disabled.', 'Already Disabled');
+      return;
+    }
+    
+    const confirmed = await customConfirm(
+      'Disable automatic ttsu sync from Google Drive?\n\nYou can re-enable it anytime.',
+      'Disable Sync'
+    );
+    
+    if (!confirmed) return;
+    
+    localStorage.removeItem('ttsu_sync_enabled');
+    localStorage.removeItem('ttsu_folder_id');
+    localStorage.removeItem('ttsu_access_token');
+    localStorage.removeItem('ttsu_token_expiry');
+    await customAlert('ttsu sync has been disabled.', 'Sync Disabled');
     loadTtsuSyncStatus();
-
-    await customAlert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.', 'Sync Enabled');
-  } catch (error) {
-    console.error('Setup error:', error);
-    await customAlert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)), 'Setup Error');
   }
-}
-
-async function findTtsuFolder() {
-  try {
-    console.log('Searching for ttu-reader-data folder...');
-    
-    const data = await driveApiCall(`files?q=name='ttu-reader-data'&fields=files(id,name)&spaces=drive`, googleAccessToken);
-    
-    console.log('Search results:', data);
-    
-    if (data.files && data.files.length > 0) {
-      console.log('Found folder:', data.files[0].name, 'ID:', data.files[0].id);
-      return data.files[0].id;
+  
+  async function downloadData() {
+    try {
+      const exportData = {
+        data: getCurrentData(),
+        goals: getCurrentGoals(),
+        recentBooks: getCurrentBooks(),
+        exportDate: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reading-heatmap-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      await customAlert('Data exported successfully!', 'Export Complete');
+    } catch (error) {
+      await customAlert('Failed to export data: ' + error.message, 'Export Error');
     }
-    
-    console.log('Not found. Listing all folders...');
-    const allFolders = await driveApiCall(`files?q=mimeType='application/vnd.google-apps.folder'&fields=files(id,name)&spaces=drive&pageSize=100`, googleAccessToken);
-    
-    console.log('All folders:', allFolders.files);
-    
-    return null;
-  } catch (error) {
-    console.error('Error finding ttsu folder:', error);
-    return null;
   }
-}
 
-async function syncFromTtsuGDrive() {
-  try {
-    const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
-    if (!folderId) {
-      throw new Error('ttsu folder not configured. Please run setup first.');
+  async function exportToToggl() {
+    try {
+      const data = getCurrentData();
+      const togglData = data.map(entry => ({
+        description: entry.title || 'Reading',
+        start: `${entry.date}T00:00:00Z`,
+        duration: entry.minutes * 60,
+        tags: ['reading'],
+        created_with: 'Reading Heatmap'
+      }));
+      
+      const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reading-toggl-export.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      await customAlert('Exported to Toggl format! Import this file to Toggl Track.', 'Export Successful');
+    } catch (error) {
+      await customAlert('Failed to export: ' + error.message, 'Export Error');
     }
-    
-    if (!googleAccessToken) {
-      throw new Error('Not authenticated. Please run setup first.');
-    }
-    
-    console.log('Fetching book folders from ttu-reader-data...');
-    
-    const bookFoldersQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-    const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`, googleAccessToken);
+  }
 
-    const bookFolders = bookFoldersData.files || [];
-    console.log(`Found ${bookFolders.length} book folders`);
-    
-    if (bookFolders.length === 0) {
-      console.log('No book folders found');
-      return 0;
-    }
-    
-    let totalImported = 0;
-    const bookTitles = new Set();
-    
-    for (const bookFolder of bookFolders) {
+  document.getElementById('fileInput').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
       try {
-        console.log(`Checking folder: ${bookFolder.name}`);
+        const imported = JSON.parse(e.target.result);
         
-        const statsQuery = encodeURIComponent(`'${bookFolder.id}' in parents and name contains 'statistics' and mimeType='application/json'`);
-        const statsData = await driveApiCall(`files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
+        let importedData = [];
+        let importedGoals = [];
+        let importedBooks = [];
         
-        const files = statsData.files || [];
-        
-        if (files.length === 0) {
-          console.log(`No statistics file in ${bookFolder.name}`);
-          continue;
+        if (Array.isArray(imported)) {
+          importedData = imported;
+        } else if (imported.data) {
+          importedData = imported.data || [];
+          importedGoals = imported.goals || [];
+          importedBooks = imported.recentBooks || [];
+        } else {
+          await customAlert('Invalid data format.', 'Invalid File');
+          return;
         }
         
-        const file = files[0];
-        console.log(`Processing ${file.name}...`);
+        if (importedData.length === 0) {
+          await customAlert('No data found in file.', 'Empty File');
+          return;
+        }
         
-        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-        const ttsuData = JSON.parse(fileContent);
+        const replace = await customConfirm(
+          `Found ${importedData.length} reading entries.\n\nReplace existing data?\n\nClick OK to replace, or Cancel to merge with existing data.`,
+          'Import Data'
+        );
         
-        if (!Array.isArray(ttsuData)) continue;
+        const currentData = getCurrentData();
+        const currentGoals = getCurrentGoals();
+        const currentBooks = getCurrentBooks();
+        
+        if (replace) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(importedData));
+          localStorage.setItem(GOALS_KEY, JSON.stringify(importedGoals));
+          localStorage.setItem(BOOKS_KEY, JSON.stringify(importedBooks));
+        } else {
+          const mergedData = [...currentData, ...importedData];
+          const mergedGoals = [...currentGoals, ...importedGoals];
+          const mergedBooks = [...new Set([...currentBooks, ...importedBooks])];
+          
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
+          localStorage.setItem(GOALS_KEY, JSON.stringify(mergedGoals));
+          localStorage.setItem(BOOKS_KEY, JSON.stringify(mergedBooks));
+        }
+        
+        await customAlert('Data imported successfully! Return to the main page to see your data.', 'Import Successful');
+      } catch (error) {
+        await customAlert('Error reading file: ' + error.message, 'Import Error');
+      }
+    };
+    
+    reader.readAsText(file);
+    event.target.value = '';
+  });
+
+  document.getElementById('ttsuInput').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const ttsuData = JSON.parse(e.target.result);
+        
+        if (!Array.isArray(ttsuData)) {
+          await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
+          return;
+        }
+        
+        const transformedData = [];
+        const currentData = getCurrentData();
+        const currentBooks = getCurrentBooks();
+        const bookTitles = new Set();
         
         ttsuData.forEach(session => {
           if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
@@ -1451,7 +935,6 @@ async function syncFromTtsuGDrive() {
           
           if (minutes === 0 && characters === 0) return;
           
-          const currentData = getCurrentData();
           const exists = currentData.some(entry => 
             entry.date === date && 
             entry.title === session.title &&
@@ -1460,353 +943,180 @@ async function syncFromTtsuGDrive() {
           );
           
           if (!exists) {
-            currentData.push({
+            transformedData.push({
               date: date,
               minutes: minutes,
               characters: characters,
-              title: session.title || bookFolder.name || 'Reading'
+              title: session.title || 'Reading (from ttsu)'
             });
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-            totalImported++;
-            bookTitles.add(session.title || bookFolder.name);
+            bookTitles.add(session.title);
           }
         });
         
-      } catch (fileError) {
-        console.error('Error processing folder:', bookFolder.name, fileError);
-      }
-    }
-    
-    if (totalImported > 0) {
-      const bookList = Array.from(bookTitles).join(', ');
-      const confirmed = confirm(
-        `Found ${totalImported} new reading session(s) from ttsu.\n\n` +
-        `Books: ${bookList}\n\n` +
-        `Import these sessions?`
-      );
-      
-      if (!confirmed) {
-        console.log('User cancelled ttsu import');
-        return 0;
-      }
-      
-      const currentBooks = getCurrentBooks();
-      bookTitles.forEach(title => {
-        if (title && !currentBooks.includes(title)) {
-          currentBooks.unshift(title);
-        }
-      });
-      const updatedBooks = currentBooks.slice(0, 10);
-      localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
-      
-      console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
-    }
-    
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-    
-    return totalImported;
-    
-  } catch (error) {
-    console.error('Sync error:', error);
-    throw error;
-  }
-}
-
-async function batchLoadAllTtsu() {
-  const firstConfirm = await customConfirm(
-    '⚠️ BATCH LOAD ALL FROM TTSU ⚠️\n\nThis will:\n1. Load ALL reading data from ttsu Google Drive\n2. OVERWRITE your existing data\n3. This action CANNOT be undone\n\nAre you sure you want to continue?',
-    'Batch Load Warning'
-  );
-  
-  if (!firstConfirm) return;
-  
-  const secondConfirm = await customConfirm(
-    'FINAL CONFIRMATION\n\nYour current reading data will be PERMANENTLY REPLACED with all data from ttsu.\n\nClick OK to proceed or Cancel to abort.',
-    'Final Confirmation'
-  );
-  
-  if (!secondConfirm) return;
-  
-  try {
-    const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
-    
-    if (!folderId) {
-      const hasToken = await ensureDriveToken({ allowPrompt: true });
-      if (!hasToken) {
-        throw new Error('Authorization failed. Please try again.');
-      }
-      
-      const foundFolderId = await findTtsuFolder();
-      if (!foundFolderId) {
-        await customAlert(
-          'Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!',
-          'Folder Not Found'
-        );
-        return;
-      }
-      
-      localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolderId);
-    } else {
-      const hasToken = await ensureDriveToken({ allowPrompt: false });
-      if (!hasToken) {
-        await customAlert(
-          'Google Drive authorization has expired. Please press "Setup Sync" once to refresh authorization.',
-          'Authorization Expired'
-        );
-        return;
-      }
-    }
-    
-    console.log('Starting batch load of all ttsu data...');
-    
-    const fId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
-    
-    const bookFoldersQuery = encodeURIComponent(`'${fId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-    const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`, googleAccessToken);
-
-    const bookFolders = bookFoldersData.files || [];
-    console.log(`Found ${bookFolders.length} book folders`);
-    
-    if (bookFolders.length === 0) {
-      await customAlert('No book folders found in ttsu Google Drive.', 'No Data Found');
-      return;
-    }
-    
-    const allData = [];
-    let totalImported = 0;
-    const bookTitles = new Set();
-    
-    for (const bookFolder of bookFolders) {
-      try {
-        console.log(`Processing folder: ${bookFolder.name}`);
-        
-        const statsQuery = encodeURIComponent(`'${bookFolder.id}' in parents and name contains 'statistics' and mimeType='application/json'`);
-        const statsData = await driveApiCall(`files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
-        
-        const files = statsData.files || [];
-        
-        if (files.length === 0) {
-          console.log(`No statistics file in ${bookFolder.name}`);
-          continue;
+        if (transformedData.length === 0) {
+          await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.', 'No New Data');
+          return;
         }
         
-        const file = files[0];
-        console.log(`Processing ${file.name}...`);
+        const mergedData = [...currentData, ...transformedData];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedData));
         
-        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-        const ttsuData = JSON.parse(fileContent);
-        
-        if (!Array.isArray(ttsuData)) continue;
-        
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
+        bookTitles.forEach(title => {
+          if (title && !currentBooks.includes(title)) {
+            currentBooks.unshift(title);
           }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          allData.push({
-            date: date,
-            minutes: minutes,
-            characters: characters,
-            title: session.title || bookFolder.name || 'Reading'
-          });
-          totalImported++;
-          bookTitles.add(session.title || bookFolder.name);
         });
+        const updatedBooks = currentBooks.slice(0, 10);
+        localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
         
-      } catch (fileError) {
-        console.error('Error processing folder:', bookFolder.name, fileError);
+        const bookList = Array.from(bookTitles).join(', ');
+        await customAlert(
+          `✅ Successfully imported ${transformedData.length} reading session(s) from ttsu!\n\nBooks: ${bookList}\n\nReturn to the main page to see your updated heatmap.`,
+          'Import Successful'
+        );
+        
+      } catch (error) {
+        console.error('Import error:', error);
+        await customAlert('Error importing ttsu data: ' + error.message + '\n\nPlease make sure you exported the correct JSON file from ttsu.', 'Import Error');
       }
-    }
+    };
     
-    if (totalImported === 0) {
-      await customAlert('No reading data found in ttsu Google Drive.', 'No Data Found');
-      return;
-    }
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
-    
-    const currentBooks = getCurrentBooks();
-    bookTitles.forEach(title => {
-      if (title && !currentBooks.includes(title)) {
-        currentBooks.unshift(title);
-      }
-    });
-    const updatedBooks = currentBooks.slice(0, 10);
-    localStorage.setItem(BOOKS_KEY, JSON.stringify(updatedBooks));
-    
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-    
-    console.log(`✅ Batch loaded ${totalImported} sessions from ttsu`);
-    
-    const bookList = Array.from(bookTitles).slice(0, 10).join(', ');
-    const moreBooks = bookTitles.size > 10 ? `\n...and ${bookTitles.size - 10} more books` : '';
-    
-    await customAlert(
-      `✅ Batch Load Complete!\n\nImported: ${totalImported} reading sessions\nBooks: ${bookList}${moreBooks}\n\nYour data has been overwritten with ttsu data.`,
-      'Success'
-    );
-    
-    loadTtsuSyncStatus();
-    
-  } catch (error) {
-    console.error('Batch load error:', error);
-    await customAlert(
-      'Failed to batch load from ttsu:\n\n' + (error.message || error),
-      'Error'
-    );
-  }
-}
+    reader.readAsText(file);
+    event.target.value = '';
+  });
 
-function startAutoSync() {
-  if (ttsuSyncInterval) {
-    clearInterval(ttsuSyncInterval);
-  }
-  
-  ttsuSyncInterval = setInterval(async () => {
+  async function wipeAllData() {
+    const firstConfirm = await customConfirm(
+      'Are you sure? This will permanently delete all reading data, goals, recent books, backups, and visibility preferences.\n\nThis action cannot be undone.',
+      'Wipe All Data'
+    );
+    if (!firstConfirm) return;
+
+    const secondConfirm = await customConfirm(
+      'Really delete ALL data? Click OK to confirm.',
+      'Final Confirmation'
+    );
+    if (!secondConfirm) return;
+
     try {
-      const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-      if (enabled) {
-        console.log('Auto-syncing from ttsu...');
-        await syncFromTtsuGDrive();
-      }
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(GOALS_KEY);
+      localStorage.removeItem(BOOKS_KEY);
+      localStorage.removeItem(BACKUPS_KEY);
+      localStorage.removeItem(LAST_BACKUP_KEY);
+      localStorage.removeItem(BACKUP_FREQUENCY_KEY);
+      localStorage.removeItem(BACKUP_RETENTION_KEY);
+      localStorage.removeItem('show_longestStreak');
+      localStorage.removeItem('show_currentStreak');
+      localStorage.removeItem('show_average');
+      localStorage.removeItem('show_avgSpeed');
+      localStorage.removeItem('show_total');
+      localStorage.removeItem('selectedMetric');
+      localStorage.removeItem(USER_KEY);
+      
+      sessionStorage.setItem('just_wiped_data', 'true');
+      
+      await customAlert('All data has been wiped. Redirecting to main page...', 'Data Wiped');
+      
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 500);
     } catch (error) {
-      console.error('Auto-sync error:', error);
+      await customAlert('Failed to wipe data: ' + error.message, 'Error');
     }
-  }, 5 * 60 * 1000);
-}
-
-function stopAutoSync() {
-  if (ttsuSyncInterval) {
-    clearInterval(ttsuSyncInterval);
-    ttsuSyncInterval = null;
-  }
-  localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'false');
-}
-
-async function manualSyncTtsu() {
-  const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-  const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
-
-  if (!enabled || !folderId) {
-    await customAlert('ttsu sync is not enabled.\n\nPlease run "Setup Sync" once to configure.', 'Sync Not Enabled');
-    return;
   }
 
-  const hasToken = await ensureDriveToken({ allowPrompt: false });
-  if (!hasToken) {
-    await customAlert('Google Drive authorization has expired. Please press "Setup Sync" once to refresh authorization.', 'Authorization Expired');
-    return;
-  }
-
-  try {
-    const count = await syncFromTtsuGDrive();
-    const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
-    const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
-
-    await customAlert(`✅ Sync complete!\n\nNew sessions imported: ${count || 0}\nLast sync: ${lastSyncStr}`, 'Sync Complete');
-
+  window.onload = function() {
+    loadStatVisibility();
+    loadBackupSettings();
     loadTtsuSyncStatus();
-  } catch (error) {
-    await customAlert('Sync failed:\n\n' + (error.message || error), 'Sync Error');
-  }
-}
+  };
 
-async function ensureDriveToken(options = { allowPrompt: false }) {
-  const storedToken = localStorage.getItem(TTSU_TOKEN_KEY);
-  const storedExpiry = localStorage.getItem(TTSU_TOKEN_EXPIRY_KEY);
-  
-  if (storedToken && storedExpiry) {
-    const expiryTime = parseInt(storedExpiry);
-    const now = Date.now();
-    
-    if (expiryTime > now + (5 * 60 * 1000)) {
-      googleAccessToken = storedToken;
-      console.log('Using stored valid token');
-      return true;
-    }
-  }
-  
-  try {
-    await new Promise((resolve, reject) => {
-      tokenClient.callback = (resp) => {
-        if (resp && !resp.error && resp.access_token) {
-          googleAccessToken = resp.access_token;
-          
-          const expiresIn = resp.expires_in || 3600;
-          const expiryTime = Date.now() + (expiresIn * 1000);
-          
-          localStorage.setItem(TTSU_TOKEN_KEY, resp.access_token);
-          localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
-          
-          console.log('Token refreshed and stored');
-          resolve();
-        } else {
-          reject(resp?.error || new Error('silent_token_failed'));
+  // Custom themed confirm dialog
+  function customConfirm(message, title = 'Confirm') {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirmModal');
+      const titleEl = document.getElementById('confirmTitle');
+      const messageEl = document.getElementById('confirmMessage');
+      const okBtn = document.getElementById('confirmOk');
+      const cancelBtn = document.getElementById('confirmCancel');
+      
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      modal.style.display = 'flex';
+      
+      const handleOk = () => {
+        cleanup();
+        resolve(true);
+      };
+      
+      const handleCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+      
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          cleanup();
+          resolve(false);
         }
       };
-      tokenClient.requestAccessToken({ prompt: '' });
+      
+      const cleanup = () => {
+        modal.style.display = 'none';
+        okBtn.removeEventListener('click', handleOk);
+        cancelBtn.removeEventListener('click', handleCancel);
+        document.removeEventListener('keydown', handleEscape);
+      };
+      
+      okBtn.addEventListener('click', handleOk);
+      cancelBtn.addEventListener('click', handleCancel);
+      document.addEventListener('keydown', handleEscape);
     });
-    return true;
-  } catch (silentErr) {
-    console.log('Silent token refresh failed:', silentErr);
-    
-    if (!options.allowPrompt) {
-      localStorage.removeItem(TTSU_TOKEN_KEY);
-      localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
-      return false;
-    }
-
-    try {
-      await new Promise((resolve, reject) => {
-        tokenClient.callback = (resp) => {
-          if (resp && !resp.error && resp.access_token) {
-            googleAccessToken = resp.access_token;
-            
-            const expiresIn = resp.expires_in || 3600;
-            const expiryTime = Date.now() + (expiresIn * 1000);
-            
-            localStorage.setItem(TTSU_TOKEN_KEY, resp.access_token);
-            localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
-            
-            console.log('Token obtained via consent and stored');
-            resolve();
-          } else {
-            reject(resp?.error || new Error('prompt_token_failed'));
-          }
-        };
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-      });
-      return true;
-    } catch (promptErr) {
-      localStorage.removeItem(TTSU_TOKEN_KEY);
-      localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
-      return false;
-    }
   }
-}
 
-// Initialize on load
-setTimeout(async () => {
-  initGIS();
-  loadBackupSettings(); // ADD THIS LINE
-
-  const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-  const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
-
-  if (enabled && folderId) {
-    await ensureDriveToken({ allowPrompt: false });
-    startAutoSync();
-    loadTtsuSyncStatus();
-    console.log('ttsu auto-sync initialized on load');
+  // Custom themed alert dialog
+  function customAlert(message, title = 'Notice') {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('alertModal');
+      const titleEl = document.getElementById('alertTitle');
+      const messageEl = document.getElementById('alertMessage');
+      const okBtn = document.getElementById('alertOk');
+      
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      modal.style.display = 'flex';
+      
+      const handleOk = () => {
+        cleanup();
+        resolve();
+      };
+      
+      const handleEscape = (e) => {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          cleanup();
+          resolve();
+        }
+      };
+      
+      const cleanup = () => {
+        modal.style.display = 'none';
+        okBtn.removeEventListener('click', handleOk);
+        document.removeEventListener('keydown', handleEscape);
+      };
+      
+      okBtn.addEventListener('click', handleOk);
+      document.addEventListener('keydown', handleEscape);
+      
+      setTimeout(() => okBtn.focus(), 100);
+    });
   }
-}, 1000);
-  </script>
+
+  // ttsu sync functions placeholder (will load from external script if needed)
+  window.setupTtsuSync = () => console.log('ttsu not loaded');
+  window.manualSyncTtsu = () => console.log('ttsu not loaded');
+  window.batchLoadAllTtsu = () => console.log('ttsu not loaded');
+</script>
 
 <!-- View Backups Modal -->
 <div class="modal" id="viewBackupsModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
