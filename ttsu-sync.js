@@ -1,6 +1,3 @@
-// ttsu-sync.js - Google Drive sync for ttsu reading data
-// This file provides ttsu sync functionality for both index.html and settings.html
-
 const TTSU_FOLDER_ID_KEY = 'ttsu_folder_id';
 const TTSU_SYNC_ENABLED_KEY = 'ttsu_sync_enabled';
 const TTSU_ACCESS_TOKEN_KEY = 'ttsu_access_token';
@@ -11,23 +8,33 @@ let googleAccessToken = null;
 let tokenClient = null;
 let ttsuSyncInterval = null;
 
-// Initialize Google Identity Services
+// --- FIXED: Initialize Google Identity Services safely ---
 function initGIS() {
-  if (tokenClient) return true;
-  if (typeof google === 'undefined' || !google.accounts) {
+  // Already initialized
+  if (tokenClient) {
+    return true;
+  }
+
+  // GIS script not ready yet
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
     console.log('Google Identity Services not loaded yet');
     return false;
   }
-  
-  if (!tokenClient) {
+
+  try {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
       scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
-      callback: '', // set during auth
+      // IMPORTANT: callback is set per request in ensureDriveToken()
+      callback: () => {}
     });
     console.log('GIS initialized');
+    return true;
+  } catch (err) {
+    console.error('Failed to init GIS:', err);
+    tokenClient = null;
+    return false;
   }
-  return true;
 }
 
 // Direct REST API calls (no gapi.client needed)
@@ -38,11 +45,11 @@ async function driveApiCall(endpoint, accessToken) {
       'Accept': 'application/json'
     }
   });
-  
+
   if (!response.ok) {
     throw new Error(`Drive API error: ${response.status} ${response.statusText}`);
   }
-  
+
   return await response.json();
 }
 
@@ -52,95 +59,121 @@ async function driveDownloadFile(fileId, accessToken) {
       'Authorization': `Bearer ${accessToken}`
     }
   });
-  
+
   if (!response.ok) {
     throw new Error(`Download error: ${response.status}`);
   }
-  
+
   return await response.text();
 }
 
-// Helper: ensure we have a Google Drive access token
+// --- FIXED: ensureDriveToken never pops UI unless explicitly allowed (setup only) ---
 async function ensureDriveToken(options = { allowPrompt: false }) {
+  // Make sure GIS is ready before touching tokenClient
+  if (!tokenClient) {
+    const ok = initGIS();
+    if (!ok) {
+      console.log('GIS not ready, cannot obtain token');
+      return false;
+    }
+  }
+
+  const customAlert = window.customAlert || (msg => { console.log(msg); });
+
   // Check if we have a stored valid token
   const storedToken = localStorage.getItem(TTSU_ACCESS_TOKEN_KEY);
   const storedExpiry = localStorage.getItem(TTSU_TOKEN_EXPIRY_KEY);
-  
+
   if (storedToken && storedExpiry) {
-    const expiryTime = parseInt(storedExpiry);
+    const expiryTime = parseInt(storedExpiry, 10);
     const now = Date.now();
-    
-    // If token is still valid (with 5 min buffer), use it
+
+    // If token is still valid (5 min buffer), reuse it
     if (expiryTime > now + (5 * 60 * 1000)) {
       googleAccessToken = storedToken;
-      console.log('Using stored valid token');
+      console.log('Using stored valid token for ttsu sync');
       return true;
     }
   }
-  
-  // Token expired or doesn't exist - try to refresh silently
+
+  // Token expired or missing: try SILENT refresh first
+  if (!tokenClient) {
+    console.log('tokenClient missing; cannot request token');
+    return false;
+  }
+
   try {
     await new Promise((resolve, reject) => {
       tokenClient.callback = (resp) => {
         if (resp && !resp.error && resp.access_token) {
           googleAccessToken = resp.access_token;
-          
-          // Store token with expiry (default 3600 seconds = 1 hour)
+
           const expiresIn = resp.expires_in || 3600;
           const expiryTime = Date.now() + (expiresIn * 1000);
-          
+
           localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, resp.access_token);
           localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
-          
-          console.log('Token refreshed and stored');
+
+          console.log('Silent token refresh OK');
           resolve();
         } else {
           reject(resp?.error || new Error('silent_token_failed'));
         }
       };
+      // SILENT: prompt: '' never shows UI
       tokenClient.requestAccessToken({ prompt: '' });
     });
     return true;
   } catch (silentErr) {
-    console.log('Silent token refresh failed:', silentErr);
-    
+    console.log('Silent Drive token refresh failed:', silentErr);
+
+    // No UI allowed → just fail gracefully
     if (!options.allowPrompt) {
-      // Clear invalid stored tokens
       localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
       localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
       return false;
     }
 
-    // One-time interactive consent during setup
+    // Setup path: one-time interactive consent
     try {
       await new Promise((resolve, reject) => {
         tokenClient.callback = (resp) => {
           if (resp && !resp.error && resp.access_token) {
             googleAccessToken = resp.access_token;
-            
-            // Store token with expiry
+
             const expiresIn = resp.expires_in || 3600;
             const expiryTime = Date.now() + (expiresIn * 1000);
-            
+
             localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, resp.access_token);
             localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
-            
-            console.log('Token obtained via consent and stored');
+
+            console.log('Interactive Drive token obtained');
             resolve();
           } else {
             reject(resp?.error || new Error('prompt_token_failed'));
           }
         };
+        // INTERACTIVE: prompt: 'consent' → ONLY used in setup
         tokenClient.requestAccessToken({ prompt: 'consent' });
       });
       return true;
     } catch (promptErr) {
+      console.log('Interactive Drive token request failed:', promptErr);
       localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
       localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
+
+      // Optional: in-page warning instead of popup
+      await customAlert(
+        'Google Drive authorization for ttsu sync failed or was cancelled.\n\n' +
+        'You can run "Setup ttsu Auto-Sync" again later if needed.',
+        'Drive Authorization'
+      );
+
       return false;
     }
   }
 }
+
 
 async function findTtsuFolder() {
   try {
@@ -662,7 +695,6 @@ function checkTtsuSyncStatus() {
   }
 }
 
-// Initialize on load: auto-start if previously configured (no consent prompts)
 setTimeout(async () => {
   initGIS();
 
@@ -670,7 +702,8 @@ setTimeout(async () => {
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
 
   if (enabled && folderId) {
-    await ensureDriveToken({ allowPrompt: false }); // try silent token; ok if it fails
+    // Silent only: this will NEVER show a popup
+    await ensureDriveToken({ allowPrompt: false });
     startAutoSync();
 
     if (window.loadTtsuSyncStatus) {
@@ -680,6 +713,7 @@ setTimeout(async () => {
     console.log('ttsu auto-sync initialized on load');
   }
 }, 1000);
+
 
 // Export functions to window
 window.initGIS = initGIS;
