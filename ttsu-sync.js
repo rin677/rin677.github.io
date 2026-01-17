@@ -696,6 +696,17 @@ function checkTtsuSyncStatus() {
 }
 
 setTimeout(async () => {
+  // Only initialize auto-sync logic on the settings page
+  const path = (window.location && window.location.pathname) || '';
+  const onSettingsPage =
+    path.endsWith('/settings.html') ||
+    path.endsWith('settings.html') ||
+    path === '/settings';
+
+  if (!onSettingsPage) {
+    return; // do nothing on index.html or any other page
+  }
+
   initGIS();
 
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
@@ -710,7 +721,7 @@ setTimeout(async () => {
       window.loadTtsuSyncStatus();
     }
 
-    console.log('ttsu auto-sync initialized on load');
+    console.log('ttsu auto-sync initialized on settings page');
   }
 }, 1000);
 
