@@ -236,22 +236,40 @@ async function syncFromTtsuGDrive() {
 
     console.log('Fetching book folders from ttu-reader-data...');
 
-    // All direct child folders of ttu-reader-data are treated as books
-    const bookFoldersQuery = encodeURIComponent(
-      `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-    );
-    const bookFoldersData = await driveApiCall(
-      `files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
-      googleAccessToken
-    );
+// Step 1: get direct child folders of ttu-reader-data
+const topLevelFoldersQuery = encodeURIComponent(
+  `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+);
+const topLevelData = await driveApiCall(
+  `files?q=${topLevelFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
+  googleAccessToken
+);
 
-    const bookFolders = bookFoldersData.files || [];
-    console.log(`Found ${bookFolders.length} book folders`);
+let bookFolders = topLevelData.files || [];
 
-    if (bookFolders.length === 0) {
-      console.log('No book folders found');
-      return 0;
-    }
+// If there is exactly ONE top-level folder, assume it's a container (like "books")
+// and the real book folders are its children.
+if (bookFolders.length === 1) {
+  const containerFolder = bookFolders[0];
+  console.log(`Single container folder detected: ${containerFolder.name} (${containerFolder.id}) — loading its children as book folders`);
+
+  const nestedQuery = encodeURIComponent(
+    `'${containerFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+  );
+  const nestedData = await driveApiCall(
+    `files?q=${nestedQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
+    googleAccessToken
+  );
+
+  bookFolders = nestedData.files || [];
+}
+
+console.log(`Resolved ${bookFolders.length} book folder(s) to sync from`);
+
+if (bookFolders.length === 0) {
+  console.log('No book folders found');
+  return 0;
+}
 
     let totalImported = 0;
     const bookTitles = new Set();
