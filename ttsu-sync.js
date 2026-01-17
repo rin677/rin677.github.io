@@ -518,7 +518,6 @@ async function manualSyncTtsu() {
   }
 }
 
-// --- NEW batchLoadAllTtsu (wipe and rebuild from all book folders) ---
 async function batchLoadAllTtsu() {
   const customConfirm = window.customConfirm || confirm;
   const customAlert = window.customAlert || alert;
@@ -564,7 +563,8 @@ async function batchLoadAllTtsu() {
       }
     }
     
-    console.log('Starting batch load of all ttsu data...');
+    console.log('=== STARTING BATCH LOAD ===');
+    console.log('Starting batch load of all ttsu data from folder:', folderId);
     
     // Ensure window.data & window.recentBooks
     window.data = [];
@@ -581,16 +581,42 @@ async function batchLoadAllTtsu() {
       }
     }
     
-// Get ALL children and filter for folders
-    const allChildrenQuery = encodeURIComponent(
-      `'${folderId}' in parents and trashed=false`
-    );
+    // Approach 1: Get everything with no filters
+    console.log('Approach 1: Fetching with minimal query...');
+    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
     const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=1000`,
+      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
       googleAccessToken
     );
 
-    const allChildren = allChildrenData.files || [];
+    let allChildren = allChildrenData.files || [];
+    console.log(`Found ${allChildren.length} items with Approach 1`);
+    console.log('All items:', JSON.stringify(allChildren, null, 2));
+
+    // Approach 2: Try searching by name pattern if we find too few
+    if (allChildren.length < 4) {
+      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
+      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
+      const nameSearchData = await driveApiCall(
+        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+        googleAccessToken
+      );
+      
+      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
+      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
+      
+      // Merge results
+      if (nameSearchData.files && nameSearchData.files.length > 0) {
+        const existingIds = new Set(allChildren.map(f => f.id));
+        nameSearchData.files.forEach(file => {
+          if (!existingIds.has(file.id)) {
+            allChildren.push(file);
+          }
+        });
+      }
+    }
+
+    console.log(`Total items after all approaches: ${allChildren.length}`);
     
     // Filter for folders - handle ALL folder mimeType variations
     const bookFolders = allChildren.filter(f => 
@@ -600,9 +626,16 @@ async function batchLoadAllTtsu() {
       )
     );
     
-    console.log(`Found ${bookFolders.length} book folders out of ${allChildren.length} total items`);
+    console.log(`Found ${bookFolders.length} book folder(s):`);
+    bookFolders.forEach(f => {
+      console.log(`  - ${f.name} (${f.id})`);
+      console.log(`    mimeType: ${f.mimeType}`);
+      console.log(`    parents: ${JSON.stringify(f.parents)}`);
+    });
     
     if (bookFolders.length === 0) {
+      console.error('❌ NO BOOK FOLDERS FOUND!');
+      console.log('All mimeTypes found:', allChildren.map(f => f.mimeType));
       await customAlert('No book folders found in ttsu Google Drive.', 'No Data Found');
       return;
     }
@@ -613,7 +646,7 @@ async function batchLoadAllTtsu() {
     // For each book folder, get the latest statistics file directly inside it
     for (const bookFolder of bookFolders) {
       try {
-        console.log(`Processing folder: ${bookFolder.name}`);
+        console.log(`\n📚 Processing: ${bookFolder.name}`);
 
         const statsQuery = encodeURIComponent(
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
@@ -624,22 +657,26 @@ async function batchLoadAllTtsu() {
         );
 
         const files = statsData.files || [];
+        console.log(`  Found ${files.length} statistics file(s)`);
+        
         if (files.length === 0) {
-          console.log(`No statistics file in ${bookFolder.name}`);
+          console.log(`  ⚠️ No statistics file in ${bookFolder.name}`);
           continue;
         }
 
         const file = files[0];
-        console.log(`Processing ${file.name} for ${bookFolder.name}...`);
+        console.log(`  Processing: ${file.name}`);
 
         // Download file content
         const fileContent = await driveDownloadFile(file.id, googleAccessToken);
         const ttsuData = JSON.parse(fileContent);
 
         if (!Array.isArray(ttsuData)) {
-          console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
+          console.log(`  ⚠️ Statistics file is not an array, skipping`);
           continue;
         }
+
+        console.log(`  Found ${ttsuData.length} sessions in file`);
 
         // Import ALL data from this book
         ttsuData.forEach(session => {
@@ -665,10 +702,16 @@ async function batchLoadAllTtsu() {
           bookTitles.add(title);
         });
 
+        console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
+
       } catch (fileError) {
-        console.error('Error processing folder:', bookFolder.name, fileError);
+        console.error(`  ❌ Error processing ${bookFolder.name}:`, fileError);
       }
     }
+    
+    console.log(`\n=== BATCH LOAD SUMMARY ===`);
+    console.log(`Total sessions imported: ${totalImported}`);
+    console.log(`Books: ${Array.from(bookTitles).join(', ')}`);
     
     if (totalImported === 0) {
       await customAlert('No reading data found in ttsu Google Drive.', 'No Data Found');
@@ -725,11 +768,10 @@ async function batchLoadAllTtsu() {
     }
     
   } catch (error) {
-    console.error('Batch load error:', error);
+    console.error('❌ BATCH LOAD ERROR:', error);
     await customAlert('Failed to batch load from ttsu:\n\n' + (error.message || error), 'Error');
   }
 }
-
 
 function startAutoSync() {
   if (ttsuSyncInterval) {
