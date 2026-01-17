@@ -230,68 +230,96 @@ async function syncFromTtsuGDrive() {
     let totalImported = 0;
     const bookTitles = new Set();
     
-    // For each book folder, get the statistics file
-    for (const bookFolder of bookFolders) {
-      try {
-        console.log(`Checking folder: ${bookFolder.name}`);
-        
-        // Find statistics JSON file in this book folder
-        const statsQuery = encodeURIComponent(`'${bookFolder.id}' in parents and name contains 'statistics' and mimeType='application/json'`);
-        const statsData = await driveApiCall(`files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
-        
-        const files = statsData.files || [];
-        
-        if (files.length === 0) {
-          console.log(`No statistics file in ${bookFolder.name}`);
-          continue;
-        }
-        
-        // Process the statistics file (usually just one per book)
-        const file = files[0];
-        console.log(`Processing ${file.name}...`);
-        
-        // Download file content
-        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-        const ttsuData = JSON.parse(fileContent);
-        
-        if (!Array.isArray(ttsuData)) continue;
-        
-        // Transform and import data
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          // Check if exists
-          const exists = window.data.some(entry => 
-            entry.date === date && 
-            entry.title === session.title &&
-            Math.abs(entry.minutes - minutes) < 2 &&
-            Math.abs(entry.characters - characters) < 100
-          );
-          
-          if (!exists) {
-            window.data.push({
-              date: date,
-              minutes: minutes,
-              characters: characters,
-              title: session.title || bookFolder.name || 'Reading'
-            });
-            totalImported++;
-            bookTitles.add(session.title || bookFolder.name);
-          }
-        });
-        
-      } catch (fileError) {
-        console.error('Error processing folder:', bookFolder.name, fileError);
-      }
+// For each book folder, get the statistics file from its "statistics" subfolder
+for (const bookFolder of bookFolders) {
+  try {
+    console.log(`Checking folder: ${bookFolder.name}`);
+    
+    // 1) Find the "statistics" subfolder inside this book folder
+    const statsFolderQuery = encodeURIComponent(
+      `'${bookFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and name='statistics' and trashed=false`
+    );
+    const statsFolderData = await driveApiCall(
+      `files?q=${statsFolderQuery}&spaces=drive&fields=files(id,name)&pageSize=10`,
+      googleAccessToken
+    );
+    
+    const statsFolders = statsFolderData.files || [];
+    if (statsFolders.length === 0) {
+      console.log(`No "statistics" subfolder in ${bookFolder.name}`);
+      continue;
     }
+    
+    // If multiple, just take the first
+    const statsFolder = statsFolders[0];
+    console.log(`Found statistics subfolder for ${bookFolder.name}: ${statsFolder.id}`);
+    
+    // 2) Find statistics JSON file inside the "statistics" subfolder
+    const statsQuery = encodeURIComponent(
+      `'${statsFolder.id}' in parents and mimeType='application/json' and trashed=false`
+    );
+    const statsData = await driveApiCall(
+      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`,
+      googleAccessToken
+    );
+    
+    const files = statsData.files || [];
+    
+    if (files.length === 0) {
+      console.log(`No statistics JSON file in statistics subfolder of ${bookFolder.name}`);
+      continue;
+    }
+    
+    // Latest statistics JSON
+    const file = files[0];
+    console.log(`Processing ${file.name} for ${bookFolder.name}...`);
+    
+    // Download file content
+    const fileContent = await driveDownloadFile(file.id, googleAccessToken);
+    const ttsuData = JSON.parse(fileContent);
+    
+    if (!Array.isArray(ttsuData)) {
+      console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
+      continue;
+    }
+    
+    // Transform and import data
+    ttsuData.forEach(session => {
+      if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+        return;
+      }
+      
+      const date = session.dateKey;
+      const minutes = Math.round(session.readingTime / 60);
+      const characters = session.charactersRead || 0;
+      
+      if (minutes === 0 && characters === 0) return;
+      
+      // Check if exists
+      const exists = window.data.some(entry => 
+        entry.date === date && 
+        entry.title === session.title &&
+        Math.abs(entry.minutes - minutes) < 2 &&
+        Math.abs(entry.characters - characters) < 100
+      );
+      
+      if (!exists) {
+        window.data.push({
+          date: date,
+          minutes: minutes,
+          characters: characters,
+          title: session.title || bookFolder.name || 'Reading'
+        });
+        totalImported++;
+        bookTitles.add(session.title || bookFolder.name);
+      }
+    });
+    
+  } catch (fileError) {
+    console.error('Error processing folder:', bookFolder.name, fileError);
+  }
+}
+
     
     if (totalImported > 0) {
       // Ask user before importing
@@ -341,18 +369,17 @@ bookTitles.forEach(title => {
         await window.saveCloudState();
       }
       
-      console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
-    }
-    
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-    
-    return totalImported;
-    
-  } catch (error) {
-    console.error('Sync error:', error);
-    throw error;
+    console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
   }
+  
+  // Do NOT touch TTSU_LAST_SYNC_KEY here; only setupTtsuSync should update it
+  return totalImported;
+  
+} catch (error) {
+  console.error('Sync error:', error);
+  throw error;
 }
+
 
 async function setupTtsuSync() {
   try {
@@ -378,15 +405,21 @@ async function setupTtsuSync() {
       return;
     }
 
-    localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
-    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
+localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
+localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
 
-    await syncFromTtsuGDrive();
-    startAutoSync();
+// Run an initial sync right after setup
+await syncFromTtsuGDrive();
 
-    if (window.loadTtsuSyncStatus) {
-      window.loadTtsuSyncStatus();
-    }
+// Only here: record the "last sync" time used for the 1‑hour cap
+localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+
+startAutoSync();
+
+if (window.loadTtsuSyncStatus) {
+  window.loadTtsuSyncStatus();
+}
+
 
     const customAlert = window.customAlert || alert;
     await customAlert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.', 'Sync Enabled');
@@ -507,58 +540,84 @@ async function batchLoadAllTtsu() {
     let totalImported = 0;
     const bookTitles = new Set();
     
-    // For each book folder, get the statistics file
-    for (const bookFolder of bookFolders) {
-      try {
-        console.log(`Processing folder: ${bookFolder.name}`);
-        
-        // Find statistics JSON file in this book folder
-        const statsQuery = encodeURIComponent(`'${bookFolder.id}' in parents and name contains 'statistics' and mimeType='application/json'`);
-        const statsData = await driveApiCall(`files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`, googleAccessToken);
-        
-        const files = statsData.files || [];
-        
-        if (files.length === 0) {
-          console.log(`No statistics file in ${bookFolder.name}`);
-          continue;
-        }
-        
-        // Process the statistics file
-        const file = files[0];
-        console.log(`Processing ${file.name}...`);
-        
-        // Download file content
-        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-        const ttsuData = JSON.parse(fileContent);
-        
-        if (!Array.isArray(ttsuData)) continue;
-        
-        // Transform and import ALL data (no duplicate checking since we're overwriting)
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          window.data.push({
-            date: date,
-            minutes: minutes,
-            characters: characters,
-            title: session.title || bookFolder.name || 'Reading'
-          });
-          totalImported++;
-          bookTitles.add(session.title || bookFolder.name);
-        });
-        
-      } catch (fileError) {
-        console.error('Error processing folder:', bookFolder.name, fileError);
-      }
+// For each book folder, get the statistics file from its "statistics" subfolder
+for (const bookFolder of bookFolders) {
+  try {
+    console.log(`Processing folder: ${bookFolder.name}`);
+    
+    // 1) Find the "statistics" subfolder inside this book folder
+    const statsFolderQuery = encodeURIComponent(
+      `'${bookFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and name='statistics' and trashed=false`
+    );
+    const statsFolderData = await driveApiCall(
+      `files?q=${statsFolderQuery}&spaces=drive&fields=files(id,name)&pageSize=10`,
+      googleAccessToken
+    );
+    
+    const statsFolders = statsFolderData.files || [];
+    if (statsFolders.length === 0) {
+      console.log(`No "statistics" subfolder in ${bookFolder.name}`);
+      continue;
     }
+    
+    const statsFolder = statsFolders[0];
+    console.log(`Found statistics subfolder for ${bookFolder.name}: ${statsFolder.id}`);
+    
+    // 2) Find statistics JSON file inside the "statistics" subfolder
+    const statsQuery = encodeURIComponent(
+      `'${statsFolder.id}' in parents and mimeType='application/json' and trashed=false`
+    );
+    const statsData = await driveApiCall(
+      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`,
+      googleAccessToken
+    );
+    
+    const files = statsData.files || [];
+    
+    if (files.length === 0) {
+      console.log(`No statistics JSON file in statistics subfolder of ${bookFolder.name}`);
+      continue;
+    }
+    
+    const file = files[0];
+    console.log(`Processing ${file.name} for ${bookFolder.name}...`);
+    
+    // Download file content
+    const fileContent = await driveDownloadFile(file.id, googleAccessToken);
+    const ttsuData = JSON.parse(fileContent);
+    
+    if (!Array.isArray(ttsuData)) {
+      console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
+      continue;
+    }
+    
+    // Transform and import ALL data (no duplicate checking since we're overwriting)
+    ttsuData.forEach(session => {
+      if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+        return;
+      }
+      
+      const date = session.dateKey;
+      const minutes = Math.round(session.readingTime / 60);
+      const characters = session.charactersRead || 0;
+      
+      if (minutes === 0 && characters === 0) return;
+      
+      window.data.push({
+        date: date,
+        minutes: minutes,
+        characters: characters,
+        title: session.title || bookFolder.name || 'Reading'
+      });
+      totalImported++;
+      bookTitles.add(session.title || bookFolder.name);
+    });
+    
+  } catch (fileError) {
+    console.error('Error processing folder:', bookFolder.name, fileError);
+  }
+}
+
     
     if (totalImported === 0) {
       await customAlert('No reading data found in ttsu Google Drive.', 'No Data Found');
@@ -595,8 +654,6 @@ window.recentBooks = window.recentBooks.slice(0, 10);
     if (window.saveCloudState) {
       await window.saveCloudState();
     }
-    
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
     
     console.log(`✅ Batch loaded ${totalImported} sessions from ttsu`);
     
