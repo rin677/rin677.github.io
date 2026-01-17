@@ -379,7 +379,7 @@ bookTitles.forEach(title => {
   console.error('Sync error:', error);
   throw error;
 }
-
+}
 
 async function setupTtsuSync() {
   try {
