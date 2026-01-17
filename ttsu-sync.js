@@ -230,95 +230,77 @@ async function syncFromTtsuGDrive() {
     let totalImported = 0;
     const bookTitles = new Set();
     
-// For each book folder, get the statistics file from its "statistics" subfolder
+// For each book folder, get the latest statistics file directly inside it
 for (const bookFolder of bookFolders) {
   try {
     console.log(`Checking folder: ${bookFolder.name}`);
-    
-    // 1) Find the "statistics" subfolder inside this book folder
-    const statsFolderQuery = encodeURIComponent(
-      `'${bookFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and name='statistics' and trashed=false`
-    );
-    const statsFolderData = await driveApiCall(
-      `files?q=${statsFolderQuery}&spaces=drive&fields=files(id,name)&pageSize=10`,
-      googleAccessToken
-    );
-    
-    const statsFolders = statsFolderData.files || [];
-    if (statsFolders.length === 0) {
-      console.log(`No "statistics" subfolder in ${bookFolder.name}`);
-      continue;
-    }
-    
-    // If multiple, just take the first
-    const statsFolder = statsFolders[0];
-    console.log(`Found statistics subfolder for ${bookFolder.name}: ${statsFolder.id}`);
-    
-    // 2) Find statistics JSON file inside the "statistics" subfolder
+
+    // Look for a statistics file directly under the book folder.
+    // Adjust the "name contains" filter if ttsu uses a different prefix.
     const statsQuery = encodeURIComponent(
-      `'${statsFolder.id}' in parents and mimeType='application/json' and trashed=false`
+      `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
     );
     const statsData = await driveApiCall(
-      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`,
+      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
       googleAccessToken
     );
-    
+
     const files = statsData.files || [];
-    
+
     if (files.length === 0) {
-      console.log(`No statistics JSON file in statistics subfolder of ${bookFolder.name}`);
+      console.log(`No statistics file in ${bookFolder.name}`);
       continue;
     }
-    
-    // Latest statistics JSON
+
+    // Latest statistics file
     const file = files[0];
     console.log(`Processing ${file.name} for ${bookFolder.name}...`);
-    
+
     // Download file content
     const fileContent = await driveDownloadFile(file.id, googleAccessToken);
     const ttsuData = JSON.parse(fileContent);
-    
+
     if (!Array.isArray(ttsuData)) {
       console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
       continue;
     }
-    
-    // Transform and import data
+
+    // Treat stats JSON as source-of-truth per date+title:
+    // overwrite entries for that date+title instead of "maybe duplicate".
     ttsuData.forEach(session => {
       if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
         return;
       }
-      
+
       const date = session.dateKey;
       const minutes = Math.round(session.readingTime / 60);
       const characters = session.charactersRead || 0;
-      
+
       if (minutes === 0 && characters === 0) return;
-      
-      // Check if exists
-      const exists = window.data.some(entry => 
-        entry.date === date && 
-        entry.title === session.title &&
-        Math.abs(entry.minutes - minutes) < 2 &&
-        Math.abs(entry.characters - characters) < 100
+
+      const title = session.title || bookFolder.name || 'Reading';
+
+      // Remove any existing entries for this date + title
+      window.data = window.data.filter(entry =>
+        !(entry.date === date && entry.title === title)
       );
-      
-      if (!exists) {
-        window.data.push({
-          date: date,
-          minutes: minutes,
-          characters: characters,
-          title: session.title || bookFolder.name || 'Reading'
-        });
-        totalImported++;
-        bookTitles.add(session.title || bookFolder.name);
-      }
+
+      window.data.push({
+        date,
+        minutes,
+        characters,
+        title
+      });
+
+      totalImported++;
+      bookTitles.add(title);
     });
-    
+
   } catch (fileError) {
     console.error('Error processing folder:', bookFolder.name, fileError);
   }
 }
+
 
     
     if (totalImported > 0) {
@@ -540,84 +522,70 @@ async function batchLoadAllTtsu() {
     let totalImported = 0;
     const bookTitles = new Set();
     
-// For each book folder, get the statistics file from its "statistics" subfolder
+// For each book folder, get the latest statistics file directly inside it
 for (const bookFolder of bookFolders) {
   try {
     console.log(`Processing folder: ${bookFolder.name}`);
-    
-    // 1) Find the "statistics" subfolder inside this book folder
-    const statsFolderQuery = encodeURIComponent(
-      `'${bookFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and name='statistics' and trashed=false`
-    );
-    const statsFolderData = await driveApiCall(
-      `files?q=${statsFolderQuery}&spaces=drive&fields=files(id,name)&pageSize=10`,
-      googleAccessToken
-    );
-    
-    const statsFolders = statsFolderData.files || [];
-    if (statsFolders.length === 0) {
-      console.log(`No "statistics" subfolder in ${bookFolder.name}`);
-      continue;
-    }
-    
-    const statsFolder = statsFolders[0];
-    console.log(`Found statistics subfolder for ${bookFolder.name}: ${statsFolder.id}`);
-    
-    // 2) Find statistics JSON file inside the "statistics" subfolder
+
+    // Look for a statistics file directly under the book folder.
+    // Adjust "name contains 'statistics_'" if ttsu uses a different prefix.
     const statsQuery = encodeURIComponent(
-      `'${statsFolder.id}' in parents and mimeType='application/json' and trashed=false`
+      `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
     );
+
     const statsData = await driveApiCall(
-      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`,
+      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
       googleAccessToken
     );
-    
+
     const files = statsData.files || [];
-    
     if (files.length === 0) {
-      console.log(`No statistics JSON file in statistics subfolder of ${bookFolder.name}`);
+      console.log(`No statistics file in ${bookFolder.name}`);
       continue;
     }
-    
+
+    // Latest statistics file
     const file = files[0];
     console.log(`Processing ${file.name} for ${bookFolder.name}...`);
-    
+
     // Download file content
     const fileContent = await driveDownloadFile(file.id, googleAccessToken);
     const ttsuData = JSON.parse(fileContent);
-    
+
     if (!Array.isArray(ttsuData)) {
       console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
       continue;
     }
-    
-    // Transform and import ALL data (no duplicate checking since we're overwriting)
+
+    // Import ALL data from this book
     ttsuData.forEach(session => {
       if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
         return;
       }
-      
+
       const date = session.dateKey;
       const minutes = Math.round(session.readingTime / 60);
       const characters = session.charactersRead || 0;
-      
+
       if (minutes === 0 && characters === 0) return;
-      
+
+      const title = session.title || bookFolder.name || 'Reading';
+
       window.data.push({
-        date: date,
-        minutes: minutes,
-        characters: characters,
-        title: session.title || bookFolder.name || 'Reading'
+        date,
+        minutes,
+        characters,
+        title
       });
+
       totalImported++;
-      bookTitles.add(session.title || bookFolder.name);
+      bookTitles.add(title);
     });
-    
+
   } catch (fileError) {
     console.error('Error processing folder:', bookFolder.name, fileError);
   }
 }
-
     
     if (totalImported === 0) {
       await customAlert('No reading data found in ttsu Google Drive.', 'No Data Found');
