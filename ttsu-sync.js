@@ -417,8 +417,9 @@ async function syncFromTtsuGDrive() {
       return 0;
     }
     
-// 6) Apply changes if there are actual changes
-    const bookList = Array.from(bookTitles).join(', ');
+    // 6) Apply changes if there are actual changes
+    if (totalImported > 0) {
+      const bookList = Array.from(bookTitles).join(', ');
 
     const customConfirm = window.customConfirm || confirm;
     const confirmed = await customConfirm(
