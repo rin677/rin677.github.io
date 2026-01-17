@@ -1623,7 +1623,16 @@ window.onload = function() {
   
   // Initialize automatic backups
   initializeBackups();
-  
+
+  setInterval(initializeBackups, 10 * 60 * 1000);
+   
+const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+  if (enabled && window.startAutoSync) {
+    window.startAutoSync();
+  }
+
+  setInterval(loadTtsuSyncStatus, 30 * 1000);
+
   // Warn if not running on server
   if (window.location.protocol === 'file:') {
     setTimeout(async () => {
