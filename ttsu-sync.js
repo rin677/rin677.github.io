@@ -202,10 +202,10 @@ async function findTtsuFolder() {
   }
 }
 
-// ttsu-sync.js — FINAL syncFromTtsuGDrive (multi-folder, overwrite per date+title)
+// ttsu-sync.js — ROOT-AWARE syncFromTtsuGDrive
 async function syncFromTtsuGDrive() {
   try {
-    const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+    let folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
     if (!folderId) {
       throw new Error('ttsu folder not configured. Please run setup first.');
     }
@@ -234,50 +234,63 @@ async function syncFromTtsuGDrive() {
       }
     }
 
-    console.log('Fetching book folders from ttu-reader-data...');
+    // --- Resolve true root (handle "folderId is a book" vs "folderId is ttu-reader-data") ---
+    console.log('Resolving ttsu root folder from stored ID:', folderId);
 
-// Step 1: get direct child folders of ttu-reader-data
-const topLevelFoldersQuery = encodeURIComponent(
-  `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-);
-const topLevelData = await driveApiCall(
-  `files?q=${topLevelFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
-  googleAccessToken
-);
+    // Get metadata for the stored folder
+    const folderMeta = await driveApiCall(
+      `files/${folderId}?fields=id,name,parents`,
+      googleAccessToken
+    );
 
-let bookFolders = topLevelData.files || [];
+    let rootId = folderMeta.id;
+    let rootName = folderMeta.name;
 
-// If there is exactly ONE top-level folder, assume it's a container (like "books")
-// and the real book folders are its children.
-if (bookFolders.length === 1) {
-  const containerFolder = bookFolders[0];
-  console.log(`Single container folder detected: ${containerFolder.name} (${containerFolder.id}) — loading its children as book folders`);
+    // If this is NOT "ttu-reader-data", assume it's a single book folder.
+    // Then use its parent as the true root (your screenshot case).
+    if (rootName !== 'ttu-reader-data' && Array.isArray(folderMeta.parents) && folderMeta.parents.length > 0) {
+      const parentId = folderMeta.parents[0];
+      const parentMeta = await driveApiCall(
+        `files/${parentId}?fields=id,name`,
+        googleAccessToken
+      );
 
-  const nestedQuery = encodeURIComponent(
-    `'${containerFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-  );
-  const nestedData = await driveApiCall(
-    `files?q=${nestedQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
-    googleAccessToken
-  );
+      console.log(
+        `Stored folder "${rootName}" looks like a book; using parent "${parentMeta.name}" (${parentMeta.id}) as root instead`
+      );
 
-  bookFolders = nestedData.files || [];
-}
+      rootId = parentMeta.id;
+      rootName = parentMeta.name;
+    } else {
+      console.log(`Using stored folder "${rootName}" (${rootId}) as root`);
+    }
 
-console.log(`Resolved ${bookFolders.length} book folder(s) to sync from`);
+    console.log(`Fetching book folders from root: ${rootName} (${rootId})...`);
 
-if (bookFolders.length === 0) {
-  console.log('No book folders found');
-  return 0;
-}
+    // All direct child folders of the root are treated as books
+    const bookFoldersQuery = encodeURIComponent(
+      `'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    );
+    const bookFoldersData = await driveApiCall(
+      `files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=200`,
+      googleAccessToken
+    );
+
+    const bookFolders = bookFoldersData.files || [];
+    console.log(`Resolved ${bookFolders.length} book folder(s) to sync from`);
+
+    if (bookFolders.length === 0) {
+      console.log('No book folders found under root');
+      return 0;
+    }
 
     let totalImported = 0;
     const bookTitles = new Set();
 
-    // Process every book folder (no early returns)
+    // Process every book folder under the resolved root
     for (const bookFolder of bookFolders) {
       try {
-        console.log(`Checking folder: ${bookFolder.name}`);
+        console.log(`Checking folder: ${bookFolder.name} (${bookFolder.id})`);
 
         // Look for a statistics file directly under the book folder.
         // ttsu exports names like "statistics_1_6_....json"
@@ -395,7 +408,7 @@ if (bookFolders.length === 0) {
         await window.saveCloudState();
       }
 
-      console.log(`✅ Synced ${totalImported} sessions from ttsu (overwrite mode, all folders)`);
+      console.log(`✅ Synced ${totalImported} sessions from ttsu (overwrite mode, all folders under ${rootName})`);
     } else {
       console.log('No sessions imported from any ttsu book folders.');
     }
@@ -407,7 +420,6 @@ if (bookFolders.length === 0) {
     throw error;
   }
 }
-
 
 async function setupTtsuSync() {
   try {
