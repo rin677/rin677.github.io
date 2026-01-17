@@ -333,6 +333,7 @@ async function syncFromTtsuGDrive() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
+      // 4) Overwrite per date+title: stats JSON is source of truth for that book/day
         ttsuData.forEach(session => {
           if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
             return;
@@ -350,18 +351,44 @@ async function syncFromTtsuGDrive() {
             window.data = [];
           }
 
-          window.data = window.data.filter(entry =>
-            !(entry.date === date && entry.title === title)
+          // Find existing entry for this date + title
+          const existingIndex = window.data.findIndex(entry =>
+            entry.date === date && entry.title === title
           );
 
-          window.data.push({
+          const newEntry = {
             date,
             minutes,
             characters,
             title
-          });
+          };
 
-          totalImported++;
+          // Check if data actually changed
+          let hasChanged = false;
+          if (existingIndex === -1) {
+            // New entry
+            hasChanged = true;
+          } else {
+            const existing = window.data[existingIndex];
+            // Check if values are different
+            if (existing.minutes !== minutes || existing.characters !== characters) {
+              hasChanged = true;
+            }
+          }
+
+          // Remove existing entry
+          window.data = window.data.filter(entry =>
+            !(entry.date === date && entry.title === title)
+          );
+
+          // Insert fresh row from ttsu
+          window.data.push(newEntry);
+
+          // Only count as imported if it's new or changed
+          if (hasChanged) {
+            totalImported++;
+          }
+          
           bookTitles.add(title);
         });
 
@@ -375,21 +402,36 @@ async function syncFromTtsuGDrive() {
     console.log(`Total sessions to import: ${totalImported}`);
     console.log(`Books: ${Array.from(bookTitles).join(', ')}`);
 
-    if (totalImported > 0) {
-      const bookList = Array.from(bookTitles).join(', ');
-
-      const customConfirm = window.customConfirm || confirm;
-      const confirmed = await customConfirm(
-        `Found ${totalImported} reading session(s) from ttsu across ${bookFolders.length} book folder(s).\n\n` +
-        `Books: ${bookList}\n\n` +
-        `Apply these sessions to your heatmap?`,
-        'Import ttsu Data'
+// 5) Check if there are actually any changes
+    if (totalImported === 0) {
+      console.log('No changes detected - data already up to date');
+      localStorage.setItem('ttsu_last_sync', new Date().toISOString());
+      
+      const customAlert = window.customAlert || alert;
+      await customAlert(
+        '✅ Already up to date!\n\n' +
+        `Checked ${bookFolders.length} book folder(s) - no new data to import.`,
+        'Already Synced'
       );
+      
+      return 0;
+    }
+    
+// 6) Apply changes if there are actual changes
+    const bookList = Array.from(bookTitles).join(', ');
 
-      if (!confirmed) {
-        console.log('User cancelled ttsu import');
-        return 0;
-      }
+    const customConfirm = window.customConfirm || confirm;
+    const confirmed = await customConfirm(
+      `Found ${totalImported} new/changed reading session(s) from ttsu across ${bookFolders.length} book folder(s).\n\n` +
+      `Books: ${bookList}\n\n` +
+      `ttsu data will overwrite any manual changes. Apply these sessions to your heatmap?`,
+      'Import ttsu Data'
+    );
+
+    if (!confirmed) {
+      console.log('User cancelled ttsu import');
+      return 0;
+    }
 
       bookTitles.forEach(title => {
         if (title && !window.recentBooks.includes(title)) {
@@ -415,10 +457,14 @@ async function syncFromTtsuGDrive() {
       if (window.saveCloudState) {
         await window.saveCloudState();
       }
-
+localStorage.setItem('ttsu_last_sync', new Date().toISOString());
+      
       console.log(`✅ Synced ${totalImported} sessions from ttsu`);
     } else {
-      console.log('No sessions imported');
+      console.log('No sessions imported from any ttsu book folders.');
+      
+      // Still update last sync time even if nothing to import
+      localStorage.setItem('ttsu_last_sync', new Date().toISOString());
     }
 
     return totalImported;
