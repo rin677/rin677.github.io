@@ -236,12 +236,12 @@ async function syncFromTtsuGDrive() {
 
     console.log('Fetching child items of ttu-reader-data root:', folderId);
 
-    // 1) Get ALL children under ttu-reader-data, regardless of mimeType
+// 1) Get ALL children under ttu-reader-data, regardless of mimeType
     const allChildrenQuery = encodeURIComponent(
       `'${folderId}' in parents and trashed=false`
     );
     const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=200`,
+      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=1000`,
       googleAccessToken
     );
 
@@ -252,13 +252,12 @@ async function syncFromTtsuGDrive() {
       mimeType: f.mimeType
     })));
 
-    // 2) Treat all folder-like items as book folders
-    const bookFolders = allChildren.filter(f =>
-      f.mimeType && f.mimeType.indexOf('application/vnd.google-apps.folder') === 0
-    );
-
-    console.log(`Resolved ${bookFolders.length} book folder(s) to sync from:`,
-      bookFolders.map(f => `${f.name} (${f.id})`)
+    // 2) Filter for folders - handle ALL folder mimeType variations
+    const bookFolders = allChildren.filter(f => 
+      f.mimeType && (
+        f.mimeType === 'application/vnd.google-apps.folder' ||
+        f.mimeType.startsWith('application/vnd.google-apps.folder')
+      )
     );
 
     if (bookFolders.length === 0) {
@@ -546,16 +545,26 @@ async function batchLoadAllTtsu() {
       }
     }
     
-    const bookFoldersQuery = encodeURIComponent(
-      `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+// Get ALL children and filter for folders
+    const allChildrenQuery = encodeURIComponent(
+      `'${folderId}' in parents and trashed=false`
     );
-    const bookFoldersData = await driveApiCall(
-      `files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
+    const allChildrenData = await driveApiCall(
+      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=1000`,
       googleAccessToken
     );
 
-    const bookFolders = bookFoldersData.files || [];
-    console.log(`Found ${bookFolders.length} book folders`);
+    const allChildren = allChildrenData.files || [];
+    
+    // Filter for folders - handle ALL folder mimeType variations
+    const bookFolders = allChildren.filter(f => 
+      f.mimeType && (
+        f.mimeType === 'application/vnd.google-apps.folder' ||
+        f.mimeType.startsWith('application/vnd.google-apps.folder')
+      )
+    );
+    
+    console.log(`Found ${bookFolders.length} book folders out of ${allChildren.length} total items`);
     
     if (bookFolders.length === 0) {
       await customAlert('No book folders found in ttsu Google Drive.', 'No Data Found');
