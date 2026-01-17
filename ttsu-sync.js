@@ -265,24 +265,36 @@ async function syncFromTtsuGDrive() {
       console.log(`Using stored folder "${rootName}" (${rootId}) as root`);
     }
 
-    console.log(`Fetching book folders from root: ${rootName} (${rootId})...`);
+    console.log(`Fetching children of root: ${rootName} (${rootId})...`);
 
-    // All direct child folders of the root are treated as books
-    const bookFoldersQuery = encodeURIComponent(
-      `'${rootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
-    );
-    const bookFoldersData = await driveApiCall(
-      `files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=200`,
-      googleAccessToken
-    );
+// Get ALL children under the root, regardless of mimeType
+const allChildrenQuery = encodeURIComponent(
+  `'${rootId}' in parents and trashed=false`
+);
+const allChildrenData = await driveApiCall(
+  `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=200`,
+  googleAccessToken
+);
 
-    const bookFolders = bookFoldersData.files || [];
-    console.log(`Resolved ${bookFolders.length} book folder(s) to sync from`);
+const allChildren = allChildrenData.files || [];
+console.log('Root children:', allChildren.map(f => ({
+  id: f.id,
+  name: f.name,
+  mimeType: f.mimeType
+})));
 
-    if (bookFolders.length === 0) {
-      console.log('No book folders found under root');
-      return 0;
-    }
+// Treat anything that is a folder (or folder-like) as a book folder
+const bookFolders = allChildren.filter(f =>
+  f.mimeType && f.mimeType.startsWith('application/vnd.google-apps.folder')
+);
+
+console.log(`Resolved ${bookFolders.length} book folder(s) to sync from (after filtering folder-like mimeTypes)`);
+
+if (bookFolders.length === 0) {
+  console.log('No book folders found under root');
+  return 0;
+}
+
 
     let totalImported = 0;
     const bookTitles = new Set();
