@@ -2471,54 +2471,59 @@ async function saveGoal() {
   }
 }    
 
-    function renderGoals() {
-      const container = document.getElementById('goalsList');
-      if (goals.length === 0) {
-        container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px;">No goals set yet</div>';
-        return;
-      }
-      
-      container.innerHTML = '';
-      goals.forEach(goal => {
-        const progress = calculateGoalProgress(goal);
-        const goalDiv = document.createElement('div');
-        goalDiv.className = 'goal-item';
-        
-        const typeText = {
-          daily_minutes: 'Daily Minutes',
-          daily_characters: 'Daily Characters',
-          weekly_minutes: 'Weekly Minutes',
-          weekly_characters: 'Weekly Characters',
-          streak: 'Streak Days'
-        }[goal.type];
-        
-        const isAchieved = progress.current >= goal.target;
-const wasAchievedBefore = goal.wasAchieved || false;
-const achievedStyle = isAchieved ? 'background: var(--accent-color); color: #ffffff; border-radius: 6px; padding: 8px;' : '';
+function renderGoals() {
+  const container = document.getElementById('goalsList');
+  if (goals.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px;">No goals set yet</div>';
+    return;
+  }
+  
+  container.innerHTML = '';
+  goals.forEach(goal => {
+    const progress = calculateGoalProgress(goal);
+    const goalDiv = document.createElement('div');
+    goalDiv.className = 'goal-item';
+    
+    const typeText = {
+      daily_minutes: 'Daily Minutes',
+      daily_characters: 'Daily Characters',
+      weekly_minutes: 'Weekly Minutes',
+      weekly_characters: 'Weekly Characters',
+      streak: 'Streak Days'
+    }[goal.type];
+    
+    const isAchieved = progress.current >= goal.target;
+    const wasAchievedBefore = goal.wasAchieved || false;
+    const achievedStyle = isAchieved ? 'background: var(--accent-color); color: #ffffff; border-radius: 6px; padding: 8px;' : '';
 
-if (isAchieved && !wasAchievedBefore) {
-  goal.wasAchieved = true;
-  setTimeout(() => createConfetti(), 100);
+    if (isAchieved && !wasAchievedBefore) {
+      goal.wasAchieved = true;
+      setTimeout(() => createConfetti(), 100);
+    }
+
+    // Calculate goal streak
+    const goalStreak = calculateGoalStreak(goal);
+    const streakText = goalStreak > 0 ? `🔥 ${goalStreak} day${goalStreak !== 1 ? 's' : ''}` : '';
+
+    goalDiv.innerHTML = `
+      <div style="flex: 1; ${achievedStyle}">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
+          <span>${typeText}: ${goal.target} ${isAchieved ? '🎉' : ''}</span>
+          <span style="color: ${isAchieved ? '#ffffff' : 'var(--accent-color)'}; font-weight: 600;">${progress.current} / ${goal.target}</span>
+        </div>
+        ${streakText ? `<div style="font-size: 12px; margin-bottom: 4px; color: ${isAchieved ? '#ffffff' : 'var(--text-secondary)'};">${streakText} streak</div>` : ''}
+        ${isAchieved ? '<div style="font-size: 12px; margin-top: 4px;">🎊 Congratulations! Goal achieved! 🎊</div>' : ''}
+        <div class="goal-progress">
+          <div class="goal-progress-bar" style="width: ${Math.min(100, (progress.current / goal.target) * 100)}%"></div>
+        </div>
+      </div>
+      <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
+    `;
+
+    container.appendChild(goalDiv);
+  });
 }
 
-goalDiv.innerHTML = `
-  <div style="flex: 1; ${achievedStyle}">
-    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; align-items: center;">
-      <span>${typeText}: ${goal.target} ${isAchieved ? '🎉' : ''}</span>
-      <span style="color: ${isAchieved ? '#ffffff' : 'var(--accent-color)'}; font-weight: 600;">${progress.current} / ${goal.target}</span>
-    </div>
-    ${isAchieved ? '<div style="font-size: 12px; margin-top: 4px;">🎊 Congratulations! Goal achieved! 🎊</div>' : ''}
-    <div class="goal-progress">
-      <div class="goal-progress-bar" style="width: ${Math.min(100, (progress.current / goal.target) * 100)}%"></div>
-    </div>
-  </div>
-  <button class="delete-btn" onclick="deleteGoal(${goal.id})">Delete</button>
-`;
-
-container.appendChild(goalDiv);
-      });
-    }
-    
     function calculateGoalProgress(goal) {
   const todayStr = getLocalDate();
   const todayDate = new Date(todayStr + 'T00:00:00');
@@ -2555,6 +2560,62 @@ container.appendChild(goalDiv);
   return { current: 0, target: goal.target };
 }
     
+function calculateGoalStreak(goal) {
+  const todayStr = getLocalDate();
+  const todayDate = new Date(todayStr + 'T00:00:00');
+  
+  let streak = 0;
+  
+  // Go backwards from today, checking if the goal was met each day
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(todayDate);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    
+    const dayData = dailyData[dateStr];
+    
+    if (goal.type.startsWith('daily')) {
+      const metric = goal.type.includes('minutes') ? 'minutes' : 'characters';
+      const value = dayData ? dayData[metric] : 0;
+      
+      if (value >= goal.target) {
+        streak++;
+      } else {
+        break;
+      }
+    } else if (goal.type.startsWith('weekly')) {
+      // For weekly goals, check the week ending on this date
+      const metric = goal.type.includes('minutes') ? 'minutes' : 'characters';
+      let weekTotal = 0;
+      
+      for (let j = 0; j < 7; j++) {
+        const weekDay = new Date(d);
+        weekDay.setDate(weekDay.getDate() - j);
+        const weekDateStr = weekDay.toISOString().split('T')[0];
+        const weekDayData = dailyData[weekDateStr];
+        if (weekDayData) weekTotal += weekDayData[metric];
+      }
+      
+      if (weekTotal >= goal.target) {
+        streak++;
+      } else {
+        break;
+      }
+    } else if (goal.type === 'streak') {
+      // For streak goals, check if there was ANY reading that day
+      const hasReading = dayData && (dayData.minutes > 0 || dayData.characters > 0);
+      
+      if (hasReading) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+  }
+  
+  return streak;
+}
+
 async function deleteGoal(id) {
   goals = goals.filter(g => g.id !== id);
   window.goals = goals;
