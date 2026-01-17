@@ -1993,7 +1993,10 @@ function updateStats() {
   
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year, 11, 31);
-  const today = new Date();
+  
+  // Use getLocalDate() for today instead of new Date()
+  const todayStr = getLocalDate();
+  const todayDate = new Date(todayStr + 'T00:00:00');
   
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     const dateStr = d.toISOString().split('T')[0];
@@ -2011,8 +2014,9 @@ function updateStats() {
     }
   }
   
+  // Calculate current streak going backwards from TODAY (local date)
   streak = 0;
-  for (let d = new Date(today); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
+  for (let d = new Date(todayDate); d.getFullYear() === year; d.setDate(d.getDate() - 1)) {
     const dateStr = d.toISOString().split('T')[0];
     const dayData = dailyData[dateStr];
     if (dayData && dayData[metric] > 0) {
@@ -2056,7 +2060,7 @@ const yearAvgSpeed = yearHoursWithChars > 0
 
 document.getElementById('avgSpeed').textContent = yearAvgSpeed.toLocaleString() + ' char/hr';
 
-  // Calculate average only from first logged day
+// Calculate average only from first logged day
   let firstLoggedDate = null;
   Object.keys(dailyData).forEach(dateStr => {
     if (!firstLoggedDate || dateStr < firstLoggedDate) {
@@ -2066,7 +2070,8 @@ document.getElementById('avgSpeed').textContent = yearAvgSpeed.toLocaleString() 
 
   let daysToCount = 0;
   if (firstLoggedDate) {
-    for (let d = new Date(firstLoggedDate + 'T00:00:00'); d <= endDate && d <= new Date(); d.setDate(d.getDate() + 1)) {
+    // Use todayDate (from getLocalDate) instead of new Date()
+    for (let d = new Date(firstLoggedDate + 'T00:00:00'); d <= endDate && d <= todayDate; d.setDate(d.getDate() + 1)) {
       daysToCount++;
     }
   }
@@ -2079,6 +2084,7 @@ document.getElementById('avgSpeed').textContent = yearAvgSpeed.toLocaleString() 
   document.getElementById('avgValue').textContent = Math.round(avg).toLocaleString() + suffix;
   document.getElementById('totalValue').textContent = Math.round(total).toLocaleString() + suffix;
 }
+
 
 // filename: index.html (non-module script)
 // Returns year-scoped avg speed in char/hr, matching the heatmap's display logic
@@ -2514,41 +2520,40 @@ container.appendChild(goalDiv);
     }
     
     function calculateGoalProgress(goal) {
-      const today = getLocalDate();
-      const metric = goal.type.includes('minutes') ? 'minutes' : goal.type.includes('characters') ? 'characters' : 'streak';
-      
-      if (goal.type.startsWith('daily')) {
-        const dayData = dailyData[today];
-        return { current: dayData ? dayData[metric] : 0, target: goal.target };
-      } else if (goal.type.startsWith('weekly')) {
-        let total = 0;
-        const now = new Date(today);
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(now);
-          d.setDate(d.getDate() - i);
-          const dateStr = d.toISOString().split('T')[0];
-          const dayData = dailyData[dateStr];
-          if (dayData) total += dayData[metric];
-        }
-        return { current: total, target: goal.target };
-      } else if (goal.type === 'streak') {
-        let streak = 0;
-        const now = new Date(today);
-        for (let i = 0; i < 365; i++) {
-          const d = new Date(now);
-          d.setDate(d.getDate() - i);
-          const dateStr = d.toISOString().split('T')[0];
-          const dayData = dailyData[dateStr];
-          if (dayData && (dayData.minutes > 0 || dayData.characters > 0)) {
-            streak++;
-          } else {
-            break;
-          }
-        }
-        return { current: streak, target: goal.target };
-      }
-      return { current: 0, target: goal.target };
+  const todayStr = getLocalDate();
+  const todayDate = new Date(todayStr + 'T00:00:00');
+  const metric = goal.type.includes('minutes') ? 'minutes' : goal.type.includes('characters') ? 'characters' : 'streak';
+  
+  if (goal.type.startsWith('daily')) {
+    const dayData = dailyData[todayStr];
+    return { current: dayData ? dayData[metric] : 0, target: goal.target };
+  } else if (goal.type.startsWith('weekly')) {
+    let total = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(todayDate);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayData = dailyData[dateStr];
+      if (dayData) total += dayData[metric];
     }
+    return { current: total, target: goal.target };
+  } else if (goal.type === 'streak') {
+    let streak = 0;
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(todayDate);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayData = dailyData[dateStr];
+      if (dayData && (dayData.minutes > 0 || dayData.characters > 0)) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return { current: streak, target: goal.target };
+  }
+  return { current: 0, target: goal.target };
+}
     
 async function deleteGoal(id) {
   goals = goals.filter(g => g.id !== id);
