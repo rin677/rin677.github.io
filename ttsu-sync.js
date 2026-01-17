@@ -333,64 +333,63 @@ async function syncFromTtsuGDrive() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
-      // 4) Overwrite per date+title: stats JSON is source of truth for that book/day
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
+      ttsuData.forEach(session => {
+  if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+    return;
+  }
 
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
+  const date = session.dateKey;
+  const minutes = Math.round(session.readingTime / 60);
+  const characters = session.charactersRead || 0;
 
-          if (minutes === 0 && characters === 0) return;
+  if (minutes === 0 && characters === 0) return;
 
-          const title = session.title || bookFolder.name || 'Reading';
+  const title = session.title || bookFolder.name || 'Reading';
 
-          if (!Array.isArray(window.data)) {
-            window.data = [];
-          }
+  if (!Array.isArray(window.data)) {
+    window.data = [];
+  }
 
-          // Find existing entry for this date + title
-          const existingIndex = window.data.findIndex(entry =>
-            entry.date === date && entry.title === title
-          );
+  // Check if EXACT same session already exists
+  const exactMatch = window.data.find(entry =>
+    entry.date === date && 
+    entry.title === title &&
+    entry.minutes === minutes &&
+    entry.characters === characters
+  );
 
-          const newEntry = {
-            date,
-            minutes,
-            characters,
-            title
-          };
+  if (exactMatch) {
+    // Skip - this exact session is already imported
+    console.log(`  Skipping duplicate: ${title} on ${date}`);
+    return;
+  }
 
-          // Check if data actually changed
-          let hasChanged = false;
-          if (existingIndex === -1) {
-            // New entry
-            hasChanged = true;
-          } else {
-            const existing = window.data[existingIndex];
-            // Check if values are different
-            if (existing.minutes !== minutes || existing.characters !== characters) {
-              hasChanged = true;
-            }
-          }
+  // Check if there's a different session for same date+title
+  const existingIndex = window.data.findIndex(entry =>
+    entry.date === date && entry.title === title
+  );
 
-          // Remove existing entry
-          window.data = window.data.filter(entry =>
-            !(entry.date === date && entry.title === title)
-          );
+  const newEntry = {
+    date,
+    minutes,
+    characters,
+    title
+  };
 
-          // Insert fresh row from ttsu
-          window.data.push(newEntry);
-
-          // Only count as imported if it's new or changed
-          if (hasChanged) {
-            totalImported++;
-          }
-          
-          bookTitles.add(title);
-        });
+  if (existingIndex !== -1) {
+    // Replace existing with ttsu data (ttsu is source of truth)
+    window.data[existingIndex] = newEntry;
+    totalImported++;
+    console.log(`  Updated: ${title} on ${date}`);
+  } else {
+    // New entry
+    window.data.push(newEntry);
+    totalImported++;
+    console.log(`  Added: ${title} on ${date}`);
+  }
+  
+  bookTitles.add(title);
+});
 
         console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
       } catch (fileError) {
@@ -725,29 +724,29 @@ async function batchLoadAllTtsu() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
-        // Import ALL data from this book
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          const title = session.title || bookFolder.name || 'Reading';
-          
-          window.data.push({
-            date,
-            minutes,
-            characters,
-            title
-          });
-          totalImported++;
-          bookTitles.add(title);
-        });
+      ttsuData.forEach(session => {
+  if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+    return;
+  }
+  
+  const date = session.dateKey;
+  const minutes = Math.round(session.readingTime / 60);
+  const characters = session.charactersRead || 0;
+  
+  if (minutes === 0 && characters === 0) return;
+  
+  const title = session.title || bookFolder.name || 'Reading';
+  
+  // For batch load, just add everything (we already cleared data)
+  window.data.push({
+    date,
+    minutes,
+    characters,
+    title
+  });
+  totalImported++;
+  bookTitles.add(title);
+});
 
         console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
 
