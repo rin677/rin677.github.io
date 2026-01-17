@@ -202,6 +202,8 @@ async function findTtsuFolder() {
   }
 }
 
+// ttsu-sync.js - REPLACE the entire syncFromTtsuGDrive with this
+
 async function syncFromTtsuGDrive() {
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -215,9 +217,14 @@ async function syncFromTtsuGDrive() {
     
     console.log('Fetching book folders from ttu-reader-data...');
     
-    // First, get all book folders inside ttu-reader-data
-    const bookFoldersQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-    const bookFoldersData = await driveApiCall(`files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`, googleAccessToken);
+    // Get all book folders inside ttu-reader-data
+    const bookFoldersQuery = encodeURIComponent(
+      `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    );
+    const bookFoldersData = await driveApiCall(
+      `files?q=${bookFoldersQuery}&spaces=drive&fields=files(id,name)&pageSize=100`,
+      googleAccessToken
+    );
 
     const bookFolders = bookFoldersData.files || [];
     console.log(`Found ${bookFolders.length} book folders`);
@@ -230,88 +237,86 @@ async function syncFromTtsuGDrive() {
     let totalImported = 0;
     const bookTitles = new Set();
     
-// For each book folder, get the latest statistics file directly inside it
-for (const bookFolder of bookFolders) {
-  try {
-    console.log(`Checking folder: ${bookFolder.name}`);
+    // For each book folder, get the latest statistics file directly inside it
+    for (const bookFolder of bookFolders) {
+      try {
+        console.log(`Checking folder: ${bookFolder.name}`);
 
-    // Look for a statistics file directly under the book folder.
-    // Adjust the "name contains" filter if ttsu uses a different prefix.
-    const statsQuery = encodeURIComponent(
-      `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
-    );
-    const statsData = await driveApiCall(
-      `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
-      googleAccessToken
-    );
+        // Look for a statistics file directly under the book folder.
+        // ttsu exports names like "statistics_1_6_1768643...."
+        const statsQuery = encodeURIComponent(
+          `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
+        );
 
-    const files = statsData.files || [];
+        const statsData = await driveApiCall(
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
+          googleAccessToken
+        );
 
-    if (files.length === 0) {
-      console.log(`No statistics file in ${bookFolder.name}`);
-      continue;
-    }
+        const files = statsData.files || [];
+        if (files.length === 0) {
+          console.log(`No statistics file in ${bookFolder.name}`);
+          continue;
+        }
 
-    // Latest statistics file
-    const file = files[0];
-    console.log(`Processing ${file.name} for ${bookFolder.name}...`);
+        // Latest statistics file
+        const file = files[0];
+        console.log(`Processing ${file.name} for ${bookFolder.name}...`);
 
-    // Download file content
-    const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-    const ttsuData = JSON.parse(fileContent);
+        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
+        const ttsuData = JSON.parse(fileContent);
 
-    if (!Array.isArray(ttsuData)) {
-      console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
-      continue;
-    }
+        if (!Array.isArray(ttsuData)) {
+          console.log(`Statistics file for ${bookFolder.name} is not an array, skipping`);
+          continue;
+        }
 
-    // Treat stats JSON as source-of-truth per date+title:
-    // overwrite entries for that date+title instead of "maybe duplicate".
-    ttsuData.forEach(session => {
-      if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-        return;
+        // Overwrite per date+title (stats JSON is source of truth for that book/day)
+        ttsuData.forEach(session => {
+          // Skip empty sessions
+          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+            return;
+          }
+
+          const date = session.dateKey;
+          const minutes = Math.round(session.readingTime / 60);
+          const characters = session.charactersRead || 0;
+
+          if (minutes === 0 && characters === 0) return;
+
+          const title = session.title || bookFolder.name || 'Reading';
+
+          // Remove any existing entries for this date + title
+          window.data = window.data.filter(entry =>
+            !(entry.date === date && entry.title === title)
+          );
+
+          // Insert fresh row from ttsu
+          window.data.push({
+            date,
+            minutes,
+            characters,
+            title
+          });
+
+          totalImported++;
+          bookTitles.add(title);
+        });
+
+      } catch (fileError) {
+        console.error('Error processing folder:', bookFolder.name, fileError);
       }
-
-      const date = session.dateKey;
-      const minutes = Math.round(session.readingTime / 60);
-      const characters = session.charactersRead || 0;
-
-      if (minutes === 0 && characters === 0) return;
-
-      const title = session.title || bookFolder.name || 'Reading';
-
-      // Remove any existing entries for this date + title
-      window.data = window.data.filter(entry =>
-        !(entry.date === date && entry.title === title)
-      );
-
-      window.data.push({
-        date,
-        minutes,
-        characters,
-        title
-      });
-
-      totalImported++;
-      bookTitles.add(title);
-    });
-
-  } catch (fileError) {
-    console.error('Error processing folder:', bookFolder.name, fileError);
-  }
-}
-
-
+    }
     
     if (totalImported > 0) {
-      // Ask user before importing
+      // Ask user before committing changes
       const bookList = Array.from(bookTitles).join(', ');
       
       const customConfirm = window.customConfirm || confirm;
       const confirmed = await customConfirm(
-        `Found ${totalImported} new reading session(s) from ttsu.\n\n` +
+        `Found ${totalImported} reading session(s) from ttsu (overwritten by date & title).\n\n` +
         `Books: ${bookList}\n\n` +
-        `Import these sessions?`,
+        `Apply these sessions to your heatmap?`,
         'Import ttsu Data'
       );
       
@@ -320,15 +325,15 @@ for (const bookFolder of bookFolders) {
         return 0;
       }
       
-// Update recent books
-if (!window.recentBooks) {
-  window.recentBooks = [];
-}
-bookTitles.forEach(title => {
-  if (title && !window.recentBooks.includes(title)) {
-    window.recentBooks.unshift(title);
-  }
-});
+      // Update recent books
+      if (!window.recentBooks) {
+        window.recentBooks = [];
+      }
+      bookTitles.forEach(title => {
+        if (title && !window.recentBooks.includes(title)) {
+          window.recentBooks.unshift(title);
+        }
+      });
       window.recentBooks = window.recentBooks.slice(0, 10);
       
       if (typeof recentBooks !== 'undefined') {
@@ -351,17 +356,19 @@ bookTitles.forEach(title => {
         await window.saveCloudState();
       }
       
-    console.log(`✅ Synced ${totalImported} new sessions from ttsu`);
+      console.log(`✅ Synced ${totalImported} sessions from ttsu (overwrite mode)`);
+    }
+  
+    // Do NOT touch TTSU_LAST_SYNC_KEY here; only setupTtsuSync should update it
+    return totalImported;
+  
+  } catch (error) {
+    console.error('Sync error:', error);
+    throw error;
   }
-  
-  // Do NOT touch TTSU_LAST_SYNC_KEY here; only setupTtsuSync should update it
-  return totalImported;
-  
-} catch (error) {
-  console.error('Sync error:', error);
-  throw error;
 }
-}
+
+
 
 async function setupTtsuSync() {
   try {
