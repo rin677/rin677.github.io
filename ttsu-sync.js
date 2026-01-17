@@ -202,7 +202,7 @@ async function findTtsuFolder() {
   }
 }
 
-// --- NEW syncFromTtsuGDrive (overwrite per date+title, multi-folder) ---
+// ttsu-sync.js — FINAL syncFromTtsuGDrive (multi-folder, overwrite per date+title)
 async function syncFromTtsuGDrive() {
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -256,7 +256,7 @@ async function syncFromTtsuGDrive() {
     let totalImported = 0;
     const bookTitles = new Set();
 
-    // For each book folder, get the latest statistics file directly inside it
+    // Process every book folder (no early returns)
     for (const bookFolder of bookFolders) {
       try {
         console.log(`Checking folder: ${bookFolder.name}`);
@@ -275,7 +275,7 @@ async function syncFromTtsuGDrive() {
         const files = statsData.files || [];
         if (files.length === 0) {
           console.log(`No statistics file in ${bookFolder.name}`);
-          continue;
+          continue; // go to the NEXT book folder
         }
 
         // Latest statistics file for this book
@@ -304,6 +304,7 @@ async function syncFromTtsuGDrive() {
 
           const title = session.title || bookFolder.name || 'Reading';
 
+          // Ensure window.data is an array before modifying
           if (!Array.isArray(window.data)) {
             window.data = [];
           }
@@ -327,15 +328,17 @@ async function syncFromTtsuGDrive() {
 
       } catch (fileError) {
         console.error('Error processing folder:', bookFolder.name, fileError);
+        // continue with next book folder
       }
     }
 
+    // After ALL folders have been processed:
     if (totalImported > 0) {
       const bookList = Array.from(bookTitles).join(', ');
 
       const customConfirm = window.customConfirm || confirm;
       const confirmed = await customConfirm(
-        `Found ${totalImported} reading session(s) from ttsu (overwritten by date & title).\n\n` +
+        `Found ${totalImported} reading session(s) from ttsu (overwritten by date & title) across ${bookFolders.length} book folder(s).\n\n` +
         `Books: ${bookList}\n\n` +
         `Apply these sessions to your heatmap?`,
         'Import ttsu Data'
@@ -374,10 +377,11 @@ async function syncFromTtsuGDrive() {
         await window.saveCloudState();
       }
 
-      console.log(`✅ Synced ${totalImported} sessions from ttsu (overwrite mode)`);
+      console.log(`✅ Synced ${totalImported} sessions from ttsu (overwrite mode, all folders)`);
+    } else {
+      console.log('No sessions imported from any ttsu book folders.');
     }
 
-    // Do NOT touch TTSU_LAST_SYNC_KEY here; only setupTtsuSync should update it
     return totalImported;
 
   } catch (error) {
