@@ -202,10 +202,10 @@ async function findTtsuFolder() {
   }
 }
 
-// ttsu-sync.js — ROOT-AWARE syncFromTtsuGDrive
+// ttsu-sync.js — SIMPLE multi-folder syncFromTtsuGDrive
 async function syncFromTtsuGDrive() {
   try {
-    let folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+    const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
     if (!folderId) {
       throw new Error('ttsu folder not configured. Please run setup first.');
     }
@@ -234,82 +234,49 @@ async function syncFromTtsuGDrive() {
       }
     }
 
-    // --- Resolve true root (handle "folderId is a book" vs "folderId is ttu-reader-data") ---
-    console.log('Resolving ttsu root folder from stored ID:', folderId);
+    console.log('Fetching child items of ttu-reader-data root:', folderId);
 
-    // Get metadata for the stored folder
-    const folderMeta = await driveApiCall(
-      `files/${folderId}?fields=id,name,parents`,
+    // 1) Get ALL children under ttu-reader-data, regardless of mimeType
+    const allChildrenQuery = encodeURIComponent(
+      `'${folderId}' in parents and trashed=false`
+    );
+    const allChildrenData = await driveApiCall(
+      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=200`,
       googleAccessToken
     );
 
-    let rootId = folderMeta.id;
-    let rootName = folderMeta.name;
+    const allChildren = allChildrenData.files || [];
+    console.log('Root children (raw):', allChildren.map(f => ({
+      id: f.id,
+      name: f.name,
+      mimeType: f.mimeType
+    })));
 
-    // If this is NOT "ttu-reader-data", assume it's a single book folder.
-    // Then use its parent as the true root (your screenshot case).
-    if (rootName !== 'ttu-reader-data' && Array.isArray(folderMeta.parents) && folderMeta.parents.length > 0) {
-      const parentId = folderMeta.parents[0];
-      const parentMeta = await driveApiCall(
-        `files/${parentId}?fields=id,name`,
-        googleAccessToken
-      );
+    // 2) Treat all folder-like items as book folders
+    const bookFolders = allChildren.filter(f =>
+      f.mimeType && f.mimeType.indexOf('application/vnd.google-apps.folder') === 0
+    );
 
-      console.log(
-        `Stored folder "${rootName}" looks like a book; using parent "${parentMeta.name}" (${parentMeta.id}) as root instead`
-      );
+    console.log(`Resolved ${bookFolders.length} book folder(s) to sync from:`,
+      bookFolders.map(f => `${f.name} (${f.id})`)
+    );
 
-      rootId = parentMeta.id;
-      rootName = parentMeta.name;
-    } else {
-      console.log(`Using stored folder "${rootName}" (${rootId}) as root`);
+    if (bookFolders.length === 0) {
+      console.log('No book folders found under ttu-reader-data');
+      return 0;
     }
-
-    console.log(`Fetching children of root: ${rootName} (${rootId})...`);
-
-// Get ALL children under the root, regardless of mimeType
-const allChildrenQuery = encodeURIComponent(
-  `'${rootId}' in parents and trashed=false`
-);
-const allChildrenData = await driveApiCall(
-  `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType)&pageSize=200`,
-  googleAccessToken
-);
-
-const allChildren = allChildrenData.files || [];
-console.log('Root children:', allChildren.map(f => ({
-  id: f.id,
-  name: f.name,
-  mimeType: f.mimeType
-})));
-
-// Treat anything that is a folder (or folder-like) as a book folder
-const bookFolders = allChildren.filter(f =>
-  f.mimeType && f.mimeType.startsWith('application/vnd.google-apps.folder')
-);
-
-console.log(`Resolved ${bookFolders.length} book folder(s) to sync from (after filtering folder-like mimeTypes)`);
-
-if (bookFolders.length === 0) {
-  console.log('No book folders found under root');
-  return 0;
-}
-
 
     let totalImported = 0;
     const bookTitles = new Set();
 
-    // Process every book folder under the resolved root
+    // 3) For each book folder, grab latest statistics_*.json directly under it
     for (const bookFolder of bookFolders) {
       try {
         console.log(`Checking folder: ${bookFolder.name} (${bookFolder.id})`);
 
-        // Look for a statistics file directly under the book folder.
-        // ttsu exports names like "statistics_1_6_....json"
         const statsQuery = encodeURIComponent(
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
-
         const statsData = await driveApiCall(
           `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
           googleAccessToken
@@ -318,10 +285,9 @@ if (bookFolders.length === 0) {
         const files = statsData.files || [];
         if (files.length === 0) {
           console.log(`No statistics file in ${bookFolder.name}`);
-          continue; // go to the NEXT book folder
+          continue;
         }
 
-        // Latest statistics file for this book
         const file = files[0];
         console.log(`Processing ${file.name} for ${bookFolder.name}...`);
 
@@ -333,7 +299,7 @@ if (bookFolders.length === 0) {
           continue;
         }
 
-        // Overwrite per date+title: stats JSON is source of truth for that book/day
+        // 4) Overwrite per date+title: stats JSON is source of truth for that book/day
         ttsuData.forEach(session => {
           if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
             return;
@@ -347,7 +313,6 @@ if (bookFolders.length === 0) {
 
           const title = session.title || bookFolder.name || 'Reading';
 
-          // Ensure window.data is an array before modifying
           if (!Array.isArray(window.data)) {
             window.data = [];
           }
@@ -357,7 +322,7 @@ if (bookFolders.length === 0) {
             !(entry.date === date && entry.title === title)
           );
 
-          // Insert fresh row from ttsu
+          // Insert fresh row
           window.data.push({
             date,
             minutes,
@@ -368,14 +333,12 @@ if (bookFolders.length === 0) {
           totalImported++;
           bookTitles.add(title);
         });
-
       } catch (fileError) {
         console.error('Error processing folder:', bookFolder.name, fileError);
-        // continue with next book folder
       }
     }
 
-    // After ALL folders have been processed:
+    // 5) Apply changes once at the end
     if (totalImported > 0) {
       const bookList = Array.from(bookTitles).join(', ');
 
@@ -400,7 +363,6 @@ if (bookFolders.length === 0) {
       });
       window.recentBooks = window.recentBooks.slice(0, 10);
 
-      // Sync global aliases if they exist
       if (typeof recentBooks !== 'undefined') {
         recentBooks = window.recentBooks;
       }
@@ -408,7 +370,6 @@ if (bookFolders.length === 0) {
         data = window.data;
       }
 
-      // Save to localStorage
       localStorage.setItem('reading_heatmap_data', JSON.stringify(window.data));
       localStorage.setItem('reading_heatmap_books', JSON.stringify(window.recentBooks));
 
@@ -420,7 +381,7 @@ if (bookFolders.length === 0) {
         await window.saveCloudState();
       }
 
-      console.log(`✅ Synced ${totalImported} sessions from ttsu (overwrite mode, all folders under ${rootName})`);
+      console.log(`✅ Synced ${totalImported} sessions from ttsu (multi-folder)`);
     } else {
       console.log('No sessions imported from any ttsu book folders.');
     }
@@ -432,6 +393,7 @@ if (bookFolders.length === 0) {
     throw error;
   }
 }
+
 
 async function setupTtsuSync() {
   try {
