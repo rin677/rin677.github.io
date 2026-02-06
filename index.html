@@ -2712,7 +2712,6 @@ if (metric === 'minutes') {
 </button>
 */
 
-// Updated function to handle the ACTUAL ttsu export format
 async function importTtsuData(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -2725,7 +2724,7 @@ async function importTtsuData(event) {
       console.log('ttsu data structure:', ttsuData);
       
       if (!Array.isArray(ttsuData)) {
-        await customAlert('Invalid ttsu export format. Expected an array of reading sessions.', 'Invalid Format');
+        await customAlert('Invalid ttsu import format. Expected an array of reading sessions.', 'Invalid Format');
         return;
       }
       
@@ -2775,7 +2774,7 @@ async function importTtsuData(event) {
       });
       
       if (transformedData.length === 0) {
-        await customAlert('No new reading data found in ttsu export.\n\nAll sessions have either already been imported or contain no reading data.');
+        await customAlert('No new reading data found in ttsu import.\n\nAll sessions have either already been imported or contain no reading data.');
         return;
       }
       
