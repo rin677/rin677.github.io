@@ -177,27 +177,60 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
 
 async function findTtsuFolder() {
   try {
-    console.log('Searching for ttu-reader-data folder...');
+    console.log('=== SEARCHING FOR TTU-READER-DATA FOLDER ===');
+    console.log('Access token available:', googleAccessToken ? 'YES' : 'NO');
     
     // Simple search without complex query
-    const data = await driveApiCall(`files?q=name='ttu-reader-data'&fields=files(id,name)&spaces=drive`, googleAccessToken);
+    const searchQuery = `name='ttu-reader-data' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    console.log('Search query:', searchQuery);
+    
+    const data = await driveApiCall(
+      `files?q=${encodeURIComponent(searchQuery)}&fields=files(id,name,mimeType,parents)&spaces=drive`,
+      googleAccessToken
+    );
     
     console.log('Search results:', data);
+    console.log('Number of results:', data.files?.length || 0);
     
     if (data.files && data.files.length > 0) {
-      console.log('Found folder:', data.files[0].name, 'ID:', data.files[0].id);
+      console.log('✅ Found folder:', data.files[0].name, 'ID:', data.files[0].id);
+      if (data.files[0].parents) {
+        console.log('   Parent:', data.files[0].parents[0]);
+      }
       return data.files[0].id;
     }
     
     // If not found, list all folders to debug
-    console.log('Not found. Listing all folders...');
-    const allFolders = await driveApiCall(`files?q=mimeType='application/vnd.google-apps.folder'&fields=files(id,name)&spaces=drive&pageSize=100`, googleAccessToken);
+    console.log('\n❌ Not found. Listing ALL folders in Drive...');
+    const allFolders = await driveApiCall(
+      `files?q=${encodeURIComponent("mimeType='application/vnd.google-apps.folder' and trashed=false")}&fields=files(id,name,parents)&spaces=drive&pageSize=100`,
+      googleAccessToken
+    );
     
-    console.log('All folders:', allFolders.files);
+    console.log('All folders in your Drive:');
+    allFolders.files.forEach((folder, idx) => {
+      console.log(`  [${idx + 1}] ${folder.name} (ID: ${folder.id})`);
+      if (folder.parents) {
+        console.log(`      Parent: ${folder.parents[0]}`);
+      }
+    });
+    
+    // Check if there's a folder with similar name
+    const similarFolders = allFolders.files.filter(f => 
+      f.name.toLowerCase().includes('ttu') || 
+      f.name.toLowerCase().includes('reader')
+    );
+    
+    if (similarFolders.length > 0) {
+      console.log('\n📁 Found similar folder names:');
+      similarFolders.forEach(f => {
+        console.log(`  - ${f.name} (ID: ${f.id})`);
+      });
+    }
     
     return null;
   } catch (error) {
-    console.error('Error finding ttsu folder:', error);
+    console.error('❌ Error finding ttsu folder:', error);
     return null;
   }
 }
@@ -235,15 +268,36 @@ async function syncFromTtsuGDrive() {
 
     console.log('=== STARTING TTSU SYNC ===');
     console.log('Fetching child items of ttu-reader-data root:', folderId);
+    console.log('Using access token:', googleAccessToken ? 'YES (token exists)' : 'NO TOKEN');
+
+    // First, verify the folder exists and we can access it
+    try {
+      console.log('Step 1: Verifying folder access...');
+      const folderInfo = await driveApiCall(
+        `files/${folderId}?fields=id,name,mimeType,capabilities`,
+        googleAccessToken
+      );
+      console.log('Folder info:', folderInfo);
+      console.log('  Name:', folderInfo.name);
+      console.log('  Type:', folderInfo.mimeType);
+      console.log('  Can list children:', folderInfo.capabilities?.canListChildren);
+    } catch (verifyError) {
+      console.error('❌ Cannot access folder:', verifyError);
+      throw new Error('Cannot access ttu-reader-data folder. Error: ' + verifyError.message);
+    }
 
     // Get ALL children without any filtering
-    console.log('Fetching all children from ttu-reader-data folder...');
-    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    console.log('\nStep 2: Fetching all children from ttu-reader-data folder...');
+    const query = `'${folderId}' in parents and trashed=false`;
+    console.log('Query:', query);
+    const allChildrenQuery = encodeURIComponent(query);
+    
     const allChildrenData = await driveApiCall(
       `files?q=${allChildrenQuery}&fields=files(id,name,mimeType)&pageSize=1000`,
       googleAccessToken
     );
 
+    console.log('Raw API response:', allChildrenData);
     let allChildren = allChildrenData.files || [];
     console.log(`Found ${allChildren.length} total items`);
     
