@@ -426,7 +426,7 @@
         </div>
         <div class="action-buttons">
           <button class="btn" onclick="downloadData()">💾 Download JSON</button>
-          <button class="btn" onclick="exportToToggl()">⏱️ Export to Toggl</button>
+          <button class="btn" onclick="openTogglExportModal()">⏱️ Export to Toggl</button>
         </div>
       </div>
       
@@ -454,9 +454,71 @@
   <input type="file" id="fileInput" style="display: none;" accept=".json">
   <input type="file" id="ttsuInput" style="display: none;" accept=".json">
   
+<!-- Toggl Export Modal -->
+<div class="modal" id="togglExportModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
+  <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; width: 460px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);">
+    <h2 style="margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Export to Toggl</h2>
+    
+    <div class="form-group">
+      <label class="form-label">Export Range</label>
+      <select id="togglExportRange" class="form-input" onchange="toggleTogglDateInputs()">
+        <option value="all">All Data</option>
+        <option value="year">Specific Year</option>
+        <option value="month">Specific Month</option>
+        <option value="custom">Custom Date Range</option>
+      </select>
+    </div>
+    
+    <div id="togglYearInput" style="display: none;" class="form-group">
+      <label class="form-label">Year</label>
+      <input type="number" id="togglYear" class="form-input" min="2020" max="2030" value="2026">
+    </div>
+    
+    <div id="togglMonthInput" style="display: none;">
+      <div class="form-group">
+        <label class="form-label">Year</label>
+        <input type="number" id="togglMonthYear" class="form-input" min="2020" max="2030" value="2026">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Month</label>
+        <select id="togglMonth" class="form-input">
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+      </div>
+    </div>
+    
+    <div id="togglCustomInput" style="display: none;">
+      <div class="form-group">
+        <label class="form-label">Start Date</label>
+        <input type="date" id="togglStartDate" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">End Date</label>
+        <input type="date" id="togglEndDate" class="form-input">
+      </div>
+    </div>
+    
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+      <button class="btn" onclick="closeTogglExportModal()">Cancel</button>
+      <button class="confirm-btn" onclick="exportToTogglWithRange()">Export</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // Load theme
-  const THEME_KEY = 'reading_heatmap_theme';
+const THEME_KEY = 'reading_heatmap_theme';
   const STORAGE_KEY = 'reading_heatmap_data';
   const GOALS_KEY = 'reading_heatmap_goals';
   const BOOKS_KEY = 'reading_heatmap_books';
@@ -634,7 +696,7 @@ function initializeBackups() {
   if (shouldBackup) {
     try {
       const backups = getBackups();
-      const retention = localStorage.getItem('reading_heatmap_backup_retention') || '5';
+      const retention = localStorage.getItem(BACKUP_RETENTION_KEY) || '5';
       
       const backup = {
         timestamp: now,
@@ -882,7 +944,9 @@ function initializeBackups() {
     }
   }
 
-  async function exportToToggl() {
+async function exportToToggl() {
+    openTogglExportModal();
+  }{
     try {
       const data = getCurrentData();
       const togglData = data.map(entry => ({
@@ -902,6 +966,110 @@ function initializeBackups() {
       URL.revokeObjectURL(url);
       
       await customAlert('Exported to Toggl format! Import this file to Toggl Track.', 'Export Successful');
+    } catch (error) {
+      await customAlert('Failed to export: ' + error.message, 'Export Error');
+    }
+  }
+
+  function openTogglExportModal() {
+    document.getElementById('togglExportModal').style.display = 'flex';
+    
+    // Set default dates
+    const today = new Date();
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    document.getElementById('togglStartDate').value = startOfYear.toISOString().split('T')[0];
+    document.getElementById('togglEndDate').value = today.toISOString().split('T')[0];
+    document.getElementById('togglYear').value = today.getFullYear();
+    document.getElementById('togglMonthYear').value = today.getFullYear();
+    document.getElementById('togglMonth').value = today.getMonth() + 1;
+  }
+
+  function closeTogglExportModal() {
+    document.getElementById('togglExportModal').style.display = 'none';
+  }
+
+  function toggleTogglDateInputs() {
+    const range = document.getElementById('togglExportRange').value;
+    
+    document.getElementById('togglYearInput').style.display = range === 'year' ? 'block' : 'none';
+    document.getElementById('togglMonthInput').style.display = range === 'month' ? 'block' : 'none';
+    document.getElementById('togglCustomInput').style.display = range === 'custom' ? 'block' : 'none';
+  }
+
+  async function exportToTogglWithRange() {
+    try {
+      const allData = getCurrentData();
+      const range = document.getElementById('togglExportRange').value;
+      let filteredData = [];
+      
+      if (range === 'all') {
+        filteredData = allData;
+      } else if (range === 'year') {
+        const year = parseInt(document.getElementById('togglYear').value);
+        filteredData = allData.filter(entry => {
+          const entryYear = new Date(entry.date).getFullYear();
+          return entryYear === year;
+        });
+      } else if (range === 'month') {
+        const year = parseInt(document.getElementById('togglMonthYear').value);
+        const month = parseInt(document.getElementById('togglMonth').value);
+        filteredData = allData.filter(entry => {
+          const entryDate = new Date(entry.date);
+          return entryDate.getFullYear() === year && (entryDate.getMonth() + 1) === month;
+        });
+      } else if (range === 'custom') {
+        const startDate = document.getElementById('togglStartDate').value;
+        const endDate = document.getElementById('togglEndDate').value;
+        
+        if (!startDate || !endDate) {
+          await customAlert('Please select both start and end dates.', 'Invalid Range');
+          return;
+        }
+        
+        filteredData = allData.filter(entry => {
+          return entry.date >= startDate && entry.date <= endDate;
+        });
+      }
+      
+      if (filteredData.length === 0) {
+        await customAlert('No data found for the selected period.', 'No Data');
+        return;
+      }
+      
+      const togglData = filteredData.map(entry => ({
+        description: entry.title || 'Reading',
+        start: `${entry.date}T00:00:00Z`,
+        duration: entry.minutes * 60,
+        tags: ['reading'],
+        created_with: 'Reading Heatmap'
+      }));
+      
+      const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Create filename based on range
+      let filename = 'reading-toggl-export';
+      if (range === 'year') {
+        filename += `-${document.getElementById('togglYear').value}`;
+      } else if (range === 'month') {
+        const year = document.getElementById('togglMonthYear').value;
+        const month = String(document.getElementById('togglMonth').value).padStart(2, '0');
+        filename += `-${year}-${month}`;
+      } else if (range === 'custom') {
+        const start = document.getElementById('togglStartDate').value;
+        const end = document.getElementById('togglEndDate').value;
+        filename += `-${start}_to_${end}`;
+      }
+      filename += '.json';
+      
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      closeTogglExportModal();
+      await customAlert(`Exported ${filteredData.length} entries to Toggl format!`, 'Export Successful');
     } catch (error) {
       await customAlert('Failed to export: ' + error.message, 'Export Error');
     }
@@ -1112,7 +1280,6 @@ document.getElementById('ttsuInput').addEventListener('change', async (event) =>
     }
   }
 
-// Add periodic backup check
 function checkAndRunBackups() {
   const BACKUP_FREQUENCY_KEY = 'reading_heatmap_backup_frequency';
   const LAST_BACKUP_KEY = 'reading_heatmap_last_backup';

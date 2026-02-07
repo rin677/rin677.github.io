@@ -380,7 +380,7 @@ async function syncFromTtsuGDrive() {
           );
 
           if (exactMatch) {
-            // Exact duplicate - skip
+            // Exact duplicate - skip completely (don't add to bookTitles)
             return;
           }
 
@@ -397,16 +397,21 @@ async function syncFromTtsuGDrive() {
           };
 
           if (existingIndex !== -1) {
-            // Update existing
-            sessionsToUpdate.push({ index: existingIndex, entry: newEntry });
-            console.log(`  Will update: ${title} on ${date} (${window.data[existingIndex].minutes}min → ${minutes}min)`);
+            // Check if the data actually differs
+            const existing = window.data[existingIndex];
+            if (existing.minutes !== minutes || existing.characters !== characters) {
+              // Only report as update if data actually changed
+              sessionsToUpdate.push({ index: existingIndex, entry: newEntry });
+              console.log(`  Will update: ${title} on ${date} (${existing.minutes}min → ${minutes}min, ${existing.characters}chars → ${characters}chars)`);
+              bookTitles.add(title);
+            }
+            // If data is identical, skip silently
           } else {
             // New session
             sessionsToAdd.push(newEntry);
             console.log(`  Will add: ${title} on ${date} (${minutes}min, ${characters}chars)`);
+            bookTitles.add(title);
           }
-          
-          bookTitles.add(title);
         });
 
         console.log(`  ✅ Processed ${ttsuData.length} sessions from ${bookFolder.name}`);
