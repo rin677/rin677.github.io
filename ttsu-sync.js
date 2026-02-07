@@ -236,44 +236,31 @@ async function syncFromTtsuGDrive() {
     console.log('=== STARTING TTSU SYNC ===');
     console.log('Fetching child items of ttu-reader-data root:', folderId);
 
-    // Try multiple approaches to get ALL folders
+    // Get ALL items with pagination support
+    const allChildren = [];
+    let pageToken = null;
+    let pageCount = 0;
     
-    // Approach 1: Get everything with no filters
-    console.log('Approach 1: Fetching with minimal query...');
-    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
-      googleAccessToken
-    );
-
-    let allChildren = allChildrenData.files || [];
-    console.log(`Found ${allChildren.length} items with Approach 1`);
-    console.log('All items:', JSON.stringify(allChildren, null, 2));
-
-    // Approach 2: Try searching by name pattern if we find too few
-    if (allChildren.length < 4) {
-      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
-      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
-      const nameSearchData = await driveApiCall(
-        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
-        googleAccessToken
-      );
-      
-      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
-      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
-      
-      // Merge results
-      if (nameSearchData.files && nameSearchData.files.length > 0) {
-        const existingIds = new Set(allChildren.map(f => f.id));
-        nameSearchData.files.forEach(file => {
-          if (!existingIds.has(file.id)) {
-            allChildren.push(file);
-          }
-        });
+    do {
+      pageCount++;
+      const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000`;
+      if (pageToken) {
+        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
-    }
-
-    console.log(`Total items after all approaches: ${allChildren.length}`);
+      
+      console.log(`Fetching page ${pageCount}...`);
+      const pageData = await driveApiCall(endpoint, googleAccessToken);
+      
+      if (pageData.files && pageData.files.length > 0) {
+        allChildren.push(...pageData.files);
+        console.log(`  Page ${pageCount}: Found ${pageData.files.length} items (total: ${allChildren.length})`);
+      }
+      
+      pageToken = pageData.nextPageToken || null;
+    } while (pageToken);
+    
+    console.log(`Total items fetched: ${allChildren.length}`);
 
     // Filter for folders
     const bookFolders = allChildren.filter(f => 
@@ -308,7 +295,7 @@ async function syncFromTtsuGDrive() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc&pageSize=1000`,
           googleAccessToken
         );
 
@@ -624,42 +611,31 @@ async function batchLoadAllTtsu() {
       }
     }
     
-    // Approach 1: Get everything with no filters
-    console.log('Approach 1: Fetching with minimal query...');
-    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
-      googleAccessToken
-    );
-
-    let allChildren = allChildrenData.files || [];
-    console.log(`Found ${allChildren.length} items with Approach 1`);
-    console.log('All items:', JSON.stringify(allChildren, null, 2));
-
-    // Approach 2: Try searching by name pattern if we find too few
-    if (allChildren.length < 4) {
-      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
-      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
-      const nameSearchData = await driveApiCall(
-        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
-        googleAccessToken
-      );
-      
-      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
-      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
-      
-      // Merge results
-      if (nameSearchData.files && nameSearchData.files.length > 0) {
-        const existingIds = new Set(allChildren.map(f => f.id));
-        nameSearchData.files.forEach(file => {
-          if (!existingIds.has(file.id)) {
-            allChildren.push(file);
-          }
-        });
+    // Get ALL items with pagination support
+    const allChildren = [];
+    let pageToken = null;
+    let pageCount = 0;
+    
+    do {
+      pageCount++;
+      const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000`;
+      if (pageToken) {
+        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
-    }
-
-    console.log(`Total items after all approaches: ${allChildren.length}`);
+      
+      console.log(`Fetching page ${pageCount}...`);
+      const pageData = await driveApiCall(endpoint, googleAccessToken);
+      
+      if (pageData.files && pageData.files.length > 0) {
+        allChildren.push(...pageData.files);
+        console.log(`  Page ${pageCount}: Found ${pageData.files.length} items (total: ${allChildren.length})`);
+      }
+      
+      pageToken = pageData.nextPageToken || null;
+    } while (pageToken);
+    
+    console.log(`Total items fetched: ${allChildren.length}`);
     
     // Filter for folders - handle ALL folder mimeType variations
     const bookFolders = allChildren.filter(f => 
@@ -695,7 +671,7 @@ async function batchLoadAllTtsu() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc&pageSize=1000`,
           googleAccessToken
         );
 
