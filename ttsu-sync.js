@@ -236,79 +236,102 @@ async function syncFromTtsuGDrive() {
     console.log('=== STARTING TTSU SYNC ===');
     console.log('Fetching child items of ttu-reader-data root:', folderId);
 
-    // Try multiple approaches to get ALL folders
+    // COMPREHENSIVE FOLDER SEARCH
+    // Get ALL folders in Drive that might be book folders
+    let allFolders = [];
     
-    // Approach 1: Get everything with no filters
-    console.log('Approach 1: Fetching with minimal query...');
-    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
-      googleAccessToken
-    );
-
-    let allChildren = allChildrenData.files || [];
-    console.log(`Found ${allChildren.length} items with Approach 1`);
-    console.log('All items:', JSON.stringify(allChildren, null, 2));
-
-    // Approach 2: Try searching by name pattern if we find too few
-    if (allChildren.length < 4) {
-      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
-      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
-      const nameSearchData = await driveApiCall(
-        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+    // Strategy 1: Direct children of ttu-reader-data
+    console.log('Strategy 1: Direct children query...');
+    try {
+      const directQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+      const directData = await driveApiCall(
+        `files?q=${directQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
         googleAccessToken
       );
-      
-      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
-      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
-      
-      // Merge results
-      if (nameSearchData.files && nameSearchData.files.length > 0) {
-        const existingIds = new Set(allChildren.map(f => f.id));
-        nameSearchData.files.forEach(file => {
-          if (!existingIds.has(file.id)) {
-            allChildren.push(file);
+      if (directData.files) {
+        allFolders.push(...directData.files);
+        console.log(`  Found ${directData.files.length} direct child folders`);
+      }
+    } catch (e) {
+      console.error('  Strategy 1 failed:', e);
+    }
+
+    // Strategy 2: Search all folders with specific names
+    console.log('Strategy 2: Name-based search...');
+    try {
+      const namePatterns = ['Re:', 'ほうかご', '三日間', 'こちら', '氷菓'];
+      for (const pattern of namePatterns) {
+        const nameQuery = encodeURIComponent(`name contains '${pattern}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+        const nameData = await driveApiCall(
+          `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+          googleAccessToken
+        );
+        if (nameData.files) {
+          // Only add if not already in list
+          nameData.files.forEach(file => {
+            if (!allFolders.find(f => f.id === file.id)) {
+              allFolders.push(file);
+            }
+          });
+          console.log(`  Found ${nameData.files.length} folders matching "${pattern}"`);
+        }
+      }
+    } catch (e) {
+      console.error('  Strategy 2 failed:', e);
+    }
+
+    // Strategy 3: Get ALL items in parent (no filter) and manually filter
+    console.log('Strategy 3: Get all items...');
+    try {
+      const allQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+      const allData = await driveApiCall(
+        `files?q=${allQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+        googleAccessToken
+      );
+      if (allData.files) {
+        console.log(`  Found ${allData.files.length} total items`);
+        allData.files.forEach(file => {
+          if (file.mimeType === 'application/vnd.google-apps.folder' && !allFolders.find(f => f.id === file.id)) {
+            allFolders.push(file);
           }
         });
       }
+    } catch (e) {
+      console.error('  Strategy 3 failed:', e);
     }
 
-    console.log(`Total items after all approaches: ${allChildren.length}`);
-
-    // Filter for folders
-    const bookFolders = allChildren.filter(f => 
-      f.mimeType && (
-        f.mimeType === 'application/vnd.google-apps.folder' ||
-        f.mimeType.startsWith('application/vnd.google-apps.folder')
-      )
-    );
-
-    console.log(`Found ${bookFolders.length} book folder(s):`);
-    bookFolders.forEach(f => {
+    console.log(`\nTotal unique folders found: ${allFolders.length}`);
+    allFolders.forEach(f => {
       console.log(`  - ${f.name} (${f.id})`);
-      console.log(`    mimeType: ${f.mimeType}`);
-      console.log(`    parents: ${JSON.stringify(f.parents)}`);
     });
 
-    if (bookFolders.length === 0) {
+    if (allFolders.length === 0) {
       console.error('❌ NO BOOK FOLDERS FOUND!');
-      console.log('All mimeTypes found:', allChildren.map(f => f.mimeType));
+      const customAlert = window.customAlert || alert;
+      await customAlert(
+        'No book folders found in ttsu Google Drive.\n\nMake sure ttsu has synced data to Drive.',
+        'No Folders Found'
+      );
       return 0;
     }
 
-    let totalImported = 0;
+    let totalNewSessions = 0;
+    let totalUpdatedSessions = 0;
     const bookTitles = new Set();
+    const sessionsToAdd = [];
+    const sessionsToUpdate = [];
 
     // Process each book folder
-    for (const bookFolder of bookFolders) {
+    for (const bookFolder of allFolders) {
       try {
         console.log(`\n📚 Processing: ${bookFolder.name}`);
 
+        // Find statistics file in this folder
         const statsQuery = encodeURIComponent(
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=10`,
           googleAccessToken
         );
 
@@ -320,6 +343,7 @@ async function syncFromTtsuGDrive() {
           continue;
         }
 
+        // Use most recent statistics file
         const file = files[0];
         console.log(`  Processing: ${file.name}`);
 
@@ -333,98 +357,98 @@ async function syncFromTtsuGDrive() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
-      ttsuData.forEach(session => {
-  if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-    return;
-  }
+        // Process each session
+        ttsuData.forEach(session => {
+          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+            return;
+          }
 
-  const date = session.dateKey;
-  const minutes = Math.round(session.readingTime / 60);
-  const characters = session.charactersRead || 0;
+          const date = session.dateKey;
+          const minutes = Math.round(session.readingTime / 60);
+          const characters = session.charactersRead || 0;
 
-  if (minutes === 0 && characters === 0) return;
+          if (minutes === 0 && characters === 0) return;
 
-  const title = session.title || bookFolder.name || 'Reading';
+          const title = session.title || bookFolder.name || 'Reading';
 
-  if (!Array.isArray(window.data)) {
-    window.data = [];
-  }
+          // Check if this exact session already exists
+          const exactMatch = window.data.find(entry =>
+            entry.date === date && 
+            entry.title === title &&
+            entry.minutes === minutes &&
+            entry.characters === characters
+          );
 
-  // Check if EXACT same session already exists
-  const exactMatch = window.data.find(entry =>
-    entry.date === date && 
-    entry.title === title &&
-    entry.minutes === minutes &&
-    entry.characters === characters
-  );
+          if (exactMatch) {
+            // Exact duplicate - skip
+            return;
+          }
 
-  if (exactMatch) {
-    // Skip - this exact session is already imported
-    console.log(`  Skipping duplicate: ${title} on ${date}`);
-    return;
-  }
+          // Check if there's a session for same date+title with different data
+          const existingIndex = window.data.findIndex(entry =>
+            entry.date === date && entry.title === title
+          );
 
-  // Check if there's a different session for same date+title
-  const existingIndex = window.data.findIndex(entry =>
-    entry.date === date && entry.title === title
-  );
+          const newEntry = {
+            date,
+            minutes,
+            characters,
+            title
+          };
 
-  const newEntry = {
-    date,
-    minutes,
-    characters,
-    title
-  };
+          if (existingIndex !== -1) {
+            // Update existing
+            sessionsToUpdate.push({ index: existingIndex, entry: newEntry });
+            console.log(`  Will update: ${title} on ${date} (${window.data[existingIndex].minutes}min → ${minutes}min)`);
+          } else {
+            // New session
+            sessionsToAdd.push(newEntry);
+            console.log(`  Will add: ${title} on ${date} (${minutes}min, ${characters}chars)`);
+          }
+          
+          bookTitles.add(title);
+        });
 
-  if (existingIndex !== -1) {
-    // Replace existing with ttsu data (ttsu is source of truth)
-    window.data[existingIndex] = newEntry;
-    totalImported++;
-    console.log(`  Updated: ${title} on ${date}`);
-  } else {
-    // New entry
-    window.data.push(newEntry);
-    totalImported++;
-    console.log(`  Added: ${title} on ${date}`);
-  }
-  
-  bookTitles.add(title);
-});
-
-        console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
+        console.log(`  ✅ Processed ${ttsuData.length} sessions from ${bookFolder.name}`);
       } catch (fileError) {
         console.error(`  ❌ Error processing ${bookFolder.name}:`, fileError);
       }
     }
 
+    totalNewSessions = sessionsToAdd.length;
+    totalUpdatedSessions = sessionsToUpdate.length;
+    const totalChanges = totalNewSessions + totalUpdatedSessions;
+
     console.log(`\n=== SYNC SUMMARY ===`);
-    console.log(`Total sessions to import: ${totalImported}`);
+    console.log(`New sessions: ${totalNewSessions}`);
+    console.log(`Updated sessions: ${totalUpdatedSessions}`);
+    console.log(`Total changes: ${totalChanges}`);
     console.log(`Books: ${Array.from(bookTitles).join(', ')}`);
 
-// 5) Check if there are actually any changes
-    if (totalImported === 0) {
+    // Check if there are any changes
+    if (totalChanges === 0) {
       console.log('No changes detected - data already up to date');
-      localStorage.setItem('ttsu_last_sync', new Date().toISOString());
+      localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
       
       const customAlert = window.customAlert || alert;
       await customAlert(
         '✅ Already up to date!\n\n' +
-        `Checked ${bookFolders.length} book folder(s) - no new data to import.`,
+        `Checked ${allFolders.length} book folder(s) - no new data to import.`,
         'Already Synced'
       );
       
       return 0;
     }
     
-    // 6) Apply changes if there are actual changes
-    if (totalImported > 0) {
-      const bookList = Array.from(bookTitles).join(', ');
-
+    // Apply changes with user confirmation
+    const bookList = Array.from(bookTitles).join(', ');
     const customConfirm = window.customConfirm || confirm;
     const confirmed = await customConfirm(
-      `Found ${totalImported} new/changed reading session(s) from ttsu across ${bookFolders.length} book folder(s).\n\n` +
+      `Found ${totalChanges} change(s) from ttsu:\n` +
+      `  • ${totalNewSessions} new sessions\n` +
+      `  • ${totalUpdatedSessions} updated sessions\n\n` +
       `Books: ${bookList}\n\n` +
-      `ttsu data will overwrite any manual changes. Apply these sessions to your heatmap?`,
+      `ttsu data will overwrite any manual changes. Apply these changes?`,
       'Import ttsu Data'
     );
 
@@ -433,41 +457,57 @@ async function syncFromTtsuGDrive() {
       return 0;
     }
 
-      bookTitles.forEach(title => {
-        if (title && !window.recentBooks.includes(title)) {
-          window.recentBooks.unshift(title);
-        }
-      });
-      window.recentBooks = window.recentBooks.slice(0, 10);
+    // Apply updates
+    sessionsToUpdate.forEach(({ index, entry }) => {
+      window.data[index] = entry;
+    });
 
-      if (typeof recentBooks !== 'undefined') {
-        recentBooks = window.recentBooks;
+    // Add new sessions
+    window.data.push(...sessionsToAdd);
+
+    // Update recent books
+    bookTitles.forEach(title => {
+      if (title && !window.recentBooks.includes(title)) {
+        window.recentBooks.unshift(title);
       }
-      if (typeof data !== 'undefined') {
-        data = window.data;
-      }
+    });
+    window.recentBooks = window.recentBooks.slice(0, 10);
 
-      localStorage.setItem('reading_heatmap_data', JSON.stringify(window.data));
-      localStorage.setItem('reading_heatmap_books', JSON.stringify(window.recentBooks));
-
-      if (window.aggregateData) window.aggregateData();
-      if (window.loadYear) window.loadYear();
-      if (window.renderGoals) window.renderGoals();
-
-      if (window.saveCloudState) {
-        await window.saveCloudState();
-      }
-localStorage.setItem('ttsu_last_sync', new Date().toISOString());
-      
-      console.log(`✅ Synced ${totalImported} sessions from ttsu`);
-    } else {
-      console.log('No sessions imported from any ttsu book folders.');
-      
-      // Still update last sync time even if nothing to import
-      localStorage.setItem('ttsu_last_sync', new Date().toISOString());
+    // Sync to global variables
+    if (typeof recentBooks !== 'undefined') {
+      recentBooks = window.recentBooks;
+    }
+    if (typeof data !== 'undefined') {
+      data = window.data;
     }
 
-    return totalImported;
+    // Save to storage
+    localStorage.setItem('reading_heatmap_data', JSON.stringify(window.data));
+    localStorage.setItem('reading_heatmap_books', JSON.stringify(window.recentBooks));
+    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+
+    // Update UI
+    if (window.aggregateData) window.aggregateData();
+    if (window.loadYear) window.loadYear();
+    if (window.renderGoals) window.renderGoals();
+
+    // Save to cloud
+    if (window.saveCloudState) {
+      await window.saveCloudState();
+    }
+    
+    console.log(`✅ Successfully synced ${totalChanges} changes from ttsu`);
+    
+    const customAlert = window.customAlert || alert;
+    await customAlert(
+      `✅ Sync complete!\n\n` +
+      `New sessions: ${totalNewSessions}\n` +
+      `Updated sessions: ${totalUpdatedSessions}\n` +
+      `Books: ${bookList}`,
+      'Sync Successful'
+    );
+
+    return totalChanges;
 
   } catch (error) {
     console.error('❌ SYNC ERROR:', error);
@@ -612,7 +652,7 @@ async function batchLoadAllTtsu() {
     console.log('=== STARTING BATCH LOAD ===');
     console.log('Starting batch load of all ttsu data from folder:', folderId);
     
-    // Ensure window.data & window.recentBooks
+    // Clear existing data
     window.data = [];
     if (typeof data !== 'undefined') {
       data = [];
@@ -627,61 +667,75 @@ async function batchLoadAllTtsu() {
       }
     }
     
-    // Approach 1: Get everything with no filters
-    console.log('Approach 1: Fetching with minimal query...');
-    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
-      googleAccessToken
-    );
-
-    let allChildren = allChildrenData.files || [];
-    console.log(`Found ${allChildren.length} items with Approach 1`);
-    console.log('All items:', JSON.stringify(allChildren, null, 2));
-
-    // Approach 2: Try searching by name pattern if we find too few
-    if (allChildren.length < 4) {
-      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
-      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
-      const nameSearchData = await driveApiCall(
-        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+    // Use same comprehensive search as syncFromTtsuGDrive
+    let allFolders = [];
+    
+    // Strategy 1: Direct children
+    console.log('Strategy 1: Direct children query...');
+    try {
+      const directQuery = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+      const directData = await driveApiCall(
+        `files?q=${directQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
         googleAccessToken
       );
-      
-      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
-      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
-      
-      // Merge results
-      if (nameSearchData.files && nameSearchData.files.length > 0) {
-        const existingIds = new Set(allChildren.map(f => f.id));
-        nameSearchData.files.forEach(file => {
-          if (!existingIds.has(file.id)) {
-            allChildren.push(file);
+      if (directData.files) {
+        allFolders.push(...directData.files);
+        console.log(`  Found ${directData.files.length} direct child folders`);
+      }
+    } catch (e) {
+      console.error('  Strategy 1 failed:', e);
+    }
+
+    // Strategy 2: Name-based search
+    console.log('Strategy 2: Name-based search...');
+    try {
+      const namePatterns = ['Re:', 'ほうかご', '三日間', 'こちら', '氷菓'];
+      for (const pattern of namePatterns) {
+        const nameQuery = encodeURIComponent(`name contains '${pattern}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+        const nameData = await driveApiCall(
+          `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+          googleAccessToken
+        );
+        if (nameData.files) {
+          nameData.files.forEach(file => {
+            if (!allFolders.find(f => f.id === file.id)) {
+              allFolders.push(file);
+            }
+          });
+          console.log(`  Found ${nameData.files.length} folders matching "${pattern}"`);
+        }
+      }
+    } catch (e) {
+      console.error('  Strategy 2 failed:', e);
+    }
+
+    // Strategy 3: Get all items
+    console.log('Strategy 3: Get all items...');
+    try {
+      const allQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+      const allData = await driveApiCall(
+        `files?q=${allQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+        googleAccessToken
+      );
+      if (allData.files) {
+        console.log(`  Found ${allData.files.length} total items`);
+        allData.files.forEach(file => {
+          if (file.mimeType === 'application/vnd.google-apps.folder' && !allFolders.find(f => f.id === file.id)) {
+            allFolders.push(file);
           }
         });
       }
+    } catch (e) {
+      console.error('  Strategy 3 failed:', e);
     }
 
-    console.log(`Total items after all approaches: ${allChildren.length}`);
-    
-    // Filter for folders - handle ALL folder mimeType variations
-    const bookFolders = allChildren.filter(f => 
-      f.mimeType && (
-        f.mimeType === 'application/vnd.google-apps.folder' ||
-        f.mimeType.startsWith('application/vnd.google-apps.folder')
-      )
-    );
-    
-    console.log(`Found ${bookFolders.length} book folder(s):`);
-    bookFolders.forEach(f => {
+    console.log(`\nTotal unique folders found: ${allFolders.length}`);
+    allFolders.forEach(f => {
       console.log(`  - ${f.name} (${f.id})`);
-      console.log(`    mimeType: ${f.mimeType}`);
-      console.log(`    parents: ${JSON.stringify(f.parents)}`);
     });
     
-    if (bookFolders.length === 0) {
+    if (allFolders.length === 0) {
       console.error('❌ NO BOOK FOLDERS FOUND!');
-      console.log('All mimeTypes found:', allChildren.map(f => f.mimeType));
       await customAlert('No book folders found in ttsu Google Drive.', 'No Data Found');
       return;
     }
@@ -690,7 +744,7 @@ async function batchLoadAllTtsu() {
     const bookTitles = new Set();
     
     // For each book folder, get the latest statistics file directly inside it
-    for (const bookFolder of bookFolders) {
+    for (const bookFolder of allFolders) {
       try {
         console.log(`\n📚 Processing: ${bookFolder.name}`);
 
@@ -724,29 +778,29 @@ async function batchLoadAllTtsu() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
-      ttsuData.forEach(session => {
-  if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-    return;
-  }
-  
-  const date = session.dateKey;
-  const minutes = Math.round(session.readingTime / 60);
-  const characters = session.charactersRead || 0;
-  
-  if (minutes === 0 && characters === 0) return;
-  
-  const title = session.title || bookFolder.name || 'Reading';
-  
-  // For batch load, just add everything (we already cleared data)
-  window.data.push({
-    date,
-    minutes,
-    characters,
-    title
-  });
-  totalImported++;
-  bookTitles.add(title);
-});
+        ttsuData.forEach(session => {
+          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+            return;
+          }
+          
+          const date = session.dateKey;
+          const minutes = Math.round(session.readingTime / 60);
+          const characters = session.charactersRead || 0;
+          
+          if (minutes === 0 && characters === 0) return;
+          
+          const title = session.title || bookFolder.name || 'Reading';
+          
+          // For batch load, just add everything (we already cleared data)
+          window.data.push({
+            date,
+            minutes,
+            characters,
+            title
+          });
+          totalImported++;
+          bookTitles.add(title);
+        });
 
         console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
 
