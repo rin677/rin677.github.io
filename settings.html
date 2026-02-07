@@ -458,7 +458,10 @@
 <div class="modal" id="togglExportModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 2000; align-items: center; justify-content: center;">
   <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; width: 460px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);">
     <h2 style="margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Export to Toggl</h2>
-    
+    <div class="form-group" style="margin-bottom: 16px;">
+  <label class="form-label" style="display: block; margin-bottom: 4px; font-size: 13px;">Your Email (required by Toggl)</label>
+  <input type="email" id="togglEmail" class="form-input" placeholder="your.email@example.com" required style="width: 100%;">
+</div>
     <div class="form-group">
       <label class="form-label">Export Range</label>
       <select id="togglExportRange" class="form-input" onchange="toggleTogglDateInputs()">
@@ -946,6 +949,13 @@ function initializeBackups() {
 
 async function exportToTogglWithRange() {
     try {
+      const email = document.getElementById('togglEmail').value.trim();
+      
+      if (!email) {
+        await customAlert('Please enter your email address.', 'Email Required');
+        return;
+      }
+
       const allData = getCurrentData();
       const range = document.getElementById('togglExportRange').value;
       let filteredData = [];
@@ -1009,8 +1019,8 @@ async function exportToTogglWithRange() {
         // Format duration as HH:MM:SS
         const durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
         
-        const row = [
-  '', // Email (empty - will use importing user's email)
+const row = [
+  email, // Email (required by Toggl)
   startDate, // Start date (YYYY-MM-DD format)
   startTime, // Start time (HH:MM:SS format)
   durationFormatted, // Duration (HH:MM:SS format)
