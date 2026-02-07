@@ -235,105 +235,45 @@ async function syncFromTtsuGDrive() {
 
     console.log('=== STARTING TTSU SYNC ===');
     console.log('Fetching child items of ttu-reader-data root:', folderId);
-    // Verify folder exists and log metadata (helps debug permission/shared-drive issues)
-    try {
-      const folderMeta = await driveApiCall(
-        `files/${folderId}?fields=id,name,mimeType,parents&supportsAllDrives=true`,
+
+    // Try multiple approaches to get ALL folders
+    
+    // Approach 1: Get everything with no filters
+    console.log('Approach 1: Fetching with minimal query...');
+    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const allChildrenData = await driveApiCall(
+      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+      googleAccessToken
+    );
+
+    let allChildren = allChildrenData.files || [];
+    console.log(`Found ${allChildren.length} items with Approach 1`);
+    console.log('All items:', JSON.stringify(allChildren, null, 2));
+
+    // Approach 2: Try searching by name pattern if we find too few
+    if (allChildren.length < 4) {
+      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
+      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
+      const nameSearchData = await driveApiCall(
+        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
         googleAccessToken
       );
-      console.log('Folder metadata:', folderMeta);
-      if (!folderMeta || !folderMeta.id) {
-        console.warn('Folder metadata missing or invalid, will attempt fallback search');
-      }
-    } catch (metaErr) {
-      console.warn('Failed to fetch folder metadata (may be shared drive or permission issue):', metaErr);
-    }
-
-    // Get ALL items with pagination support (supports items in shared drives)
-    const allChildren = [];
-    let pageToken = null;
-    let pageCount = 0;
-    
-    do {
-      pageCount++;
-      const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
-      if (pageToken) {
-        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
-      }
       
-      console.log(`Fetching page ${pageCount}...`);
-      const pageData = await driveApiCall(endpoint, googleAccessToken);
-      console.log(`API response: ${JSON.stringify(pageData)}`);
+      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
+      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
       
-      if (pageData.files && pageData.files.length > 0) {
-        allChildren.push(...pageData.files);
-        console.log(`  Page ${pageCount}: Found ${pageData.files.length} items (total: ${allChildren.length})`);
-      }
-      
-      pageToken = pageData.nextPageToken || null;
-    } while (pageToken);
-    
-    console.log(`Total items fetched: ${allChildren.length}`);
-    // If nothing found, try fallback: locate the folder by name and retry once
-    if (allChildren.length === 0) {
-      console.warn('Batch load: No items found under configured folder. Attempting fallback search...');
-      const foundFolder = await findTtsuFolder();
-      if (foundFolder && foundFolder !== folderId) {
-        console.log('Batch load fallback found folderId:', foundFolder, 'Updating and retrying');
-        localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolder);
-        folderId = foundFolder;
-
-        // Retry listing once with the new folderId
-        const retryChildren = [];
-        let retryPageToken = null;
-        do {
-          const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-          let retryEndpoint = `files?q=${q}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
-          if (retryPageToken) retryEndpoint += `&pageToken=${encodeURIComponent(retryPageToken)}`;
-          const retryPage = await driveApiCall(retryEndpoint, googleAccessToken);
-          if (retryPage.files && retryPage.files.length) retryChildren.push(...retryPage.files);
-          retryPageToken = retryPage.nextPageToken || null;
-        } while (retryPageToken);
-
-        if (retryChildren.length > 0) {
-          console.log('Batch load retry succeeded, found', retryChildren.length, 'items');
-          allChildren.push(...retryChildren);
-        } else {
-          console.warn('Batch load retry found no items either');
-        }
+      // Merge results
+      if (nameSearchData.files && nameSearchData.files.length > 0) {
+        const existingIds = new Set(allChildren.map(f => f.id));
+        nameSearchData.files.forEach(file => {
+          if (!existingIds.has(file.id)) {
+            allChildren.push(file);
+          }
+        });
       }
     }
 
-    // If nothing found, try fallback: locate the folder by name and retry once
-    if (allChildren.length === 0) {
-      console.warn('No items found under configured folder. Attempting fallback search...');
-      const foundFolder = await findTtsuFolder();
-      if (foundFolder && foundFolder !== folderId) {
-        console.log('Fallback found folderId:', foundFolder, 'Updating and retrying');
-        localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolder);
-        folderId = foundFolder;
-
-        // Retry listing once with the new folderId
-        const retryChildren = [];
-        let retryPageToken = null;
-        do {
-          const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-          let retryEndpoint = `files?q=${q}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
-          if (retryPageToken) retryEndpoint += `&pageToken=${encodeURIComponent(retryPageToken)}`;
-          const retryPage = await driveApiCall(retryEndpoint, googleAccessToken);
-          if (retryPage.files && retryPage.files.length) retryChildren.push(...retryPage.files);
-          retryPageToken = retryPage.nextPageToken || null;
-        } while (retryPageToken);
-
-        if (retryChildren.length > 0) {
-          console.log('Retry succeeded, found', retryChildren.length, 'items');
-          allChildren.push(...retryChildren);
-        } else {
-          console.warn('Retry found no items either');
-        }
-      }
-    }
+    console.log(`Total items after all approaches: ${allChildren.length}`);
 
     // Filter for folders
     const bookFolders = allChildren.filter(f => 
@@ -368,7 +308,7 @@ async function syncFromTtsuGDrive() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=1000`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
           googleAccessToken
         );
 
@@ -393,60 +333,63 @@ async function syncFromTtsuGDrive() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
+      ttsuData.forEach(session => {
+  if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+    return;
+  }
 
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
+  const date = session.dateKey;
+  const minutes = Math.round(session.readingTime / 60);
+  const characters = session.charactersRead || 0;
 
-          if (minutes === 0 && characters === 0) return;
+  if (minutes === 0 && characters === 0) return;
 
-          const title = session.title || bookFolder.name || 'Reading';
+  const title = session.title || bookFolder.name || 'Reading';
 
-          if (!Array.isArray(window.data)) {
-            window.data = [];
-          }
+  if (!Array.isArray(window.data)) {
+    window.data = [];
+  }
 
-          // FIXED: Check if there's ANY entry for this date+title combo
-          const existingIndex = window.data.findIndex(entry =>
-            entry.date === date && entry.title === title
-          );
+  // Check if EXACT same session already exists
+  const exactMatch = window.data.find(entry =>
+    entry.date === date && 
+    entry.title === title &&
+    entry.minutes === minutes &&
+    entry.characters === characters
+  );
 
-          const newEntry = {
-            date,
-            minutes,
-            characters,
-            title
-          };
+  if (exactMatch) {
+    // Skip - this exact session is already imported
+    console.log(`  Skipping duplicate: ${title} on ${date}`);
+    return;
+  }
 
-          if (existingIndex !== -1) {
-            const existing = window.data[existingIndex];
-            
-            // FIXED: Check if the data is actually different (not exact match)
-            const hasChanges = 
-              existing.minutes !== minutes || 
-              existing.characters !== characters;
-            
-            if (hasChanges) {
-              // Replace with ttsu data (ttsu is source of truth)
-              window.data[existingIndex] = newEntry;
-              totalImported++;
-              console.log(`  Updated: ${title} on ${date} (${existing.minutes}min → ${minutes}min)`);
-            } else {
-              console.log(`  No change: ${title} on ${date}`);
-            }
-          } else {
-            // New entry
-            window.data.push(newEntry);
-            totalImported++;
-            console.log(`  Added: ${title} on ${date}`);
-          }
-          
-          bookTitles.add(title);
-        });
+  // Check if there's a different session for same date+title
+  const existingIndex = window.data.findIndex(entry =>
+    entry.date === date && entry.title === title
+  );
+
+  const newEntry = {
+    date,
+    minutes,
+    characters,
+    title
+  };
+
+  if (existingIndex !== -1) {
+    // Replace existing with ttsu data (ttsu is source of truth)
+    window.data[existingIndex] = newEntry;
+    totalImported++;
+    console.log(`  Updated: ${title} on ${date}`);
+  } else {
+    // New entry
+    window.data.push(newEntry);
+    totalImported++;
+    console.log(`  Added: ${title} on ${date}`);
+  }
+  
+  bookTitles.add(title);
+});
 
         console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
       } catch (fileError) {
@@ -458,7 +401,7 @@ async function syncFromTtsuGDrive() {
     console.log(`Total sessions to import: ${totalImported}`);
     console.log(`Books: ${Array.from(bookTitles).join(', ')}`);
 
-    // 5) Check if there are actually any changes
+// 5) Check if there are actually any changes
     if (totalImported === 0) {
       console.log('No changes detected - data already up to date');
       localStorage.setItem('ttsu_last_sync', new Date().toISOString());
@@ -477,18 +420,18 @@ async function syncFromTtsuGDrive() {
     if (totalImported > 0) {
       const bookList = Array.from(bookTitles).join(', ');
 
-      const customConfirm = window.customConfirm || confirm;
-      const confirmed = await customConfirm(
-        `Found ${totalImported} new/changed reading session(s) from ttsu across ${bookFolders.length} book folder(s).\n\n` +
-        `Books: ${bookList}\n\n` +
-        `ttsu data will overwrite any manual changes. Apply these sessions to your heatmap?`,
-        'Import ttsu Data'
-      );
+    const customConfirm = window.customConfirm || confirm;
+    const confirmed = await customConfirm(
+      `Found ${totalImported} new/changed reading session(s) from ttsu across ${bookFolders.length} book folder(s).\n\n` +
+      `Books: ${bookList}\n\n` +
+      `ttsu data will overwrite any manual changes. Apply these sessions to your heatmap?`,
+      'Import ttsu Data'
+    );
 
-      if (!confirmed) {
-        console.log('User cancelled ttsu import');
-        return 0;
-      }
+    if (!confirmed) {
+      console.log('User cancelled ttsu import');
+      return 0;
+    }
 
       bookTitles.forEach(title => {
         if (title && !window.recentBooks.includes(title)) {
@@ -514,7 +457,7 @@ async function syncFromTtsuGDrive() {
       if (window.saveCloudState) {
         await window.saveCloudState();
       }
-      localStorage.setItem('ttsu_last_sync', new Date().toISOString());
+localStorage.setItem('ttsu_last_sync', new Date().toISOString());
       
       console.log(`✅ Synced ${totalImported} sessions from ttsu`);
     } else {
@@ -557,20 +500,20 @@ async function setupTtsuSync() {
       return;
     }
 
-    localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
-    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
+localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
+localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
 
-    // Run an initial sync right after setup
-    await syncFromTtsuGDrive();
+// Run an initial sync right after setup
+await syncFromTtsuGDrive();
 
-    // Only here: record the "last sync" time used for the 1‑hour cap
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+// Only here: record the "last sync" time used for the 1‑hour cap
+localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
 
-    startAutoSync();
+startAutoSync();
 
-    if (window.loadTtsuSyncStatus) {
-      window.loadTtsuSyncStatus();
-    }
+if (window.loadTtsuSyncStatus) {
+  window.loadTtsuSyncStatus();
+}
 
 
     const customAlert = window.customAlert || alert;
@@ -684,43 +627,42 @@ async function batchLoadAllTtsu() {
       }
     }
     
-    // Verify folder exists and log metadata
-    try {
-      const folderMeta = await driveApiCall(
-        `files/${folderId}?fields=id,name,mimeType,parents&supportsAllDrives=true`,
+    // Approach 1: Get everything with no filters
+    console.log('Approach 1: Fetching with minimal query...');
+    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+    const allChildrenData = await driveApiCall(
+      `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
+      googleAccessToken
+    );
+
+    let allChildren = allChildrenData.files || [];
+    console.log(`Found ${allChildren.length} items with Approach 1`);
+    console.log('All items:', JSON.stringify(allChildren, null, 2));
+
+    // Approach 2: Try searching by name pattern if we find too few
+    if (allChildren.length < 4) {
+      console.log('Approach 2: Searching for Re:, ほうかご, 三日間 folders...');
+      const nameQuery = encodeURIComponent(`(name contains 'Re:' or name contains 'ほうかご' or name contains '三日間') and trashed=false`);
+      const nameSearchData = await driveApiCall(
+        `files?q=${nameQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`,
         googleAccessToken
       );
-      console.log('Batch load - folder metadata:', folderMeta);
-    } catch (metaErr) {
-      console.warn('Batch load - failed to fetch folder metadata:', metaErr);
+      
+      console.log(`Found ${nameSearchData.files?.length || 0} items with name search`);
+      console.log('Name search results:', JSON.stringify(nameSearchData.files, null, 2));
+      
+      // Merge results
+      if (nameSearchData.files && nameSearchData.files.length > 0) {
+        const existingIds = new Set(allChildren.map(f => f.id));
+        nameSearchData.files.forEach(file => {
+          if (!existingIds.has(file.id)) {
+            allChildren.push(file);
+          }
+        });
+      }
     }
 
-    // Get ALL items with pagination support (supports shared drives)
-    const allChildren = [];
-    let pageToken = null;
-    let pageCount = 0;
-    
-    do {
-      pageCount++;
-      const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
-      if (pageToken) {
-        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
-      }
-      
-      console.log(`Fetching page ${pageCount}...`);
-      const pageData = await driveApiCall(endpoint, googleAccessToken);
-      console.log(`API response page ${pageCount}: ${JSON.stringify(pageData)}`);
-      
-      if (pageData.files && pageData.files.length > 0) {
-        allChildren.push(...pageData.files);
-        console.log(`  Page ${pageCount}: Found ${pageData.files.length} items (total: ${allChildren.length})`);
-      }
-      
-      pageToken = pageData.nextPageToken || null;
-    } while (pageToken);
-    
-    console.log(`Total items fetched: ${allChildren.length}`);
+    console.log(`Total items after all approaches: ${allChildren.length}`);
     
     // Filter for folders - handle ALL folder mimeType variations
     const bookFolders = allChildren.filter(f => 
@@ -756,7 +698,7 @@ async function batchLoadAllTtsu() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=1000`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
           googleAccessToken
         );
 
@@ -782,29 +724,29 @@ async function batchLoadAllTtsu() {
 
         console.log(`  Found ${ttsuData.length} sessions in file`);
 
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
-            return;
-          }
-          
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-          
-          if (minutes === 0 && characters === 0) return;
-          
-          const title = session.title || bookFolder.name || 'Reading';
-          
-          // For batch load, just add everything (we already cleared data)
-          window.data.push({
-            date,
-            minutes,
-            characters,
-            title
-          });
-          totalImported++;
-          bookTitles.add(title);
-        });
+      ttsuData.forEach(session => {
+  if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) {
+    return;
+  }
+  
+  const date = session.dateKey;
+  const minutes = Math.round(session.readingTime / 60);
+  const characters = session.charactersRead || 0;
+  
+  if (minutes === 0 && characters === 0) return;
+  
+  const title = session.title || bookFolder.name || 'Reading';
+  
+  // For batch load, just add everything (we already cleared data)
+  window.data.push({
+    date,
+    minutes,
+    characters,
+    title
+  });
+  totalImported++;
+  bookTitles.add(title);
+});
 
         console.log(`  ✅ Imported ${ttsuData.length} sessions from ${bookFolder.name}`);
 
