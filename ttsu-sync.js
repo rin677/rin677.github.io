@@ -24,7 +24,7 @@ function initGIS() {
   try {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com',
-      scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
+      scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
       // IMPORTANT: callback is set per request in ensureDriveToken()
       callback: () => {}
     });
@@ -288,18 +288,39 @@ async function syncFromTtsuGDrive() {
 
     // Get ALL children without any filtering
     console.log('\nStep 2: Fetching all children from ttu-reader-data folder...');
-    const query = `'${folderId}' in parents and trashed=false`;
-    console.log('Query:', query);
-    const allChildrenQuery = encodeURIComponent(query);
     
-    const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&fields=files(id,name,mimeType)&pageSize=1000`,
-      googleAccessToken
-    );
+    // FALLBACK APPROACH: Get ALL files in Drive and filter client-side
+    let allChildren = [];
+    
+    console.log('Attempting to list all files in Drive and filter...');
+    try {
+      const allFilesResponse = await driveApiCall(
+        `files?fields=files(id,name,mimeType,parents)&pageSize=1000`,
+        googleAccessToken
+      );
+      
+      const allFiles = allFilesResponse.files || [];
+      console.log(`Got ${allFiles.length} total files from Drive`);
+      
+      // Filter for files that have our folder as parent
+      allChildren = allFiles.filter(file => 
+        file.parents && file.parents.includes(folderId)
+      );
+      
+      console.log(`Filtered to ${allChildren.length} files with parent=${folderId}`);
+      
+      if (allChildren.length > 0) {
+        console.log('Found children:');
+        allChildren.forEach((child, idx) => {
+          console.log(`  [${idx + 1}] ${child.name} (${child.mimeType})`);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to list files:', err);
+      throw err;
+    }
 
-    console.log('Raw API response:', allChildrenData);
-    let allChildren = allChildrenData.files || [];
-    console.log(`Found ${allChildren.length} total items`);
+    console.log(`Final count: ${allChildren.length} total items`);
     
     // Log everything we found
     allChildren.forEach((item, idx) => {
