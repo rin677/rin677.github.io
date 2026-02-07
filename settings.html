@@ -988,7 +988,7 @@ async function exportToTogglWithRange() {
       // Format: User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount ()
       const csvRows = [];
       
-    csvRows.push('Email,Description,Start date,Start time,Duration,Project,Tags');
+     csvRows.push('Email,Start date,Start time,Duration,Description,Tags');
 
       filteredData.forEach(entry => {
         const description = (entry.title || 'Reading').replace(/,/g, ';'); // Replace commas to avoid CSV issues
@@ -1010,12 +1010,11 @@ async function exportToTogglWithRange() {
         const durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
         
         const row = [
-  '', // Email (empty - Toggl will use account email)
+  '', // Email (empty - will use importing user's email)
+  startDate, // Start date (YYYY-MM-DD format)
+  startTime, // Start time (HH:MM:SS format)
+  durationFormatted, // Duration (HH:MM:SS format)
   `"${description}"`, // Description
-  startDate, // Start date (YYYY-MM-DD)
-  startTime, // Start time (HH:MM:SS)
-  durationFormatted, // Duration (HH:MM:SS)
-  '', // Project (empty)
   'reading' // Tags
 ].join(',');
         
