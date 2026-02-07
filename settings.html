@@ -944,8 +944,124 @@ function initializeBackups() {
     }
   }
 
-async function exportToToggl() {
-    openTogglExportModal();
+async function exportToTogglWithRange() {
+    try {
+      const allData = getCurrentData();
+      const range = document.getElementById('togglExportRange').value;
+      let filteredData = [];
+      
+      if (range === 'all') {
+        filteredData = allData;
+      } else if (range === 'year') {
+        const year = parseInt(document.getElementById('togglYear').value);
+        filteredData = allData.filter(entry => {
+          const entryYear = new Date(entry.date).getFullYear();
+          return entryYear === year;
+        });
+      } else if (range === 'month') {
+        const year = parseInt(document.getElementById('togglMonthYear').value);
+        const month = parseInt(document.getElementById('togglMonth').value);
+        filteredData = allData.filter(entry => {
+          const entryDate = new Date(entry.date);
+          return entryDate.getFullYear() === year && (entryDate.getMonth() + 1) === month;
+        });
+      } else if (range === 'custom') {
+        const startDate = document.getElementById('togglStartDate').value;
+        const endDate = document.getElementById('togglEndDate').value;
+        
+        if (!startDate || !endDate) {
+          await customAlert('Please select both start and end dates.', 'Invalid Range');
+          return;
+        }
+        
+        filteredData = allData.filter(entry => {
+          return entry.date >= startDate && entry.date <= endDate;
+        });
+      }
+      
+      if (filteredData.length === 0) {
+        await customAlert('No data found for the selected period.', 'No Data');
+        return;
+      }
+      
+      // Create CSV for Toggl Track
+      // Format: User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount ()
+      const csvRows = [];
+      
+      // CSV Header (required by Toggl)
+      csvRows.push('User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount ()');
+      
+      filteredData.forEach(entry => {
+        const description = (entry.title || 'Reading').replace(/,/g, ';'); // Replace commas to avoid CSV issues
+        const startDate = entry.date; // YYYY-MM-DD format
+        const startTime = '09:00:00'; // Default start time
+        
+        // Calculate end time based on duration
+        const durationMinutes = entry.minutes || 0;
+        const hours = Math.floor(durationMinutes / 60);
+        const minutes = durationMinutes % 60;
+        
+        const startDateTime = new Date(`${startDate}T${startTime}`);
+        const endDateTime = new Date(startDateTime.getTime() + (durationMinutes * 60 * 1000));
+        
+        const endDate = endDateTime.toISOString().split('T')[0];
+        const endTime = endDateTime.toTimeString().split(' ')[0];
+        
+        // Format duration as HH:MM:SS
+        const durationFormatted = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+        
+        // Create CSV row
+        // User, Email, Client, Project, Task, Description, Billable, Start date, Start time, End date, End time, Duration, Tags, Amount
+        const row = [
+          '', // User (empty)
+          '', // Email (empty)
+          '', // Client (empty)
+          '', // Project (empty)
+          '', // Task (empty)
+          `"${description}"`, // Description (quoted to handle special characters)
+          'No', // Billable
+          startDate, // Start date
+          startTime, // Start time
+          endDate, // End date
+          endTime, // End time
+          durationFormatted, // Duration
+          'reading', // Tags
+          '' // Amount (empty)
+        ].join(',');
+        
+        csvRows.push(row);
+      });
+      
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Create filename based on range
+      let filename = 'reading-toggl-export';
+      if (range === 'year') {
+        filename += `-${document.getElementById('togglYear').value}`;
+      } else if (range === 'month') {
+        const year = document.getElementById('togglMonthYear').value;
+        const month = String(document.getElementById('togglMonth').value).padStart(2, '0');
+        filename += `-${year}-${month}`;
+      } else if (range === 'custom') {
+        const start = document.getElementById('togglStartDate').value;
+        const end = document.getElementById('togglEndDate').value;
+        filename += `-${start}_to_${end}`;
+      }
+      filename += '.csv';
+      
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      closeTogglExportModal();
+      await customAlert(`Exported ${filteredData.length} entries to Toggl CSV format!\n\nYou can now import this file to Toggl Track.`, 'Export Successful');
+    } catch (error) {
+      await customAlert('Failed to export: ' + error.message, 'Export Error');
+    }
   }
 
   function openTogglExportModal() {
