@@ -462,6 +462,10 @@
   <label class="form-label" style="display: block; margin-bottom: 4px; font-size: 13px;">Your Email (required by Toggl)</label>
   <input type="email" id="togglEmail" class="form-input" placeholder="your.email@example.com" required style="width: 100%;">
 </div>
+<div class="form-group" style="margin-bottom: 16px;">
+  <label class="form-label" style="display: block; margin-bottom: 4px; font-size: 13px;">Project Name (optional)</label>
+  <input type="text" id="togglProject" class="form-input" placeholder="e.g., Reading Log" style="width: 100%;">
+</div>
     <div class="form-group">
       <label class="form-label">Export Range</label>
       <select id="togglExportRange" class="form-input" onchange="toggleTogglDateInputs()">
@@ -950,7 +954,7 @@ function initializeBackups() {
 async function exportToTogglWithRange() {
     try {
       const email = document.getElementById('togglEmail').value.trim();
-      
+      const project = document.getElementById('togglProject').value.trim();
       if (!email) {
         await customAlert('Please enter your email address.', 'Email Required');
         return;
@@ -998,7 +1002,7 @@ async function exportToTogglWithRange() {
       // Format: User,Email,Client,Project,Task,Description,Billable,Start date,Start time,End date,End time,Duration,Tags,Amount ()
       const csvRows = [];
       
-     csvRows.push('Email,Start date,Start time,Duration,Description,Tags');
+     csvRows.push('Email,Description,Start date,Start time,Duration,Project');
 
       filteredData.forEach(entry => {
         const description = (entry.title || 'Reading').replace(/,/g, ';'); // Replace commas to avoid CSV issues
@@ -1021,11 +1025,11 @@ async function exportToTogglWithRange() {
         
 const row = [
   email, // Email (required by Toggl)
+  `"${description}"`, // Description
   startDate, // Start date (YYYY-MM-DD format)
   startTime, // Start time (HH:MM:SS format)
   durationFormatted, // Duration (HH:MM:SS format)
-  `"${description}"`, // Description
-  'reading' // Tags
+  project || '' // Project (optional)
 ].join(',');
         
         csvRows.push(row);
