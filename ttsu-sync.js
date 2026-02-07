@@ -350,21 +350,7 @@ async function syncFromTtsuGDrive() {
     window.data = [];
   }
 
-  // Check if EXACT same session already exists
-  const exactMatch = window.data.find(entry =>
-    entry.date === date && 
-    entry.title === title &&
-    entry.minutes === minutes &&
-    entry.characters === characters
-  );
-
-  if (exactMatch) {
-    // Skip - this exact session is already imported
-    console.log(`  Skipping duplicate: ${title} on ${date}`);
-    return;
-  }
-
-  // Check if there's a different session for same date+title
+  // Check if there's ANY entry for this date+title combo
   const existingIndex = window.data.findIndex(entry =>
     entry.date === date && entry.title === title
   );
@@ -377,10 +363,21 @@ async function syncFromTtsuGDrive() {
   };
 
   if (existingIndex !== -1) {
-    // Replace existing with ttsu data (ttsu is source of truth)
-    window.data[existingIndex] = newEntry;
-    totalImported++;
-    console.log(`  Updated: ${title} on ${date}`);
+    const existing = window.data[existingIndex];
+    
+    // Check if the data is actually different (not just exact match)
+    const hasChanges = 
+      existing.minutes !== minutes || 
+      existing.characters !== characters;
+    
+    if (hasChanges) {
+      // Replace with ttsu data (ttsu is source of truth)
+      window.data[existingIndex] = newEntry;
+      totalImported++;
+      console.log(`  Updated: ${title} on ${date} (${existing.minutes}min → ${minutes}min)`);
+    } else {
+      console.log(`  No change: ${title} on ${date}`);
+    }
   } else {
     // New entry
     window.data.push(newEntry);
