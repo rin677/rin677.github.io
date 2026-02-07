@@ -946,29 +946,6 @@ function initializeBackups() {
 
 async function exportToToggl() {
     openTogglExportModal();
-  }{
-    try {
-      const data = getCurrentData();
-      const togglData = data.map(entry => ({
-        description: entry.title || 'Reading',
-        start: `${entry.date}T00:00:00Z`,
-        duration: entry.minutes * 60,
-        tags: ['reading'],
-        created_with: 'Reading Heatmap'
-      }));
-      
-      const blob = new Blob([JSON.stringify(togglData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'reading-toggl-export.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      await customAlert('Exported to Toggl format! Import this file to Toggl Track.', 'Export Successful');
-    } catch (error) {
-      await customAlert('Failed to export: ' + error.message, 'Export Error');
-    }
   }
 
   function openTogglExportModal() {
