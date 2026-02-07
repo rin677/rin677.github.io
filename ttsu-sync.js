@@ -244,13 +244,14 @@ async function syncFromTtsuGDrive() {
     do {
       pageCount++;
       const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&pageSize=1000`;
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`;
       if (pageToken) {
-        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
+        endpoint += `&pageToken=${pageToken}`;
       }
       
       console.log(`Fetching page ${pageCount}...`);
       const pageData = await driveApiCall(endpoint, googleAccessToken);
+      console.log(`API response: ${JSON.stringify(pageData)}`);
       
       if (pageData.files && pageData.files.length > 0) {
         allChildren.push(...pageData.files);
@@ -295,7 +296,7 @@ async function syncFromTtsuGDrive() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&orderBy=modifiedTime+desc&pageSize=1000`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=1000`,
           googleAccessToken
         );
 
@@ -619,13 +620,14 @@ async function batchLoadAllTtsu() {
     do {
       pageCount++;
       const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&pageSize=1000`;
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`;
       if (pageToken) {
-        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
+        endpoint += `&pageToken=${pageToken}`;
       }
       
       console.log(`Fetching page ${pageCount}...`);
       const pageData = await driveApiCall(endpoint, googleAccessToken);
+      console.log(`API response page ${pageCount}: ${JSON.stringify(pageData)}`);
       
       if (pageData.files && pageData.files.length > 0) {
         allChildren.push(...pageData.files);
@@ -671,7 +673,7 @@ async function batchLoadAllTtsu() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&orderBy=modifiedTime+desc&pageSize=1000`,
+          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=1000`,
           googleAccessToken
         );
 
