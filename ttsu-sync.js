@@ -371,24 +371,19 @@ async function syncFromTtsuGDrive() {
 
           const title = session.title || bookFolder.name || 'Reading';
 
-          // Check if this exact session already exists
-          const exactMatch = window.data.find(entry =>
-            entry.date === date && 
-            entry.title === title &&
-            entry.minutes === minutes &&
-            entry.characters === characters
-          );
-
-          if (exactMatch) {
-            // Exact duplicate - skip completely (don't add to bookTitles)
-            return;
-          }
-
-          // Check if there's a session for same date+title with different data
+          // Check if there's a session for same date+title (regardless of values)
           const existingIndex = window.data.findIndex(entry =>
             entry.date === date && entry.title === title
           );
 
+          // If a session exists for this date+title, skip it entirely
+          // This prevents overwriting manual edits
+          if (existingIndex !== -1) {
+            // Session already exists - don't touch it
+            return;
+          }
+
+          // Only add truly new sessions (date+title combination doesn't exist)
           const newEntry = {
             date,
             minutes,
@@ -396,22 +391,9 @@ async function syncFromTtsuGDrive() {
             title
           };
 
-          if (existingIndex !== -1) {
-            // Check if the data actually differs
-            const existing = window.data[existingIndex];
-            if (existing.minutes !== minutes || existing.characters !== characters) {
-              // Only report as update if data actually changed
-              sessionsToUpdate.push({ index: existingIndex, entry: newEntry });
-              console.log(`  Will update: ${title} on ${date} (${existing.minutes}min → ${minutes}min, ${existing.characters}chars → ${characters}chars)`);
-              bookTitles.add(title);
-            }
-            // If data is identical, skip silently
-          } else {
-            // New session
-            sessionsToAdd.push(newEntry);
-            console.log(`  Will add: ${title} on ${date} (${minutes}min, ${characters}chars)`);
-            bookTitles.add(title);
-          }
+          sessionsToAdd.push(newEntry);
+          console.log(`  Will add: ${title} on ${date} (${minutes}min, ${characters}chars)`);
+          bookTitles.add(title);
         });
 
         console.log(`  ✅ Processed ${ttsuData.length} sessions from ${bookFolder.name}`);
