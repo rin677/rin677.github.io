@@ -294,13 +294,29 @@ async function syncFromTtsuGDrive() {
     
     console.log('Attempting to list all files in Drive and filter...');
     try {
-      const allFilesResponse = await driveApiCall(
-        `files?fields=files(id,name,mimeType,parents)&pageSize=1000`,
-        googleAccessToken
-      );
+      let allFiles = [];
+      let pageToken = null;
+      let pageCount = 0;
       
-      const allFiles = allFilesResponse.files || [];
-      console.log(`Got ${allFiles.length} total files from Drive`);
+      // Fetch all pages
+      do {
+        pageCount++;
+        console.log(`Fetching page ${pageCount}...`);
+        
+        let url = `files?fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000`;
+        if (pageToken) {
+          url += `&pageToken=${encodeURIComponent(pageToken)}`;
+        }
+        
+        const response = await driveApiCall(url, googleAccessToken);
+        const filesInPage = response.files || [];
+        allFiles = allFiles.concat(filesInPage);
+        pageToken = response.nextPageToken;
+        
+        console.log(`  Page ${pageCount}: ${filesInPage.length} files (total so far: ${allFiles.length})`);
+      } while (pageToken);
+      
+      console.log(`Got ${allFiles.length} total files from Drive across ${pageCount} page(s)`);
       
       // Filter for files that have our folder as parent
       allChildren = allFiles.filter(file => 
@@ -313,6 +329,12 @@ async function syncFromTtsuGDrive() {
         console.log('Found children:');
         allChildren.forEach((child, idx) => {
           console.log(`  [${idx + 1}] ${child.name} (${child.mimeType})`);
+        });
+      } else {
+        console.log('⚠️ No children found. Checking first few files for debugging:');
+        allFiles.slice(0, 10).forEach((file, idx) => {
+          console.log(`  [${idx + 1}] ${file.name}`);
+          console.log(`      Parents: ${file.parents ? file.parents.join(', ') : 'none'}`);
         });
       }
     } catch (err) {
@@ -672,14 +694,34 @@ async function batchLoadAllTtsu() {
     }
     
     // Get ALL children
-    const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-    const allChildrenData = await driveApiCall(
-      `files?q=${allChildrenQuery}&fields=files(id,name,mimeType)&pageSize=1000`,
-      googleAccessToken
+    let allFiles = [];
+    let pageToken = null;
+    let pageCount = 0;
+    
+    console.log('Fetching all files from Drive...');
+    do {
+      pageCount++;
+      console.log(`Fetching page ${pageCount}...`);
+      
+      let url = `files?fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000`;
+      if (pageToken) {
+        url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      }
+      
+      const response = await driveApiCall(url, googleAccessToken);
+      const filesInPage = response.files || [];
+      allFiles = allFiles.concat(filesInPage);
+      pageToken = response.nextPageToken;
+      
+      console.log(`  Page ${pageCount}: ${filesInPage.length} files`);
+    } while (pageToken);
+    
+    console.log(`Got ${allFiles.length} total files from Drive`);
+    
+    let allChildren = allFiles.filter(file => 
+      file.parents && file.parents.includes(folderId)
     );
-
-    let allChildren = allChildrenData.files || [];
-    console.log(`Found ${allChildren.length} total items`);
+    console.log(`Filtered to ${allChildren.length} items in ttu-reader-data folder`);
     
     // Filter for folders
     const bookFolders = allChildren.filter(f => 
