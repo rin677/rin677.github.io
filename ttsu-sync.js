@@ -235,8 +235,21 @@ async function syncFromTtsuGDrive() {
 
     console.log('=== STARTING TTSU SYNC ===');
     console.log('Fetching child items of ttu-reader-data root:', folderId);
+    // Verify folder exists and log metadata (helps debug permission/shared-drive issues)
+    try {
+      const folderMeta = await driveApiCall(
+        `files/${folderId}?fields=id,name,mimeType,parents&supportsAllDrives=true`,
+        googleAccessToken
+      );
+      console.log('Folder metadata:', folderMeta);
+      if (!folderMeta || !folderMeta.id) {
+        console.warn('Folder metadata missing or invalid, will attempt fallback search');
+      }
+    } catch (metaErr) {
+      console.warn('Failed to fetch folder metadata (may be shared drive or permission issue):', metaErr);
+    }
 
-    // Get ALL items with pagination support
+    // Get ALL items with pagination support (supports items in shared drives)
     const allChildren = [];
     let pageToken = null;
     let pageCount = 0;
@@ -244,9 +257,9 @@ async function syncFromTtsuGDrive() {
     do {
       pageCount++;
       const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`;
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
       if (pageToken) {
-        endpoint += `&pageToken=${pageToken}`;
+        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
       
       console.log(`Fetching page ${pageCount}...`);
@@ -262,6 +275,65 @@ async function syncFromTtsuGDrive() {
     } while (pageToken);
     
     console.log(`Total items fetched: ${allChildren.length}`);
+    // If nothing found, try fallback: locate the folder by name and retry once
+    if (allChildren.length === 0) {
+      console.warn('Batch load: No items found under configured folder. Attempting fallback search...');
+      const foundFolder = await findTtsuFolder();
+      if (foundFolder && foundFolder !== folderId) {
+        console.log('Batch load fallback found folderId:', foundFolder, 'Updating and retrying');
+        localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolder);
+        folderId = foundFolder;
+
+        // Retry listing once with the new folderId
+        const retryChildren = [];
+        let retryPageToken = null;
+        do {
+          const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+          let retryEndpoint = `files?q=${q}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+          if (retryPageToken) retryEndpoint += `&pageToken=${encodeURIComponent(retryPageToken)}`;
+          const retryPage = await driveApiCall(retryEndpoint, googleAccessToken);
+          if (retryPage.files && retryPage.files.length) retryChildren.push(...retryPage.files);
+          retryPageToken = retryPage.nextPageToken || null;
+        } while (retryPageToken);
+
+        if (retryChildren.length > 0) {
+          console.log('Batch load retry succeeded, found', retryChildren.length, 'items');
+          allChildren.push(...retryChildren);
+        } else {
+          console.warn('Batch load retry found no items either');
+        }
+      }
+    }
+
+    // If nothing found, try fallback: locate the folder by name and retry once
+    if (allChildren.length === 0) {
+      console.warn('No items found under configured folder. Attempting fallback search...');
+      const foundFolder = await findTtsuFolder();
+      if (foundFolder && foundFolder !== folderId) {
+        console.log('Fallback found folderId:', foundFolder, 'Updating and retrying');
+        localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolder);
+        folderId = foundFolder;
+
+        // Retry listing once with the new folderId
+        const retryChildren = [];
+        let retryPageToken = null;
+        do {
+          const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+          let retryEndpoint = `files?q=${q}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
+          if (retryPageToken) retryEndpoint += `&pageToken=${encodeURIComponent(retryPageToken)}`;
+          const retryPage = await driveApiCall(retryEndpoint, googleAccessToken);
+          if (retryPage.files && retryPage.files.length) retryChildren.push(...retryPage.files);
+          retryPageToken = retryPage.nextPageToken || null;
+        } while (retryPageToken);
+
+        if (retryChildren.length > 0) {
+          console.log('Retry succeeded, found', retryChildren.length, 'items');
+          allChildren.push(...retryChildren);
+        } else {
+          console.warn('Retry found no items either');
+        }
+      }
+    }
 
     // Filter for folders
     const bookFolders = allChildren.filter(f => 
@@ -612,7 +684,18 @@ async function batchLoadAllTtsu() {
       }
     }
     
-    // Get ALL items with pagination support
+    // Verify folder exists and log metadata
+    try {
+      const folderMeta = await driveApiCall(
+        `files/${folderId}?fields=id,name,mimeType,parents&supportsAllDrives=true`,
+        googleAccessToken
+      );
+      console.log('Batch load - folder metadata:', folderMeta);
+    } catch (metaErr) {
+      console.warn('Batch load - failed to fetch folder metadata:', metaErr);
+    }
+
+    // Get ALL items with pagination support (supports shared drives)
     const allChildren = [];
     let pageToken = null;
     let pageCount = 0;
@@ -620,9 +703,9 @@ async function batchLoadAllTtsu() {
     do {
       pageCount++;
       const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents)&pageSize=1000`;
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000&includeItemsFromAllDrives=true&supportsAllDrives=true`;
       if (pageToken) {
-        endpoint += `&pageToken=${pageToken}`;
+        endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
       
       console.log(`Fetching page ${pageCount}...`);
