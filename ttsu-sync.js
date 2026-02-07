@@ -987,3 +987,28 @@ window.batchLoadAllTtsu = batchLoadAllTtsu;
 window.disableTtsuSync = disableTtsuSync;
 window.checkTtsuSyncStatus = checkTtsuSyncStatus;
 window.startAutoSync = startAutoSync;
+
+// Provide a safe `loadTtsuSyncStatus` for pages that expect it (index.html)
+if (!window.loadTtsuSyncStatus) {
+  window.loadTtsuSyncStatus = function() {
+    try {
+      const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
+      const folderId = localStorage.getItem('ttsu_folder_id');
+      const lastSync = localStorage.getItem('ttsu_last_sync');
+      const statusText = enabled
+        ? (folderId ? (lastSync ? `Synced: ${new Date(lastSync).toLocaleString()}` : 'Configured') : 'Configured')
+        : 'Not configured';
+      const outer = document.getElementById('ttsuSyncStatus');
+      const span = document.getElementById('ttsuSyncStatusText');
+      if (span) {
+        span.textContent = statusText;
+        span.style.color = statusText.toLowerCase().startsWith('active') || statusText.toLowerCase().startsWith('synced') ? 'var(--accent-color)' : 'var(--text-secondary)';
+      }
+      if (outer && !span) {
+        outer.textContent = statusText;
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+}
