@@ -1183,12 +1183,16 @@ body.theme-ereader .log-btn:hover {
     <h1>読書</h1>
       <div class="header-actions">
     <div id="authSection"></div>
+    <button class="icon-btn" id="ttsuSyncBtn" onclick="quickTtsuSync()" title="ttsu Sync" style="position: relative;">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+  </svg>
+</button>
     <button class="icon-btn" onclick="toggleMenu()" title="Settings">⚙️</button>
   </div>
   <input type="file" id="fileInput" style="display: none;" accept=".json" onchange="loadData(event)">
   <input type="file" id="ttsuInput" style="display: none;" accept=".json" onchange="importTtsuData(event)">
 </header>
-
     <div class="controls">
       <button class="btn" onclick="changeYear(-1)">← Prev</button>
       <span class="year-display" id="yearDisplay">2026</span>
@@ -1595,6 +1599,26 @@ function closeTtsuSyncModal() {
       console.error('Auto backup failed:', error);
     }
   }
+}
+
+async function quickTtsuSync() {
+  const btn = document.getElementById('ttsuSyncBtn');
+  const svg = btn.querySelector('svg');
+  
+  // Add spinning animation
+  svg.style.transition = 'transform 0.6s ease-in-out';
+  svg.style.transform = 'rotate(360deg)';
+  
+  // Call the sync function
+  if (window.manualSyncTtsu && typeof window.manualSyncTtsu === 'function') {
+    await window.manualSyncTtsu();
+  }
+  
+  // Reset rotation
+  setTimeout(() => {
+    svg.style.transition = 'none';
+    svg.style.transform = 'rotate(0deg)';
+  }, 600);
 }
   
 window.onload = function() {
