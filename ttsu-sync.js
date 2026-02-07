@@ -244,7 +244,7 @@ async function syncFromTtsuGDrive() {
     do {
       pageCount++;
       const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000`;
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&pageSize=1000`;
       if (pageToken) {
         endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
@@ -295,7 +295,7 @@ async function syncFromTtsuGDrive() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc&pageSize=1000`,
+          `files?q=${statsQuery}&spaces=drive&orderBy=modifiedTime+desc&pageSize=1000`,
           googleAccessToken
         );
 
@@ -619,7 +619,7 @@ async function batchLoadAllTtsu() {
     do {
       pageCount++;
       const allChildrenQuery = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&fields=files(id,name,mimeType,parents),nextPageToken&pageSize=1000`;
+      let endpoint = `files?q=${allChildrenQuery}&spaces=drive&pageSize=1000`;
       if (pageToken) {
         endpoint += `&pageToken=${encodeURIComponent(pageToken)}`;
       }
@@ -671,7 +671,7 @@ async function batchLoadAllTtsu() {
           `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
         );
         const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc&pageSize=1000`,
+          `files?q=${statsQuery}&spaces=drive&orderBy=modifiedTime+desc&pageSize=1000`,
           googleAccessToken
         );
 
