@@ -8,6 +8,7 @@ let googleAccessToken = null;
 let tokenClient = null;
 let ttsuSyncInterval = null;
 
+// --- Initialize Google Identity Services safely ---
 function initGIS() {
   if (tokenClient) return true;
 
@@ -31,12 +32,9 @@ function initGIS() {
   }
 }
 
-// ALL Drive API calls include includeItemsFromAllDrives + supportsAllDrives
-// so folders stored in Workspace/shared drives are reachable
+// Direct REST API calls
 async function driveApiCall(endpoint, accessToken) {
-  const sep = endpoint.includes('?') ? '&' : '?';
-  const url = `https://www.googleapis.com/drive/v3/${endpoint}${sep}includeItemsFromAllDrives=true&supportsAllDrives=true`;
-  const response = await fetch(url, {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/${endpoint}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
       'Accept': 'application/json'
@@ -51,10 +49,8 @@ async function driveApiCall(endpoint, accessToken) {
 }
 
 async function driveDownloadFile(fileId, accessToken) {
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`
-    }
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` }
   });
 
   if (!response.ok) {
@@ -64,6 +60,7 @@ async function driveDownloadFile(fileId, accessToken) {
   return await response.text();
 }
 
+// --- Token management ---
 async function ensureDriveToken(options = { allowPrompt: false }) {
   if (!tokenClient) {
     const ok = initGIS();
@@ -80,10 +77,9 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
 
   if (storedToken && storedExpiry) {
     const expiryTime = parseInt(storedExpiry, 10);
-    const now = Date.now();
-    if (expiryTime > now + (5 * 60 * 1000)) {
+    if (expiryTime > Date.now() + (5 * 60 * 1000)) {
       googleAccessToken = storedToken;
-      console.log('Using stored valid token for ttsu sync');
+      console.log('Using stored valid token');
       return true;
     }
   }
@@ -93,15 +89,19 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
     return false;
   }
 
+  const saveToken = (resp) => {
+    googleAccessToken = resp.access_token;
+    const expiryTime = Date.now() + ((resp.expires_in || 3600) * 1000);
+    localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, resp.access_token);
+    localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
+  };
+
+  // Try silent refresh first
   try {
     await new Promise((resolve, reject) => {
       tokenClient.callback = (resp) => {
         if (resp && !resp.error && resp.access_token) {
-          googleAccessToken = resp.access_token;
-          const expiresIn = resp.expires_in || 3600;
-          const expiryTime = Date.now() + (expiresIn * 1000);
-          localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, resp.access_token);
-          localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
+          saveToken(resp);
           console.log('Silent token refresh OK');
           resolve();
         } else {
@@ -120,15 +120,12 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
       return false;
     }
 
+    // Interactive consent (setup path only)
     try {
       await new Promise((resolve, reject) => {
         tokenClient.callback = (resp) => {
           if (resp && !resp.error && resp.access_token) {
-            googleAccessToken = resp.access_token;
-            const expiresIn = resp.expires_in || 3600;
-            const expiryTime = Date.now() + (expiresIn * 1000);
-            localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, resp.access_token);
-            localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
+            saveToken(resp);
             console.log('Interactive Drive token obtained');
             resolve();
           } else {
@@ -152,10 +149,18 @@ async function ensureDriveToken(options = { allowPrompt: false }) {
   }
 }
 
+
+// --- UNIVERSAL folder finder: searches by name only, no hardcoded patterns ---
 async function findTtsuFolder() {
   try {
     console.log('Searching for ttu-reader-data folder...');
-    const data = await driveApiCall(`files?q=name%3D'ttu-reader-data'&fields=files(id,name)&spaces=drive`, googleAccessToken);
+
+    // Search for folder by name across all of Drive (works for any account)
+    const data = await driveApiCall(
+      `files?q=${encodeURIComponent("name='ttu-reader-data' and mimeType='application/vnd.google-apps.folder' and trashed=false")}&fields=files(id,name)&spaces=drive&pageSize=10`,
+      googleAccessToken
+    );
+
     console.log('Search results:', data);
 
     if (data.files && data.files.length > 0) {
@@ -163,12 +168,7 @@ async function findTtsuFolder() {
       return data.files[0].id;
     }
 
-    console.log('Not found. Listing all folders...');
-    const allFolders = await driveApiCall(
-      `files?q=mimeType%3D'application%2Fvnd.google-apps.folder'&fields=files(id,name)&spaces=drive&pageSize=100`,
-      googleAccessToken
-    );
-    console.log('All folders:', allFolders.files);
+    console.warn('ttu-reader-data folder not found in Drive.');
     return null;
   } catch (error) {
     console.error('Error finding ttsu folder:', error);
@@ -176,35 +176,95 @@ async function findTtsuFolder() {
   }
 }
 
-// Fetch all book folders whose parent is folderId.
-// Uses 'X in parents' query WITH includeItemsFromAllDrives so workspace/shared drive folders are found.
-async function getAllBookFolders(folderId) {
-  let allFolders = [];
-  console.log('Fetching book folders with parent:', folderId);
 
-  try {
-    let pageToken = null;
-    do {
-      const q = encodeURIComponent(`'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`);
-      let url = `files?q=${q}&spaces=drive&fields=nextPageToken,files(id,name,mimeType,parents)&pageSize=1000`;
-      if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+// --- UNIVERSAL book folder loader: paginates ALL direct children, no hardcoded names ---
+async function getBookFolders(folderId) {
+  const allFolders = [];
+  const seenIds = new Set();
 
-      const data = await driveApiCall(url, googleAccessToken);
-      if (data.files) {
-        allFolders.push(...data.files);
-        console.log(`  Page: ${data.files.length} folders (total: ${allFolders.length})`);
+  console.log(`Fetching all book folders from parent: ${folderId}`);
+
+  let pageToken = null;
+  let pageNum = 0;
+
+  do {
+    pageNum++;
+    const query = encodeURIComponent(
+      `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
+    );
+    let url = `files?q=${query}&spaces=drive&fields=nextPageToken,files(id,name,mimeType)&pageSize=1000`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+
+    const data = await driveApiCall(url, googleAccessToken);
+
+    if (data.files) {
+      for (const file of data.files) {
+        if (!seenIds.has(file.id)) {
+          seenIds.add(file.id);
+          allFolders.push(file);
+        }
       }
-      pageToken = data.nextPageToken || null;
-    } while (pageToken);
-  } catch (e) {
-    console.error('getAllBookFolders failed:', e);
-  }
+      console.log(`  Page ${pageNum}: ${data.files.length} folders (running total: ${allFolders.length})`);
+    }
 
-  console.log(`Total book folders found: ${allFolders.length}`);
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+
+  console.log(`Total unique book folders found: ${allFolders.length}`);
   allFolders.forEach(f => console.log(`  - ${f.name} (${f.id})`));
+
   return allFolders;
 }
 
+
+// --- Process a book folder's statistics file into session entries ---
+async function extractSessionsFromFolder(bookFolder) {
+  const statsQuery = encodeURIComponent(
+    `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
+  );
+  const statsData = await driveApiCall(
+    `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=10`,
+    googleAccessToken
+  );
+
+  const files = statsData.files || [];
+  if (files.length === 0) {
+    console.log(`  ⚠️ No statistics file in "${bookFolder.name}"`);
+    return [];
+  }
+
+  const file = files[0];
+  console.log(`  Using: ${file.name}`);
+
+  const fileContent = await driveDownloadFile(file.id, googleAccessToken);
+  const ttsuData = JSON.parse(fileContent);
+
+  if (!Array.isArray(ttsuData)) {
+    console.log(`  ⚠️ Statistics file is not an array, skipping`);
+    return [];
+  }
+
+  const sessions = [];
+
+  for (const session of ttsuData) {
+    if (!session.dateKey) continue;
+    const minutes = Math.round((session.readingTime || 0) / 60);
+    const characters = session.charactersRead || 0;
+    if (minutes === 0 && characters === 0) continue;
+
+    sessions.push({
+      date: session.dateKey,
+      minutes,
+      characters,
+      title: session.title || bookFolder.name || 'Reading'
+    });
+  }
+
+  return sessions;
+}
+
+
+// --- Main incremental sync (skips existing date+title pairs) ---
 async function syncFromTtsuGDrive() {
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -212,26 +272,19 @@ async function syncFromTtsuGDrive() {
     if (!googleAccessToken) throw new Error('Not authenticated. Please run setup first.');
 
     if (!Array.isArray(window.data)) {
-      try {
-        const stored = localStorage.getItem('reading_heatmap_data');
-        window.data = stored ? JSON.parse(stored) : [];
-      } catch (e) { window.data = []; }
+      try { window.data = JSON.parse(localStorage.getItem('reading_heatmap_data')) || []; }
+      catch (e) { window.data = []; }
     }
-
     if (!Array.isArray(window.recentBooks)) {
-      try {
-        const storedBooks = localStorage.getItem('reading_heatmap_books');
-        window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
-      } catch (e) { window.recentBooks = []; }
+      try { window.recentBooks = JSON.parse(localStorage.getItem('reading_heatmap_books')) || []; }
+      catch (e) { window.recentBooks = []; }
     }
 
     console.log('=== STARTING TTSU SYNC ===');
-    console.log('Fetching child items of ttu-reader-data root:', folderId);
 
-    const allFolders = await getAllBookFolders(folderId);
+    const allFolders = await getBookFolders(folderId);
 
     if (allFolders.length === 0) {
-      console.error('❌ NO BOOK FOLDERS FOUND!');
       const customAlert = window.customAlert || alert;
       await customAlert(
         'No book folders found in ttsu Google Drive.\n\nMake sure ttsu has synced data to Drive.',
@@ -241,86 +294,36 @@ async function syncFromTtsuGDrive() {
     }
 
     const sessionsToAdd = [];
-    const sessionsToUpdate = [];
     const bookTitles = new Set();
 
     for (const bookFolder of allFolders) {
       try {
         console.log(`\n📚 Processing: ${bookFolder.name}`);
+        const sessions = await extractSessionsFromFolder(bookFolder);
+        console.log(`  Found ${sessions.length} sessions`);
 
-        const statsQuery = encodeURIComponent(
-          `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
-        );
-        const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=10`,
-          googleAccessToken
-        );
-
-        const files = statsData.files || [];
-        console.log(`  Found ${files.length} statistics file(s)`);
-
-        if (files.length === 0) {
-          console.log(`  ⚠️ No statistics file in ${bookFolder.name}`);
-          continue;
+        for (const entry of sessions) {
+          // Skip if this date+title already exists (preserves manual edits)
+          const exists = window.data.some(e => e.date === entry.date && e.title === entry.title);
+          if (!exists) {
+            sessionsToAdd.push(entry);
+            bookTitles.add(entry.title);
+            console.log(`  Will add: ${entry.title} on ${entry.date} (${entry.minutes}min, ${entry.characters}chars)`);
+          }
         }
-
-        const file = files[0];
-        console.log(`  Processing: ${file.name}`);
-
-        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-        const ttsuData = JSON.parse(fileContent);
-
-        if (!Array.isArray(ttsuData)) {
-          console.log(`  ⚠️ Statistics file is not an array, skipping`);
-          continue;
-        }
-
-        console.log(`  Found ${ttsuData.length} sessions in file`);
-
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) return;
-
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-
-          if (minutes === 0 && characters === 0) return;
-
-          const title = session.title || bookFolder.name || 'Reading';
-
-          const existingIndex = window.data.findIndex(entry =>
-            entry.date === date && entry.title === title
-          );
-
-          if (existingIndex !== -1) return;
-
-          sessionsToAdd.push({ date, minutes, characters, title });
-          bookTitles.add(title);
-        });
-
-        console.log(`  ✅ Processed sessions from ${bookFolder.name}`);
-      } catch (fileError) {
-        console.error(`  ❌ Error processing ${bookFolder.name}:`, fileError);
+      } catch (err) {
+        console.error(`  ❌ Error processing "${bookFolder.name}":`, err);
       }
     }
 
-    const totalNewSessions = sessionsToAdd.length;
-    const totalUpdatedSessions = sessionsToUpdate.length;
-    const totalChanges = totalNewSessions + totalUpdatedSessions;
-
     console.log(`\n=== SYNC SUMMARY ===`);
-    console.log(`New sessions: ${totalNewSessions}`);
-    console.log(`Updated sessions: ${totalUpdatedSessions}`);
-    console.log(`Total changes: ${totalChanges}`);
-    console.log(`Books: ${Array.from(bookTitles).join(', ')}`);
+    console.log(`New sessions to add: ${sessionsToAdd.length}`);
 
-    if (totalChanges === 0) {
-      console.log('No changes detected - data already up to date');
+    if (sessionsToAdd.length === 0) {
       localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
       const customAlert = window.customAlert || alert;
       await customAlert(
-        '✅ Already up to date!\n\n' +
-        `Checked ${allFolders.length} book folder(s) - no new data to import.`,
+        `✅ Already up to date!\n\nChecked ${allFolders.length} book folder(s) — no new data to import.`,
         'Already Synced'
       );
       return 0;
@@ -329,11 +332,8 @@ async function syncFromTtsuGDrive() {
     const bookList = Array.from(bookTitles).join(', ');
     const customConfirm = window.customConfirm || confirm;
     const confirmed = await customConfirm(
-      `Found ${totalChanges} change(s) from ttsu:\n` +
-      `  • ${totalNewSessions} new sessions\n` +
-      `  • ${totalUpdatedSessions} updated sessions\n\n` +
-      `Books: ${bookList}\n\n` +
-      `ttsu data will overwrite any manual changes. Apply these changes?`,
+      `Found ${sessionsToAdd.length} new session(s) from ttsu:\n\n` +
+      `Books: ${bookList}\n\nApply these changes?`,
       'Import ttsu Data'
     );
 
@@ -342,13 +342,10 @@ async function syncFromTtsuGDrive() {
       return 0;
     }
 
-    sessionsToUpdate.forEach(({ index, entry }) => { window.data[index] = entry; });
     window.data.push(...sessionsToAdd);
 
     bookTitles.forEach(title => {
-      if (title && !window.recentBooks.includes(title)) {
-        window.recentBooks.unshift(title);
-      }
+      if (title && !window.recentBooks.includes(title)) window.recentBooks.unshift(title);
     });
     window.recentBooks = window.recentBooks.slice(0, 10);
 
@@ -364,18 +361,15 @@ async function syncFromTtsuGDrive() {
     if (window.renderGoals) window.renderGoals();
     if (window.saveCloudState) await window.saveCloudState();
 
-    console.log(`✅ Successfully synced ${totalChanges} changes from ttsu`);
+    console.log(`✅ Synced ${sessionsToAdd.length} new sessions`);
 
     const customAlert = window.customAlert || alert;
     await customAlert(
-      `✅ Sync complete!\n\n` +
-      `New sessions: ${totalNewSessions}\n` +
-      `Updated sessions: ${totalUpdatedSessions}\n` +
-      `Books: ${bookList}`,
+      `✅ Sync complete!\n\nNew sessions imported: ${sessionsToAdd.length}\nBooks: ${bookList}`,
       'Sync Successful'
     );
 
-    return totalChanges;
+    return sessionsToAdd.length;
 
   } catch (error) {
     console.error('❌ SYNC ERROR:', error);
@@ -383,6 +377,8 @@ async function syncFromTtsuGDrive() {
   }
 }
 
+
+// --- Setup ---
 async function setupTtsuSync() {
   try {
     let attempts = 0;
@@ -398,7 +394,10 @@ async function setupTtsuSync() {
     const folderId = await findTtsuFolder();
     if (!folderId) {
       const customAlert = window.customAlert || alert;
-      await customAlert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!', 'Folder Not Found');
+      await customAlert(
+        'Could not find the "ttu-reader-data" folder in your Google Drive.\n\nMake sure ttsu has exported data first!',
+        'Folder Not Found'
+      );
       return;
     }
 
@@ -423,6 +422,8 @@ async function setupTtsuSync() {
   }
 }
 
+
+// --- Manual sync ---
 async function manualSyncTtsu() {
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -444,8 +445,10 @@ async function manualSyncTtsu() {
     const count = await syncFromTtsuGDrive();
     const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
     const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
+
     const customAlert = window.customAlert || alert;
     await customAlert(`✅ Sync complete!\n\nNew sessions imported: ${count || 0}\nLast sync: ${lastSyncStr}`, 'Sync Complete');
+
     if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
   } catch (error) {
     const customAlert = window.customAlert || alert;
@@ -453,6 +456,8 @@ async function manualSyncTtsu() {
   }
 }
 
+
+// --- Batch load (overwrites all existing data) ---
 async function batchLoadAllTtsu() {
   const customConfirm = window.customConfirm || confirm;
   const customAlert = window.customAlert || alert;
@@ -476,13 +481,12 @@ async function batchLoadAllTtsu() {
       const hasToken = await ensureDriveToken({ allowPrompt: true });
       if (!hasToken) throw new Error('Authorization failed. Please try again.');
 
-      const foundFolderId = await findTtsuFolder();
-      if (!foundFolderId) {
-        await customAlert('Could not find ttsu data folder in Google Drive.\n\nMake sure ttsu has exported data first!', 'Folder Not Found');
+      folderId = await findTtsuFolder();
+      if (!folderId) {
+        await customAlert('Could not find the "ttu-reader-data" folder in your Google Drive.\n\nMake sure ttsu has exported data first!', 'Folder Not Found');
         return;
       }
-      localStorage.setItem(TTSU_FOLDER_ID_KEY, foundFolderId);
-      folderId = foundFolderId;
+      localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
     } else {
       const hasToken = await ensureDriveToken({ allowPrompt: false });
       if (!hasToken) {
@@ -493,20 +497,18 @@ async function batchLoadAllTtsu() {
 
     console.log('=== STARTING BATCH LOAD ===');
 
+    // Clear existing data
     window.data = [];
     if (typeof data !== 'undefined') data = [];
 
     if (!Array.isArray(window.recentBooks)) {
-      try {
-        const storedBooks = localStorage.getItem('reading_heatmap_books');
-        window.recentBooks = storedBooks ? JSON.parse(storedBooks) : [];
-      } catch (e) { window.recentBooks = []; }
+      try { window.recentBooks = JSON.parse(localStorage.getItem('reading_heatmap_books')) || []; }
+      catch (e) { window.recentBooks = []; }
     }
 
-    const allFolders = await getAllBookFolders(folderId);
+    const allFolders = await getBookFolders(folderId);
 
     if (allFolders.length === 0) {
-      console.error('❌ NO BOOK FOLDERS FOUND!');
       await customAlert('No book folders found in ttsu Google Drive.', 'No Data Found');
       return;
     }
@@ -517,61 +519,23 @@ async function batchLoadAllTtsu() {
     for (const bookFolder of allFolders) {
       try {
         console.log(`\n📚 Processing: ${bookFolder.name}`);
+        const sessions = await extractSessionsFromFolder(bookFolder);
+        console.log(`  Found ${sessions.length} sessions`);
 
-        const statsQuery = encodeURIComponent(
-          `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
-        );
-        const statsData = await driveApiCall(
-          `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime,mimeType)&orderBy=modifiedTime desc`,
-          googleAccessToken
-        );
-
-        const files = statsData.files || [];
-        console.log(`  Found ${files.length} statistics file(s)`);
-
-        if (files.length === 0) {
-          console.log(`  ⚠️ No statistics file in ${bookFolder.name}`);
-          continue;
-        }
-
-        const file = files[0];
-        console.log(`  Processing: ${file.name}`);
-
-        const fileContent = await driveDownloadFile(file.id, googleAccessToken);
-        const ttsuData = JSON.parse(fileContent);
-
-        if (!Array.isArray(ttsuData)) {
-          console.log(`  ⚠️ Statistics file is not an array, skipping`);
-          continue;
-        }
-
-        console.log(`  Found ${ttsuData.length} sessions in file`);
-
-        ttsuData.forEach(session => {
-          if (!session.dateKey || (session.charactersRead === 0 && session.readingTime === 0)) return;
-
-          const date = session.dateKey;
-          const minutes = Math.round(session.readingTime / 60);
-          const characters = session.charactersRead || 0;
-
-          if (minutes === 0 && characters === 0) return;
-
-          const title = session.title || bookFolder.name || 'Reading';
-
-          window.data.push({ date, minutes, characters, title });
+        for (const entry of sessions) {
+          window.data.push(entry);
+          bookTitles.add(entry.title);
           totalImported++;
-          bookTitles.add(title);
-        });
+        }
 
-        console.log(`  ✅ Imported sessions from ${bookFolder.name}`);
-      } catch (fileError) {
-        console.error(`  ❌ Error processing ${bookFolder.name}:`, fileError);
+        console.log(`  ✅ Imported ${sessions.length} sessions from "${bookFolder.name}"`);
+      } catch (err) {
+        console.error(`  ❌ Error processing "${bookFolder.name}":`, err);
       }
     }
 
     console.log(`\n=== BATCH LOAD SUMMARY ===`);
     console.log(`Total sessions imported: ${totalImported}`);
-    console.log(`Books: ${Array.from(bookTitles).join(', ')}`);
 
     if (totalImported === 0) {
       await customAlert('No reading data found in ttsu Google Drive.', 'No Data Found');
@@ -579,9 +543,7 @@ async function batchLoadAllTtsu() {
     }
 
     bookTitles.forEach(title => {
-      if (title && !window.recentBooks.includes(title)) {
-        window.recentBooks.unshift(title);
-      }
+      if (title && !window.recentBooks.includes(title)) window.recentBooks.unshift(title);
     });
     window.recentBooks = window.recentBooks.slice(0, 10);
 
@@ -596,7 +558,7 @@ async function batchLoadAllTtsu() {
     if (window.renderGoals) window.renderGoals();
     if (window.saveCloudState) await window.saveCloudState();
 
-    console.log(`✅ Batch loaded ${totalImported} sessions from ttsu`);
+    console.log(`✅ Batch loaded ${totalImported} sessions`);
 
     const bookList = Array.from(bookTitles).slice(0, 10).join(', ');
     const moreBooks = bookTitles.size > 10 ? `\n...and ${bookTitles.size - 10} more books` : '';
@@ -618,13 +580,14 @@ async function batchLoadAllTtsu() {
   }
 }
 
+
+// --- Auto-sync timer ---
 function startAutoSync() {
   if (ttsuSyncInterval) clearInterval(ttsuSyncInterval);
 
   ttsuSyncInterval = setInterval(async () => {
     try {
-      const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-      if (enabled) {
+      if (localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true') {
         console.log('Auto-syncing from ttsu...');
         await syncFromTtsuGDrive();
       }
@@ -634,6 +597,8 @@ function startAutoSync() {
   }, 5 * 60 * 1000);
 }
 
+
+// --- Disable sync ---
 function disableTtsuSync() {
   const customConfirm = window.customConfirm || confirm;
   const customAlert = window.customAlert || alert;
@@ -653,9 +618,12 @@ function disableTtsuSync() {
   googleAccessToken = null;
 
   customAlert('ttsu sync has been disabled.', 'Sync Disabled');
+
   if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
 }
 
+
+// --- Status check ---
 function checkTtsuSyncStatus() {
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -664,15 +632,15 @@ function checkTtsuSyncStatus() {
   if (!enabled || !folderId) return 'Not configured';
   if (!lastSync) return 'Configured (not synced yet)';
 
-  const lastSyncDate = new Date(lastSync);
-  const now = new Date();
-  const diffMinutes = Math.floor((now - lastSyncDate) / 1000 / 60);
+  const diffMinutes = Math.floor((Date.now() - new Date(lastSync)) / 1000 / 60);
 
   if (diffMinutes < 1) return 'Active (just synced)';
   if (diffMinutes < 60) return `Active (synced ${diffMinutes} min ago)`;
   return `Active (synced ${Math.floor(diffMinutes / 60)}h ago)`;
 }
 
+
+// --- Auto-init on settings page ---
 setTimeout(async () => {
   const path = (window.location && window.location.pathname) || '';
   const onSettingsPage =
@@ -695,12 +663,15 @@ setTimeout(async () => {
   }
 }, 1000);
 
+
+// --- Exports ---
 window.initGIS = initGIS;
 window.ensureDriveToken = ensureDriveToken;
 window.driveApiCall = driveApiCall;
 window.driveDownloadFile = driveDownloadFile;
 window.findTtsuFolder = findTtsuFolder;
-window.getAllBookFolders = getAllBookFolders;
+window.getBookFolders = getBookFolders;
+window.extractSessionsFromFolder = extractSessionsFromFolder;
 window.syncFromTtsuGDrive = syncFromTtsuGDrive;
 window.setupTtsuSync = setupTtsuSync;
 window.manualSyncTtsu = manualSyncTtsu;
@@ -710,7 +681,7 @@ window.checkTtsuSyncStatus = checkTtsuSyncStatus;
 window.startAutoSync = startAutoSync;
 
 if (!window.loadTtsuSyncStatus) {
-  window.loadTtsuSyncStatus = function() {
+  window.loadTtsuSyncStatus = function () {
     try {
       const enabled = localStorage.getItem('ttsu_sync_enabled') === 'true';
       const folderId = localStorage.getItem('ttsu_folder_id');
@@ -718,14 +689,15 @@ if (!window.loadTtsuSyncStatus) {
       const statusText = enabled
         ? (folderId ? (lastSync ? `Synced: ${new Date(lastSync).toLocaleString()}` : 'Configured') : 'Configured')
         : 'Not configured';
-      const outer = document.getElementById('ttsuSyncStatus');
       const span = document.getElementById('ttsuSyncStatusText');
+      const outer = document.getElementById('ttsuSyncStatus');
       if (span) {
         span.textContent = statusText;
-        span.style.color = (statusText.toLowerCase().startsWith('active') || statusText.toLowerCase().startsWith('synced'))
+        span.style.color = statusText.toLowerCase().startsWith('active') || statusText.toLowerCase().startsWith('synced')
           ? 'var(--accent-color)' : 'var(--text-secondary)';
+      } else if (outer) {
+        outer.textContent = statusText;
       }
-      if (outer && !span) outer.textContent = statusText;
     } catch (e) { /* ignore */ }
   };
 }
