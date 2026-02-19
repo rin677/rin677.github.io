@@ -157,7 +157,7 @@ async function findTtsuFolder() {
 
     // Search for folder by name across all of Drive (works for any account, including Shared Drives)
     const data = await driveApiCall(
-      `files?q=${encodeURIComponent("name='ttu-reader-data' and mimeType='application/vnd.google-apps.folder' and trashed=false")}&fields=files(id,name)&spaces=drive&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+      `files?q=${encodeURIComponent("name='ttu-reader-data' and mimeType='application/vnd.google-apps.folder' and trashed=false")}&fields=files(id,name)&spaces=drive&corpora=allDrives&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
       googleAccessToken
     );
 
@@ -192,7 +192,7 @@ async function getBookFolders(folderId) {
     const query = encodeURIComponent(
       `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
     );
-    let url = `files?q=${query}&spaces=drive&fields=nextPageToken,files(id,name,mimeType)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+    let url = `files?q=${query}&spaces=drive&corpora=allDrives&fields=nextPageToken,files(id,name,mimeType)&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true`;
     if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
 
     const data = await driveApiCall(url, googleAccessToken);
@@ -223,7 +223,7 @@ async function extractSessionsFromFolder(bookFolder) {
     `'${bookFolder.id}' in parents and name contains 'statistics_' and trashed=false`
   );
   const statsData = await driveApiCall(
-    `files?q=${statsQuery}&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    `files?q=${statsQuery}&spaces=drive&corpora=allDrives&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     googleAccessToken
   );
 
@@ -282,7 +282,21 @@ async function syncFromTtsuGDrive() {
 
     console.log('=== STARTING TTSU SYNC ===');
 
-    const allFolders = await getBookFolders(folderId);
+    let allFolders = [];
+    try {
+      allFolders = await getBookFolders(folderId);
+    } catch (folderErr) {
+      // Likely a stale cached folder ID — wipe it and try to re-discover
+      console.warn('getBookFolders failed (possibly stale folder ID), attempting re-discovery...', folderErr);
+      localStorage.removeItem(TTSU_FOLDER_ID_KEY);
+
+      const newFolderId = await findTtsuFolder();
+      if (!newFolderId) {
+        throw new Error('Could not find "ttu-reader-data" folder in Google Drive. Make sure ttsu has synced data.');
+      }
+      localStorage.setItem(TTSU_FOLDER_ID_KEY, newFolderId);
+      allFolders = await getBookFolders(newFolderId);
+    }
 
     if (allFolders.length === 0) {
       const customAlert = window.customAlert || alert;
