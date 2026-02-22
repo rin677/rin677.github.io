@@ -263,8 +263,6 @@ async function extractSessionsFromFolder(bookFolder) {
   return sessions;
 }
 
-
-// --- Main incremental sync (skips existing date+title pairs) ---
 async function syncFromTtsuGDrive() {
   try {
     const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -286,7 +284,6 @@ async function syncFromTtsuGDrive() {
     try {
       allFolders = await getBookFolders(folderId);
     } catch (folderErr) {
-      // Likely a stale cached folder ID — wipe it and try to re-discover
       console.warn('getBookFolders failed (possibly stale folder ID), attempting re-discovery...', folderErr);
       localStorage.removeItem(TTSU_FOLDER_ID_KEY);
 
@@ -307,7 +304,8 @@ async function syncFromTtsuGDrive() {
       return 0;
     }
 
-    const sessionsToAdd = [];
+    const sessionsToAdd = [];    // brand new date+title combos
+    const sessionsToUpdate = []; // existing date+title with changed values
     const bookTitles = new Set();
 
     for (const bookFolder of allFolders) {
@@ -317,12 +315,23 @@ async function syncFromTtsuGDrive() {
         console.log(`  Found ${sessions.length} sessions`);
 
         for (const entry of sessions) {
-          // Skip if this date+title already exists (preserves manual edits)
-          const exists = window.data.some(e => e.date === entry.date && e.title === entry.title);
-          if (!exists) {
+          const existingIndex = window.data.findIndex(
+            e => e.date === entry.date && e.title === entry.title
+          );
+
+          if (existingIndex === -1) {
+            // New entry
             sessionsToAdd.push(entry);
             bookTitles.add(entry.title);
             console.log(`  Will add: ${entry.title} on ${entry.date} (${entry.minutes}min, ${entry.characters}chars)`);
+          } else {
+            const existing = window.data[existingIndex];
+            // Update if values differ
+            if (existing.minutes !== entry.minutes || existing.characters !== entry.characters) {
+              sessionsToUpdate.push({ index: existingIndex, entry });
+              bookTitles.add(entry.title);
+              console.log(`  Will update: ${entry.title} on ${entry.date} (${existing.minutes}→${entry.minutes}min, ${existing.characters}→${entry.characters}chars)`);
+            }
           }
         }
       } catch (err) {
@@ -331,13 +340,13 @@ async function syncFromTtsuGDrive() {
     }
 
     console.log(`\n=== SYNC SUMMARY ===`);
-    console.log(`New sessions to add: ${sessionsToAdd.length}`);
+    console.log(`New sessions: ${sessionsToAdd.length}, Updated sessions: ${sessionsToUpdate.length}`);
 
-    if (sessionsToAdd.length === 0) {
+    if (sessionsToAdd.length === 0 && sessionsToUpdate.length === 0) {
       localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
       const customAlert = window.customAlert || alert;
       await customAlert(
-        `✅ Already up to date!\n\nChecked ${allFolders.length} book folder(s) — no new data to import.`,
+        `✅ Already up to date!\n\nChecked ${allFolders.length} book folder(s) — no new or changed data.`,
         'Already Synced'
       );
       return 0;
@@ -345,9 +354,12 @@ async function syncFromTtsuGDrive() {
 
     const bookList = Array.from(bookTitles).join(', ');
     const customConfirm = window.customConfirm || confirm;
+    const summaryParts = [];
+    if (sessionsToAdd.length > 0) summaryParts.push(`${sessionsToAdd.length} new session(s)`);
+    if (sessionsToUpdate.length > 0) summaryParts.push(`${sessionsToUpdate.length} updated session(s)`);
+
     const confirmed = await customConfirm(
-      `Found ${sessionsToAdd.length} new session(s) from ttsu:\n\n` +
-      `Books: ${bookList}\n\nApply these changes?`,
+      `Found ${summaryParts.join(' and ')} from ttsu:\n\nBooks: ${bookList}\n\nApply these changes?`,
       'Import ttsu Data'
     );
 
@@ -356,6 +368,13 @@ async function syncFromTtsuGDrive() {
       return 0;
     }
 
+    // Apply updates in-place
+    for (const { index, entry } of sessionsToUpdate) {
+      window.data[index].minutes = entry.minutes;
+      window.data[index].characters = entry.characters;
+    }
+
+    // Append new entries
     window.data.push(...sessionsToAdd);
 
     bookTitles.forEach(title => {
@@ -375,22 +394,22 @@ async function syncFromTtsuGDrive() {
     if (window.renderGoals) window.renderGoals();
     if (window.saveCloudState) await window.saveCloudState();
 
-    console.log(`✅ Synced ${sessionsToAdd.length} new sessions`);
+    const totalChanged = sessionsToAdd.length + sessionsToUpdate.length;
+    console.log(`✅ Synced ${totalChanged} sessions`);
 
     const customAlert = window.customAlert || alert;
     await customAlert(
-      `✅ Sync complete!\n\nNew sessions imported: ${sessionsToAdd.length}\nBooks: ${bookList}`,
+      `✅ Sync complete!\n\nNew: ${sessionsToAdd.length}  Updated: ${sessionsToUpdate.length}\nBooks: ${bookList}`,
       'Sync Successful'
     );
 
-    return sessionsToAdd.length;
+    return totalChanged;
 
   } catch (error) {
     console.error('❌ SYNC ERROR:', error);
     throw error;
   }
 }
-
 
 // --- Setup ---
 async function setupTtsuSync() {
@@ -436,8 +455,6 @@ async function setupTtsuSync() {
   }
 }
 
-
-// --- Manual sync ---
 async function manualSyncTtsu() {
   const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
   const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
@@ -448,10 +465,15 @@ async function manualSyncTtsu() {
     return;
   }
 
-  const hasToken = await ensureDriveToken({ allowPrompt: false });
+  // Try silent first, then allow interactive re-auth automatically
+  let hasToken = await ensureDriveToken({ allowPrompt: false });
+  if (!hasToken) {
+    hasToken = await ensureDriveToken({ allowPrompt: true });
+  }
+
   if (!hasToken) {
     const customAlert = window.customAlert || alert;
-    await customAlert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization.', 'Authorization Expired');
+    await customAlert('Google Drive authorization failed. Please try again.', 'Authorization Failed');
     return;
   }
 
@@ -460,16 +482,12 @@ async function manualSyncTtsu() {
     const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
     const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
 
-    const customAlert = window.customAlert || alert;
-    await customAlert(`✅ Sync complete!\n\nNew sessions imported: ${count || 0}\nLast sync: ${lastSyncStr}`, 'Sync Complete');
-
     if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
   } catch (error) {
     const customAlert = window.customAlert || alert;
     await customAlert('Sync failed:\n\n' + (error.message || error), 'Sync Error');
   }
 }
-
 
 // --- Batch load (overwrites all existing data) ---
 async function batchLoadAllTtsu() {
