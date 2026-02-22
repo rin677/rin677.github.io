@@ -381,11 +381,10 @@
       </div>
     </div>
     
-<!-- ttsu Sync Settings -->
 <div class="settings-section">
   <h2>🔄 ttsu Google Drive Sync</h2>
-  <p>Sync your reading data from the ttsu app via Google Drive. Enter your own Google OAuth credentials for permanent silent sync.</p>
-
+  <p>Sync your reading data from the ttsu app via Google Drive. Sync caps after an hour without login</p>
+  
   <div class="setting-item">
     <div class="setting-label">
       <h3>Sync Status</h3>
@@ -396,39 +395,7 @@
       <button class="btn" onclick="manualSyncTtsu()">Sync Now</button>
     </div>
   </div>
-
-  <div class="setting-item">
-    <div class="setting-label">
-      <h3>Google OAuth Client ID</h3>
-      <p>From Google Cloud Console → APIs & Services → Credentials</p>
-    </div>
-    <input type="text" id="ttsuClientIdInput" class="form-input" style="width: 280px; font-size: 11px;"
-      placeholder="xxxxx.apps.googleusercontent.com"
-      value="">
-  </div>
-
-  <div class="setting-item">
-    <div class="setting-label">
-      <h3>Google OAuth Client Secret</h3>
-      <p>From the same OAuth 2.0 client in Cloud Console</p>
-    </div>
-    <input type="password" id="ttsuClientSecretInput" class="form-input" style="width: 280px; font-size: 11px;"
-      placeholder="GOCSPX-...">
-  </div>
-
-  <div class="setting-item" style="border-bottom: none;">
-    <div class="setting-label">
-      <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">
-        1. Go to <strong>console.cloud.google.com</strong><br>
-        2. APIs & Services → Credentials → Create OAuth 2.0 Client ID<br>
-        3. Type: <strong>Web application</strong><br>
-        4. Add your site to <strong>Authorized JavaScript origins</strong><br>
-        5. Add <code>postmessage</code> to <strong>Authorized redirect URIs</strong><br>
-        6. Paste Client ID + Secret above, then click Setup Sync
-      </p>
-    </div>
-  </div>
-
+  
   <div class="setting-item">
     <div class="setting-label">
       <h3>Batch Load</h3>
@@ -436,11 +403,11 @@
     </div>
     <button class="btn" onclick="batchLoadAllTtsu()">📥 Batch Load All</button>
   </div>
-
+  
   <div class="setting-item">
     <div class="setting-label">
       <h3>Disable Sync</h3>
-      <p>Stop automatic syncing and clear credentials</p>
+      <p>Stop automatic syncing from ttsu</p>
     </div>
     <button class="danger-btn" onclick="disableTtsuSync()">Disable</button>
   </div>

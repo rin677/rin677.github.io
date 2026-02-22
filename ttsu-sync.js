@@ -4,8 +4,8 @@ const TTSU_ACCESS_TOKEN_KEY = 'ttsu_access_token';
 const TTSU_TOKEN_EXPIRY_KEY = 'ttsu_token_expiry';
 const TTSU_LAST_SYNC_KEY = 'ttsu_last_sync';
 const TTSU_REFRESH_TOKEN_KEY = 'ttsu_refresh_token';
-const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
-const CLIENT_SECRET = 'GOCSPX-your_secret_here';
+const CLIENT_ID = '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com';
+const CLIENT_SECRET = 'GOCSPX-your_actual_secret'; // from Cloud Console for THIS client
 
 let googleAccessToken = null;
 let tokenClient = null;
