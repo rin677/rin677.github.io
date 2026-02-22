@@ -1399,11 +1399,8 @@ Book title 2"></textarea>
     <div id="ttsuSyncStatus" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; padding: 10px; background: var(--bg-secondary); border-radius: 4px;">
       Status: <span id="ttsuSyncStatusText">Not configured</span>
     </div>
-   <button class="btn" onclick="setupTtsuSync()" style="width: 100%; margin-bottom: 8px;">
-  🔄 Setup ttsu Auto-Sync
-</button>
-<button class="btn" onclick="manualSyncTtsu()" style="width: 100%; margin-bottom: 8px;">
-  ⬇️ Sync Now
+   <button class="btn" onclick="syncTtsu()" style="width: 100%; margin-bottom: 8px;">
+  🔄 Sync ttsu
 </button>
 <button class="btn" onclick="batchLoadAllTtsu()" style="width: 100%; margin-bottom: 8px; background: var(--accent-color); color: white;">
   📥 Batch Load All (Overwrite)
@@ -1609,9 +1606,8 @@ async function quickTtsuSync() {
   svg.style.transition = 'transform 0.6s ease-in-out';
   svg.style.transform = 'rotate(360deg)';
   
-  // Call the sync function
-  if (window.manualSyncTtsu && typeof window.manualSyncTtsu === 'function') {
-    await window.manualSyncTtsu();
+  if (window.syncTtsu && typeof window.syncTtsu === 'function') {
+    await window.syncTtsu();
   }
   
   // Reset rotation

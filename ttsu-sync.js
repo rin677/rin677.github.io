@@ -411,80 +411,52 @@ async function syncFromTtsuGDrive() {
   }
 }
 
-// --- Setup ---
-async function setupTtsuSync() {
-  try {
-    let attempts = 0;
-    while (!initGIS() && attempts < 20) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
-    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh the page.');
+async function syncTtsu() {
+  const customAlert = window.customAlert || alert;
 
-    const ok = await ensureDriveToken({ allowPrompt: true });
-    if (!ok) throw new Error('Authorization failed. Please try again.');
+  // Ensure GIS is ready
+  let attempts = 0;
+  while (!initGIS() && attempts < 20) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    attempts++;
+  }
+  if (!tokenClient) {
+    await customAlert('Google Identity Services not loaded. Please refresh the page.', 'Error');
+    return;
+  }
 
-    const folderId = await findTtsuFolder();
+  // Try silent auth first, fall back to interactive login
+  let hasToken = await ensureDriveToken({ allowPrompt: false });
+  if (!hasToken) {
+    hasToken = await ensureDriveToken({ allowPrompt: true });
+  }
+  if (!hasToken) {
+    await customAlert('Google Drive authorization failed. Please try again.', 'Authorization Failed');
+    return;
+  }
+
+  // Find or reuse folder
+  let folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
+  if (!folderId) {
+    folderId = await findTtsuFolder();
     if (!folderId) {
-      const customAlert = window.customAlert || alert;
       await customAlert(
         'Could not find the "ttu-reader-data" folder in your Google Drive.\n\nMake sure ttsu has exported data first!',
         'Folder Not Found'
       );
       return;
     }
-
     localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
-    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
-
-    await syncFromTtsuGDrive();
-
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-    startAutoSync();
-
-    if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
-
-    const customAlert = window.customAlert || alert;
-    await customAlert('✅ ttsu sync enabled! It will auto-sync every 5 minutes.', 'Sync Enabled');
-
-    if (window.closeTtsuSyncModal) window.closeTtsuSyncModal();
-  } catch (error) {
-    console.error('Setup error:', error);
-    const customAlert = window.customAlert || alert;
-    await customAlert('Failed to setup ttsu sync:\n\n' + (error.message || JSON.stringify(error)), 'Setup Error');
-  }
-}
-
-async function manualSyncTtsu() {
-  const enabled = localStorage.getItem(TTSU_SYNC_ENABLED_KEY) === 'true';
-  const folderId = localStorage.getItem(TTSU_FOLDER_ID_KEY);
-
-  if (!enabled || !folderId) {
-    const customAlert = window.customAlert || alert;
-    await customAlert('ttsu sync is not enabled.\n\nPlease run "Setup ttsu Auto-Sync" once to configure.', 'Sync Not Enabled');
-    return;
   }
 
-  // Try silent first, then allow interactive re-auth automatically
-  let hasToken = await ensureDriveToken({ allowPrompt: false });
-  if (!hasToken) {
-    hasToken = await ensureDriveToken({ allowPrompt: true });
-  }
-
-  if (!hasToken) {
-    const customAlert = window.customAlert || alert;
-    await customAlert('Google Drive authorization failed. Please try again.', 'Authorization Failed');
-    return;
-  }
+  localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
 
   try {
-    const count = await syncFromTtsuGDrive();
-    const lastSync = localStorage.getItem(TTSU_LAST_SYNC_KEY);
-    const lastSyncStr = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
-
+    await syncFromTtsuGDrive();
+    startAutoSync();
     if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
+    if (window.closeTtsuSyncModal) window.closeTtsuSyncModal();
   } catch (error) {
-    const customAlert = window.customAlert || alert;
     await customAlert('Sync failed:\n\n' + (error.message || error), 'Sync Error');
   }
 }
@@ -705,8 +677,7 @@ window.findTtsuFolder = findTtsuFolder;
 window.getBookFolders = getBookFolders;
 window.extractSessionsFromFolder = extractSessionsFromFolder;
 window.syncFromTtsuGDrive = syncFromTtsuGDrive;
-window.setupTtsuSync = setupTtsuSync;
-window.manualSyncTtsu = manualSyncTtsu;
+window.syncTtsu = syncTtsu;
 window.batchLoadAllTtsu = batchLoadAllTtsu;
 window.disableTtsuSync = disableTtsuSync;
 window.checkTtsuSyncStatus = checkTtsuSyncStatus;
