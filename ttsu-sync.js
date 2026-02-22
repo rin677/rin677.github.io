@@ -19,26 +19,26 @@ let codeClient = null;
 let ttsuSyncInterval = null;
 
 function initGIS() {
-  if (tokenClient) return true;
+  if (codeClient) return true;
   if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
     console.log('Google Identity Services not loaded yet');
     return false;
   }
   try {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: 'YOUR_CLIENT_ID.apps.googleusercontent.com',
+    codeClient = google.accounts.oauth2.initCodeClient({
+      client_id: CLIENT_ID,
       scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
+      ux_mode: 'popup',
       callback: () => {}
     });
     console.log('GIS initialized');
     return true;
   } catch (err) {
     console.error('Failed to init GIS:', err);
-    tokenClient = null;
+    codeClient = null;
     return false;
   }
 }
-
 async function exchangeCodeForTokens(code) {
   const secret = getClientSecret();
   if (!secret) throw new Error('No client secret configured. Please enter it in Settings → ttsu Sync.');
