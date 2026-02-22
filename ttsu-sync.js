@@ -6,7 +6,7 @@ const TTSU_LAST_SYNC_KEY = 'ttsu_last_sync';
 const TTSU_REFRESH_TOKEN_KEY = 'ttsu_refresh_token';
 
 // Client ID is fixed for this app
-const CLIENT_ID = '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com';
+const CLIENT_ID = '510422773254-e8a8reeuce9jtn7dgjqq8c7kmeopikdr.apps.googleusercontent.com ';
 
 // Always read CLIENT_SECRET dynamically from localStorage so it survives page reloads
 function getClientSecret() {
