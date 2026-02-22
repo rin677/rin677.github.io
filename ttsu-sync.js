@@ -304,106 +304,66 @@ async function syncFromTtsuGDrive() {
       return 0;
     }
 
-    const sessionsToAdd = [];    // brand new date+title combos
-    const sessionsToUpdate = []; // existing date+title with changed values
-    const bookTitles = new Set();
+    const sessionsToAdd = [];
+const bookTitles = new Set();
 
-    for (const bookFolder of allFolders) {
-      try {
-        console.log(`\n📚 Processing: ${bookFolder.name}`);
-        const sessions = await extractSessionsFromFolder(bookFolder);
-        console.log(`  Found ${sessions.length} sessions`);
+for (const bookFolder of allFolders) {
+  try {
+    console.log(`\n📚 Processing: ${bookFolder.name}`);
+    const sessions = await extractSessionsFromFolder(bookFolder);
 
-        for (const entry of sessions) {
-          const existingIndex = window.data.findIndex(
-            e => e.date === entry.date && e.title === entry.title
-          );
+    for (const entry of sessions) {
+      const existingIndex = window.data.findIndex(
+        e => e.date === entry.date && e.title === entry.title
+      );
 
-          if (existingIndex === -1) {
-            // New entry
-            sessionsToAdd.push(entry);
-            bookTitles.add(entry.title);
-            console.log(`  Will add: ${entry.title} on ${entry.date} (${entry.minutes}min, ${entry.characters}chars)`);
-          } else {
-            const existing = window.data[existingIndex];
-            // Update if values differ
-            if (existing.minutes !== entry.minutes || existing.characters !== entry.characters) {
-              sessionsToUpdate.push({ index: existingIndex, entry });
-              bookTitles.add(entry.title);
-              console.log(`  Will update: ${entry.title} on ${entry.date} (${existing.minutes}→${entry.minutes}min, ${existing.characters}→${entry.characters}chars)`);
-            }
-          }
+      if (existingIndex === -1) {
+        sessionsToAdd.push(entry);
+        bookTitles.add(entry.title);
+      } else {
+        const existing = window.data[existingIndex];
+        if (existing.minutes !== entry.minutes || existing.characters !== entry.characters) {
+          // Silently overwrite with latest values
+          window.data[existingIndex].minutes = entry.minutes;
+          window.data[existingIndex].characters = entry.characters;
+          bookTitles.add(entry.title);
         }
-      } catch (err) {
-        console.error(`  ❌ Error processing "${bookFolder.name}":`, err);
       }
     }
+  } catch (err) {
+    console.error(`  ❌ Error processing "${bookFolder.name}":`, err);
+  }
+}
 
-    console.log(`\n=== SYNC SUMMARY ===`);
-    console.log(`New sessions: ${sessionsToAdd.length}, Updated sessions: ${sessionsToUpdate.length}`);
+if (sessionsToAdd.length === 0) {
+  localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+  const customAlert = window.customAlert || alert;
+  await customAlert(`✅ Already up to date!\n\nChecked ${allFolders.length} book folder(s).`, 'Already Synced');
+  return 0;
+}
 
-    if (sessionsToAdd.length === 0 && sessionsToUpdate.length === 0) {
-      localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-      const customAlert = window.customAlert || alert;
-      await customAlert(
-        `✅ Already up to date!\n\nChecked ${allFolders.length} book folder(s) — no new or changed data.`,
-        'Already Synced'
-      );
-      return 0;
-    }
+window.data.push(...sessionsToAdd);
+bookTitles.forEach(title => {
+  if (title && !window.recentBooks.includes(title)) window.recentBooks.unshift(title);
+});
+window.recentBooks = window.recentBooks.slice(0, 10);
 
-    const bookList = Array.from(bookTitles).join(', ');
-    const customConfirm = window.customConfirm || confirm;
-    const summaryParts = [];
-    if (sessionsToAdd.length > 0) summaryParts.push(`${sessionsToAdd.length} new session(s)`);
-    if (sessionsToUpdate.length > 0) summaryParts.push(`${sessionsToUpdate.length} updated session(s)`);
+if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
+if (typeof data !== 'undefined') data = window.data;
 
-    const confirmed = await customConfirm(
-      `Found ${summaryParts.join(' and ')} from ttsu:\n\nBooks: ${bookList}\n\nApply these changes?`,
-      'Import ttsu Data'
-    );
+localStorage.setItem('reading_heatmap_data', JSON.stringify(window.data));
+localStorage.setItem('reading_heatmap_books', JSON.stringify(window.recentBooks));
+localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
 
-    if (!confirmed) {
-      console.log('User cancelled ttsu import');
-      return 0;
-    }
+if (window.aggregateData) window.aggregateData();
+if (window.loadYear) window.loadYear();
+if (window.renderGoals) window.renderGoals();
+if (window.saveCloudState) await window.saveCloudState();
 
-    // Apply updates in-place
-    for (const { index, entry } of sessionsToUpdate) {
-      window.data[index].minutes = entry.minutes;
-      window.data[index].characters = entry.characters;
-    }
-
-    // Append new entries
-    window.data.push(...sessionsToAdd);
-
-    bookTitles.forEach(title => {
-      if (title && !window.recentBooks.includes(title)) window.recentBooks.unshift(title);
-    });
-    window.recentBooks = window.recentBooks.slice(0, 10);
-
-    if (typeof recentBooks !== 'undefined') recentBooks = window.recentBooks;
-    if (typeof data !== 'undefined') data = window.data;
-
-    localStorage.setItem('reading_heatmap_data', JSON.stringify(window.data));
-    localStorage.setItem('reading_heatmap_books', JSON.stringify(window.recentBooks));
-    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-
-    if (window.aggregateData) window.aggregateData();
-    if (window.loadYear) window.loadYear();
-    if (window.renderGoals) window.renderGoals();
-    if (window.saveCloudState) await window.saveCloudState();
-
-    const totalChanged = sessionsToAdd.length + sessionsToUpdate.length;
-    console.log(`✅ Synced ${totalChanged} sessions`);
-
-    const customAlert = window.customAlert || alert;
-    await customAlert(
-      `✅ Sync complete!\n\nNew: ${sessionsToAdd.length}  Updated: ${sessionsToUpdate.length}\nBooks: ${bookList}`,
-      'Sync Successful'
-    );
-
-    return totalChanged;
+const customAlert = window.customAlert || alert;
+const bookList = Array.from(bookTitles).join(', ');
+await customAlert(`✅ Sync complete!\n\nAdded: ${sessionsToAdd.length} new session(s)\nBooks: ${bookList}`, 'Sync Successful');
+return sessionsToAdd.length;
 
   } catch (error) {
     console.error('❌ SYNC ERROR:', error);
