@@ -19,26 +19,26 @@ let codeClient = null;
 let ttsuSyncInterval = null;
 
 function initGIS() {
-  if (codeClient) return true;
+  if (tokenClient) return true;
   if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
     console.log('Google Identity Services not loaded yet');
     return false;
   }
   try {
-    codeClient = google.accounts.oauth2.initCodeClient({
+    tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
-      ux_mode: 'popup',
       callback: () => {}
     });
     console.log('GIS initialized');
     return true;
   } catch (err) {
     console.error('Failed to init GIS:', err);
-    codeClient = null;
+    tokenClient = null;
     return false;
   }
 }
+
 async function exchangeCodeForTokens(code) {
   const secret = getClientSecret();
   if (!secret) throw new Error('No client secret configured. Please enter it in Settings → ttsu Sync.');
@@ -125,73 +125,62 @@ async function driveDownloadFile(fileId, accessToken) {
 }
 
 async function ensureDriveToken(options = { allowPrompt: false }) {
-  const customAlert = window.customAlert || (msg => console.log(msg));
+  if (!tokenClient) {
+    const ok = initGIS();
+    if (!ok) return false;
+  }
 
-  // 1. Use cached access token if still valid (with 5-min buffer)
+  const customAlert = window.customAlert || (msg => { console.log(msg); });
   const storedToken = localStorage.getItem(TTSU_ACCESS_TOKEN_KEY);
   const storedExpiry = localStorage.getItem(TTSU_TOKEN_EXPIRY_KEY);
-  if (storedToken && storedExpiry && parseInt(storedExpiry) > Date.now() + 5 * 60 * 1000) {
-    googleAccessToken = storedToken;
-    console.log('Using cached access token');
-    return true;
-  }
 
-  // 2. Try silent refresh via stored refresh token
-  if (localStorage.getItem(TTSU_REFRESH_TOKEN_KEY)) {
-    const ok = await refreshAccessToken();
-    if (ok) return true;
-    // Refresh token is dead, fall through to interactive
-  }
-
-  if (!options.allowPrompt) return false;
-
-  // 3. Interactive: get auth code → exchange for tokens (gets refresh token)
-  if (!initGIS()) {
-    let attempts = 0;
-    while (!initGIS() && attempts < 20) {
-      await new Promise(r => setTimeout(r, 500));
-      attempts++;
-    }
-  }
-  if (!codeClient) return false;
-
-  // Ensure we have a client secret before attempting interactive auth
-  if (!getClientSecret()) {
-    await customAlert(
-      'Please enter your Google OAuth Client Secret in the ttsu Sync settings before connecting.',
-      'Client Secret Required'
-    );
-    return false;
-  }
-
-  try {
-    const code = await new Promise((resolve, reject) => {
-      codeClient.callback = (resp) => {
-        if (resp.code) resolve(resp.code);
-        else reject(resp.error || 'no_code');
-      };
-      codeClient.requestCode();
-    });
-
-    const tokens = await exchangeCodeForTokens(code);
-    if (tokens.access_token) {
-      googleAccessToken = tokens.access_token;
-      const expiry = Date.now() + ((tokens.expires_in || 3600) * 1000);
-      localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, tokens.access_token);
-      localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiry.toString());
-      if (tokens.refresh_token) {
-        localStorage.setItem(TTSU_REFRESH_TOKEN_KEY, tokens.refresh_token);
-        console.log('Refresh token saved — future syncs will be fully silent');
-      }
+  if (storedToken && storedExpiry) {
+    const expiryTime = parseInt(storedExpiry, 10);
+    if (expiryTime > Date.now() + (5 * 60 * 1000)) {
+      googleAccessToken = storedToken;
       return true;
     }
-    console.error('Token exchange failed:', tokens);
-    await customAlert('Google authorization failed: ' + (tokens.error_description || tokens.error || 'Unknown error'), 'Auth Error');
-    return false;
-  } catch (err) {
-    console.error('Interactive auth failed:', err);
-    await customAlert('Authorization popup was closed or failed. Please try again.', 'Auth Failed');
-    return false;
+  }
+
+  if (!tokenClient) return false;
+
+  const saveToken = (resp) => {
+    googleAccessToken = resp.access_token;
+    const expiryTime = Date.now() + ((resp.expires_in || 3600) * 1000);
+    localStorage.setItem(TTSU_ACCESS_TOKEN_KEY, resp.access_token);
+    localStorage.setItem(TTSU_TOKEN_EXPIRY_KEY, expiryTime.toString());
+  };
+
+  try {
+    await new Promise((resolve, reject) => {
+      tokenClient.callback = (resp) => {
+        if (resp && !resp.error && resp.access_token) { saveToken(resp); resolve(); }
+        else reject(resp?.error || 'silent_token_failed');
+      };
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+    return true;
+  } catch (silentErr) {
+    if (!options.allowPrompt) {
+      localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
+      return false;
+    }
+    try {
+      await new Promise((resolve, reject) => {
+        tokenClient.callback = (resp) => {
+          if (resp && !resp.error && resp.access_token) { saveToken(resp); resolve(); }
+          else reject(resp?.error || 'prompt_token_failed');
+        };
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+      return true;
+    } catch (promptErr) {
+      localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
+      await customAlert('Authorization failed or was cancelled.', 'Auth Failed');
+      return false;
+    }
   }
 }
 
@@ -430,68 +419,34 @@ async function syncFromTtsuGDrive() {
 
 async function setupTtsuSync() {
   const customAlert = window.customAlert || alert;
+  try {
+    let attempts = 0;
+    while (!initGIS() && attempts < 20) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      attempts++;
+    }
+    if (!tokenClient) throw new Error('Google Identity Services not loaded. Please refresh the page.');
 
-  // Read and save client secret from the settings input (if on settings page)
-  const secretInput = document.getElementById('ttsuClientSecretInput');
-  if (secretInput && secretInput.value.trim()) {
-    localStorage.setItem('ttsu_client_secret', secretInput.value.trim());
+    const ok = await ensureDriveToken({ allowPrompt: true });
+    if (!ok) throw new Error('Authorization failed. Please try again.');
+
+    const folderId = await findTtsuFolder();
+    if (!folderId) {
+      await customAlert('Could not find the "ttu-reader-data" folder in your Google Drive.\n\nMake sure ttsu has exported data first!', 'Folder Not Found');
+      return;
+    }
+
+    localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
+    localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
+    await syncFromTtsuGDrive();
+    localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
+    startAutoSync();
+    if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
+    await customAlert('✅ ttsu sync enabled! Note: re-authorization needed every ~50 minutes.', 'Sync Enabled');
+    if (window.closeTtsuSyncModal) window.closeTtsuSyncModal();
+  } catch (error) {
+    await customAlert('Failed to setup ttsu sync:\n\n' + (error.message || error), 'Setup Error');
   }
-
-  // Validate we have a client secret
-  if (!getClientSecret()) {
-    await customAlert(
-      'Please enter your Google OAuth Client Secret before setting up sync.\n\nGet it from console.cloud.google.com → APIs & Services → Credentials.',
-      'Client Secret Required'
-    );
-    return;
-  }
-
-  // Clear stale tokens to force fresh auth
-  localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
-  localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
-  localStorage.removeItem(TTSU_REFRESH_TOKEN_KEY);
-  googleAccessToken = null;
-  tokenClient = null;
-  codeClient = null;
-
-  let attempts = 0;
-  while (!initGIS() && attempts < 20) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    attempts++;
-  }
-  if (!codeClient) {
-    await customAlert('Google Identity Services not loaded. Please refresh the page.', 'Error');
-    return;
-  }
-
-  const ok = await ensureDriveToken({ allowPrompt: true });
-  if (!ok) {
-    await customAlert('Authorization failed. Please try again.', 'Auth Failed');
-    return;
-  }
-
-  const folderId = await findTtsuFolder();
-  if (!folderId) {
-    await customAlert(
-      'Could not find the "ttu-reader-data" folder in your Google Drive.\n\nMake sure ttsu has exported data first!',
-      'Folder Not Found'
-    );
-    return;
-  }
-
-  localStorage.setItem(TTSU_FOLDER_ID_KEY, folderId);
-  localStorage.setItem(TTSU_SYNC_ENABLED_KEY, 'true');
-
-  await syncFromTtsuGDrive();
-  localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
-  startAutoSync();
-
-  if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
-  await customAlert(
-    '✅ ttsu sync enabled!\n\nYour refresh token has been saved — future syncs will be fully silent and automatic.',
-    'Sync Enabled'
-  );
-  if (window.closeTtsuSyncModal) window.closeTtsuSyncModal();
 }
 
 async function manualSyncTtsu() {
