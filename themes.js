@@ -357,7 +357,7 @@ window.THEMES = {
         border: 1px solid rgba(255,255,255,0.10) !important;
         border-top-color: rgba(255,255,255,0.22) !important;
         border-bottom-color: rgba(0,0,0,0.30) !important;
-        box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 16px 40px rgba(0,0,0,0.50) !important;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 8px 24px -8px rgba(0,0,0,0.55) !important;
       }
       .modal-content {
         background: rgba(0,0,0,0.32) !important;
@@ -365,7 +365,7 @@ window.THEMES = {
         -webkit-backdrop-filter: blur(32px) saturate(160%) !important;
         border: 1px solid rgba(255,255,255,0.12) !important;
         border-top-color: rgba(255,255,255,0.26) !important;
-        box-shadow: 0 1px 0 rgba(255,255,255,0.14) inset, 0 24px 60px rgba(0,0,0,0.60) !important;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.14) inset, 0 12px 32px -8px rgba(0,0,0,0.65) !important;
       }
       .entry-item, .leaderboard-entry {
         background: rgba(255,255,255,0.05) !important;
