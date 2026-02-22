@@ -453,36 +453,33 @@ async function syncFromTtsuGDrive() {
 
 async function setupTtsuSync() {
   const customAlert = window.customAlert || alert;
-  const customPrompt = window.customPrompt || prompt;
 
-  // Ask for client credentials if not stored
-  let clientId = localStorage.getItem(TTSU_CLIENT_ID_KEY);
-  let clientSecret = localStorage.getItem(TTSU_CLIENT_SECRET_KEY);
+  // Read from input fields if on settings page, else from localStorage
+  const idInput = document.getElementById('ttsuClientIdInput');
+  const secretInput = document.getElementById('ttsuClientSecretInput');
+
+  let clientId = idInput ? idInput.value.trim() : localStorage.getItem(TTSU_CLIENT_ID_KEY);
+  let clientSecret = secretInput ? secretInput.value.trim() : localStorage.getItem(TTSU_CLIENT_SECRET_KEY);
 
   if (!clientId || !clientSecret) {
     await customAlert(
-      'You need a Google OAuth Client ID and Secret.\n\n' +
-      '1. Go to console.cloud.google.com\n' +
-      '2. APIs & Services → Credentials\n' +
-      '3. Create OAuth 2.0 Client ID (Web application)\n' +
-      '4. Add your site URL to Authorized JavaScript origins\n' +
-      '5. Paste the Client ID and Secret below',
-      'Setup Required'
+      'Please enter your Google OAuth Client ID and Secret in the fields above before clicking Setup Sync.',
+      'Credentials Required'
     );
-
-    clientId = await customPrompt('Paste your Google OAuth Client ID:', 'Client ID');
-    if (!clientId || !clientId.trim()) return;
-
-    clientSecret = await customPrompt('Paste your Google OAuth Client Secret:', 'Client Secret');
-    if (!clientSecret || !clientSecret.trim()) return;
-
-    localStorage.setItem(TTSU_CLIENT_ID_KEY, clientId.trim());
-    localStorage.setItem(TTSU_CLIENT_SECRET_KEY, clientSecret.trim());
-
-    // Reset clients so initGIS uses the new credentials
-    tokenClient = null;
-    codeClient = null;
+    return;
   }
+
+  // Save credentials
+  localStorage.setItem(TTSU_CLIENT_ID_KEY, clientId);
+  localStorage.setItem(TTSU_CLIENT_SECRET_KEY, clientSecret);
+
+  // Clear any stale tokens so we do a fresh auth
+  localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
+  localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
+  localStorage.removeItem(TTSU_REFRESH_TOKEN_KEY);
+  googleAccessToken = null;
+  tokenClient = null;
+  codeClient = null;
 
   let attempts = 0;
   while (!initGIS() && attempts < 20) {
@@ -496,7 +493,7 @@ async function setupTtsuSync() {
 
   const ok = await ensureDriveToken({ allowPrompt: true });
   if (!ok) {
-    await customAlert('Authorization failed. Please try again.', 'Auth Failed');
+    await customAlert('Authorization failed. Make sure your Client ID and Secret are correct, and that your site URL is in Authorized JavaScript origins and postmessage is in Authorized redirect URIs in Google Cloud Console.', 'Auth Failed');
     return;
   }
 
@@ -518,7 +515,6 @@ async function setupTtsuSync() {
 
   if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
   await customAlert('✅ ttsu sync enabled! Future syncs will be fully silent — no login needed.', 'Sync Enabled');
-  if (window.closeTtsuSyncModal) window.closeTtsuSyncModal();
 }
 
 async function manualSyncTtsu() {
