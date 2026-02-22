@@ -4,8 +4,8 @@ const TTSU_ACCESS_TOKEN_KEY = 'ttsu_access_token';
 const TTSU_TOKEN_EXPIRY_KEY = 'ttsu_token_expiry';
 const TTSU_LAST_SYNC_KEY = 'ttsu_last_sync';
 const TTSU_REFRESH_TOKEN_KEY = 'ttsu_refresh_token';
-const TTSU_CLIENT_ID_KEY = 'ttsu_client_id';
-const TTSU_CLIENT_SECRET_KEY = 'ttsu_client_secret';
+const CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+const CLIENT_SECRET = 'GOCSPX-your_secret_here';
 
 let googleAccessToken = null;
 let tokenClient = null;
@@ -13,27 +13,21 @@ let codeClient = null;
 let ttsuSyncInterval = null;
 
 function initGIS() {
-  const clientId = localStorage.getItem(TTSU_CLIENT_ID_KEY);
-  if (!clientId) return false;
-
   if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
     console.log('Google Identity Services not loaded yet');
     return false;
   }
-
   try {
-    // Token client for silent refresh check
     if (!tokenClient) {
       tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
+        client_id: CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
         callback: () => {}
       });
     }
-    // Code client for auth code flow (gets refresh token)
     if (!codeClient) {
       codeClient = google.accounts.oauth2.initCodeClient({
-        client_id: clientId,
+        client_id: CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
         ux_mode: 'popup',
         callback: () => {}
@@ -50,15 +44,13 @@ function initGIS() {
 }
 
 async function exchangeCodeForTokens(code) {
-  const clientId = localStorage.getItem(TTSU_CLIENT_ID_KEY);
-  const clientSecret = localStorage.getItem(TTSU_CLIENT_SECRET_KEY);
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       code,
-      client_id: clientId,
-      client_secret: clientSecret,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
       redirect_uri: 'postmessage',
       grant_type: 'authorization_code'
     })
@@ -68,9 +60,7 @@ async function exchangeCodeForTokens(code) {
 
 async function refreshAccessToken() {
   const refreshToken = localStorage.getItem(TTSU_REFRESH_TOKEN_KEY);
-  const clientId = localStorage.getItem(TTSU_CLIENT_ID_KEY);
-  const clientSecret = localStorage.getItem(TTSU_CLIENT_SECRET_KEY);
-  if (!refreshToken || !clientId || !clientSecret) return false;
+  if (!refreshToken) return false;
 
   try {
     const resp = await fetch('https://oauth2.googleapis.com/token', {
@@ -78,8 +68,8 @@ async function refreshAccessToken() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
         grant_type: 'refresh_token'
       })
     });
@@ -454,26 +444,7 @@ async function syncFromTtsuGDrive() {
 async function setupTtsuSync() {
   const customAlert = window.customAlert || alert;
 
-  // Read from input fields if on settings page, else from localStorage
-  const idInput = document.getElementById('ttsuClientIdInput');
-  const secretInput = document.getElementById('ttsuClientSecretInput');
-
-  let clientId = idInput ? idInput.value.trim() : localStorage.getItem(TTSU_CLIENT_ID_KEY);
-  let clientSecret = secretInput ? secretInput.value.trim() : localStorage.getItem(TTSU_CLIENT_SECRET_KEY);
-
-  if (!clientId || !clientSecret) {
-    await customAlert(
-      'Please enter your Google OAuth Client ID and Secret in the fields above before clicking Setup Sync.',
-      'Credentials Required'
-    );
-    return;
-  }
-
-  // Save credentials
-  localStorage.setItem(TTSU_CLIENT_ID_KEY, clientId);
-  localStorage.setItem(TTSU_CLIENT_SECRET_KEY, clientSecret);
-
-  // Clear any stale tokens so we do a fresh auth
+  // Clear stale tokens to force fresh auth
   localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
   localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
   localStorage.removeItem(TTSU_REFRESH_TOKEN_KEY);
@@ -493,7 +464,7 @@ async function setupTtsuSync() {
 
   const ok = await ensureDriveToken({ allowPrompt: true });
   if (!ok) {
-    await customAlert('Authorization failed. Make sure your Client ID and Secret are correct, and that your site URL is in Authorized JavaScript origins and postmessage is in Authorized redirect URIs in Google Cloud Console.', 'Auth Failed');
+    await customAlert('Authorization failed. Please try again.', 'Auth Failed');
     return;
   }
 
@@ -514,7 +485,8 @@ async function setupTtsuSync() {
   startAutoSync();
 
   if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
-  await customAlert('✅ ttsu sync enabled! Future syncs will be fully silent — no login needed.', 'Sync Enabled');
+  await customAlert('✅ ttsu sync enabled! Future syncs will be fully silent.', 'Sync Enabled');
+  if (window.closeTtsuSyncModal) window.closeTtsuSyncModal();
 }
 
 async function manualSyncTtsu() {
@@ -701,8 +673,6 @@ function disableTtsuSync() {
   localStorage.removeItem(TTSU_ACCESS_TOKEN_KEY);
   localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
   localStorage.removeItem(TTSU_REFRESH_TOKEN_KEY);
-  localStorage.removeItem(TTSU_CLIENT_ID_KEY);
-  localStorage.removeItem(TTSU_CLIENT_SECRET_KEY);
   googleAccessToken = null;
 
   customAlert('ttsu sync has been disabled.', 'Sync Disabled');
