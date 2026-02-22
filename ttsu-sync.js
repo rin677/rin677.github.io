@@ -335,7 +335,7 @@ for (const bookFolder of allFolders) {
   }
 }
 
-if (sessionsToAdd.length === 0) {
+if (sessionsToAdd.length === 0 && bookTitles.size === 0) {
   localStorage.setItem(TTSU_LAST_SYNC_KEY, new Date().toISOString());
   const customAlert = window.customAlert || alert;
   await customAlert(`✅ Already up to date!\n\nChecked ${allFolders.length} book folder(s).`, 'Already Synced');
@@ -362,7 +362,7 @@ if (window.saveCloudState) await window.saveCloudState();
 
 const customAlert = window.customAlert || alert;
 const bookList = Array.from(bookTitles).join(', ');
-await customAlert(`✅ Sync complete!\n\nAdded: ${sessionsToAdd.length} new session(s)\nBooks: ${bookList}`, 'Sync Successful');
+await customAlert(`✅ Sync complete!\n\nNew: ${sessionsToAdd.length}  Updated: ${bookTitles.size - sessionsToAdd.length}\nBooks: ${bookList}`, 'Sync Successful');
 return sessionsToAdd.length;
 
   } catch (error) {
