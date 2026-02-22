@@ -494,8 +494,7 @@ async function batchLoadAllTtsu() {
     } else {
       const hasToken = await ensureDriveToken({ allowPrompt: false });
       if (!hasToken) {
-        await customAlert('Google Drive authorization has expired. Please press "Setup ttsu Auto-Sync" once to refresh authorization.', 'Authorization Expired');
-        return;
+      await customAlert('Google Drive authorization has expired. Please press "Sync ttsu" to re-authorize.', 'Authorization Expired');        return;
       }
     }
 
@@ -601,13 +600,11 @@ function startAutoSync() {
   }, 5 * 60 * 1000);
 }
 
-
-// --- Disable sync ---
-function disableTtsuSync() {
+async function disableTtsuSync() {
   const customConfirm = window.customConfirm || confirm;
   const customAlert = window.customAlert || alert;
 
-  const confirmed = customConfirm('Disable automatic ttsu sync from Google Drive?\n\nYou can re-enable it anytime.', 'Disable Sync');
+  const confirmed = await customConfirm('Disable automatic ttsu sync from Google Drive?\n\nYou can re-enable it anytime.', 'Disable Sync');
   if (!confirmed) return;
 
   if (ttsuSyncInterval) {
@@ -621,7 +618,7 @@ function disableTtsuSync() {
   localStorage.removeItem(TTSU_TOKEN_EXPIRY_KEY);
   googleAccessToken = null;
 
-  customAlert('ttsu sync has been disabled.', 'Sync Disabled');
+  await customAlert('ttsu sync has been disabled.', 'Sync Disabled');
 
   if (window.loadTtsuSyncStatus) window.loadTtsuSyncStatus();
 }
